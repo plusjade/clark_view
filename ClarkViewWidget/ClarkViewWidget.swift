@@ -112,6 +112,7 @@ struct ClarkViewWidget: Widget {
         .configurationDisplayName("Games")
         .description("Shows a day's games.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .contentMarginsDisabled()
     }
 }
 
