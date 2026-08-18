@@ -1,0 +1,5 @@
+excluded:
+  - clark_view.xcodeproj
+
+disabled_rules:
+  - type_name # project name contains an underscore, so every top-level type inherits it
