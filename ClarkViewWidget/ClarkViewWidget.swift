@@ -16,7 +16,7 @@ private enum GameImageService {
     // devices pick up a fresh generation instead of a stale cached response.
     static let cacheBust = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
 
-    static func url(pixelWidth: Int, pixelHeight: Int, day: GameDay) -> URL {
+    static func url(pixelWidth: Int, pixelHeight: Int, day: GameDay, teams: [FavoriteTeam]) -> URL {
         var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)!
         components.queryItems = [
             URLQueryItem(name: "day", value: day.rawValue),
@@ -24,15 +24,17 @@ private enum GameImageService {
             URLQueryItem(name: "w", value: String(pixelWidth)),
             URLQueryItem(name: "h", value: String(pixelHeight)),
             URLQueryItem(name: "v", value: cacheBust)
-        ]
+        ] + teams.map { URLQueryItem(name: "teams[]", value: $0.id) }
         return components.url!
     }
 
-    static func fetchImageData(displaySize: CGSize, scale: CGFloat, day: GameDay) async -> Data? {
+    static func fetchImageData(
+        displaySize: CGSize, scale: CGFloat, day: GameDay, teams: [FavoriteTeam]
+    ) async -> Data? {
         let pixelWidth = Int((displaySize.width * scale).rounded())
         let pixelHeight = Int((displaySize.height * scale).rounded())
         let request = URLRequest(
-            url: url(pixelWidth: pixelWidth, pixelHeight: pixelHeight, day: day),
+            url: url(pixelWidth: pixelWidth, pixelHeight: pixelHeight, day: day, teams: teams),
             cachePolicy: .reloadIgnoringLocalCacheData
         )
         do {
@@ -62,7 +64,7 @@ struct Provider: AppIntentTimelineProvider {
     func snapshot(for configuration: Intent, in context: Context) async -> GameImageEntry {
         let scale = await UIScreen.main.scale
         let data = await GameImageService.fetchImageData(
-            displaySize: context.displaySize, scale: scale, day: configuration.day
+            displaySize: context.displaySize, scale: scale, day: configuration.day, teams: configuration.teams
         )
         return GameImageEntry(date: .now, imageData: data)
     }
@@ -70,7 +72,7 @@ struct Provider: AppIntentTimelineProvider {
     func timeline(for configuration: Intent, in context: Context) async -> Timeline<GameImageEntry> {
         let scale = await UIScreen.main.scale
         let data = await GameImageService.fetchImageData(
-            displaySize: context.displaySize, scale: scale, day: configuration.day
+            displaySize: context.displaySize, scale: scale, day: configuration.day, teams: configuration.teams
         )
         let entry = GameImageEntry(date: .now, imageData: data)
         // Data doesn't change fast enough to justify burning the refresh budget more often
