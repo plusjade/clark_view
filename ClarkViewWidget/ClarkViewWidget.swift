@@ -23,7 +23,10 @@ private enum GameImageService {
             URLQueryItem(name: "format", value: "png"),
             URLQueryItem(name: "w", value: String(pixelWidth)),
             URLQueryItem(name: "h", value: String(pixelHeight)),
-            URLQueryItem(name: "v", value: cacheBust)
+            URLQueryItem(name: "v", value: cacheBust),
+            // Seconds east of GMT, so the server can resolve today|tomorrow against
+            // the device's local date instead of its own.
+            URLQueryItem(name: "tz", value: String(TimeZone.current.secondsFromGMT()))
         ] + teams.map { URLQueryItem(name: "teams[]", value: $0.id) }
         return components.url!
     }
