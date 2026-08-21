@@ -93,6 +93,11 @@
 			path = ClarkViewWidget;
 			sourceTree = "<group>";
 		};
+		A497E060303448F00039483F /* Shared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Shared;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -136,6 +141,7 @@
 				A497E01C303443050039483F /* clark_viewTests */,
 				A497E026303443050039483F /* clark_viewUITests */,
 				A497E040303448EF0039483F /* ClarkViewWidget */,
+				A497E060303448F00039483F /* Shared */,
 				A497E03B303448EF0039483F /* Frameworks */,
 				A497E00D303443030039483F /* Products */,
 			);
@@ -180,6 +186,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				A497E00E303443030039483F /* clark_view */,
+				A497E060303448F00039483F /* Shared */,
 			);
 			name = clark_view;
 			packageProductDependencies = (
@@ -248,6 +255,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				A497E040303448EF0039483F /* ClarkViewWidget */,
+				A497E060303448F00039483F /* Shared */,
 			);
 			name = ClarkViewWidgetExtension;
 			packageProductDependencies = (
