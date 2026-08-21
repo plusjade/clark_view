@@ -9,15 +9,28 @@ import WidgetKit
 import SwiftUI
 
 private enum GameDataService {
-    // TODO: Replace with a real fetch once the server exposes `?format=json`
-    // (see discuss: schema-driven widget, 2026-08-20). Swap this function's
-    // body for a URLSession/JSONDecoder call against GameImageURL and the
-    // rest of the pipeline is unchanged.
     static func fetchGames(day: GameDay, teams: [FavoriteTeam]) async -> [Game] {
-        mockGames
+        let request = URLRequest(
+            url: GameImageURL.jsonURL(
+                day: day.rawValue,
+                tzSecondsFromGMT: TimeZone.current.secondsFromGMT(),
+                teamIDs: teams.map(\.id)
+            ),
+            cachePolicy: .reloadIgnoringLocalCacheData
+        )
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                return []
+            }
+            return try JSONDecoder.gameSchema.decode(GameSchema.self, from: data).games
+        } catch {
+            return []
+        }
     }
 
-    /// Synchronous so #Preview timeline blocks (which can't await) can use it too.
+    /// Synchronous so #Preview timeline blocks (which can't await) can use it too — not used
+    /// by fetchGames anymore now that the live endpoint is up.
     static var mockGames: [Game] {
         (try? JSONDecoder.gameSchema.decode(GameSchema.self, from: mockJSON))?.games ?? []
     }

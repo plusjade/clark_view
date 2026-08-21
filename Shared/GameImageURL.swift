@@ -43,4 +43,23 @@ enum GameImageURL {
         components.queryItems = queryItems
         return components.url!
     }
+
+    static func jsonURL(
+        day: String,
+        tzSecondsFromGMT: Int? = nil,
+        teamIDs: [String] = []
+    ) -> URL {
+        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)!
+        var queryItems = [
+            URLQueryItem(name: "day", value: day),
+            URLQueryItem(name: "format", value: "json"),
+            URLQueryItem(name: "v", value: cacheBust)
+        ]
+        if let tzSecondsFromGMT {
+            queryItems.append(URLQueryItem(name: "tz", value: String(tzSecondsFromGMT)))
+        }
+        queryItems += teamIDs.map { URLQueryItem(name: "teams[]", value: $0) }
+        components.queryItems = queryItems
+        return components.url!
+    }
 }
