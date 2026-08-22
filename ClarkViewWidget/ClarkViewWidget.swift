@@ -9,7 +9,7 @@ import WidgetKit
 import SwiftUI
 
 private enum GameDataService {
-    static func fetchGames(day: GameDay, teams: [FavoriteTeam]) async -> [Game] {
+    static func fetchPayload(day: GameDay, teams: [FavoriteTeam]) async -> WidgetPayload {
         let request = URLRequest(
             url: GameImageURL.jsonURL(
                 day: day.rawValue,
@@ -21,83 +21,76 @@ private enum GameDataService {
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                return []
+                return .empty
             }
-            return try JSONDecoder.gameSchema.decode(GameSchema.self, from: data).games
+            return try JSONDecoder.widgetPayload.decode(WidgetPayload.self, from: data)
         } catch {
-            return []
+            return .empty
         }
     }
 
-    /// Synchronous so #Preview timeline blocks (which can't await) can use it too — not used
-    /// by fetchGames anymore now that the live endpoint is up.
-    static var mockGames: [Game] {
-        (try? JSONDecoder.gameSchema.decode(GameSchema.self, from: mockJSON))?.games ?? []
+    /// Drives both the live provider and #Preview until the server mirrors the v2
+    /// (schemaVersion 2, item-list) contract — the live endpoint still returns v1 as of this
+    /// writing. Swap `fetchPayload`'s call site back to the network fetch below once it does;
+    /// `fetchPayload` itself is left wired up and unchanged so that's a one-line flip.
+    static var mockPayload: WidgetPayload {
+        (try? JSONDecoder.widgetPayload.decode(WidgetPayload.self, from: mockJSON)) ?? .empty
     }
 
     private static let mockJSON = Data("""
     {
-      "schemaVersion": 1,
-      "day": "today",
-      "games": [
+      "schemaVersion": 2,
+      "eyebrow": "TODAY",
+      "items": [
         {
-          "id": "1",
-          "status": "live",
-          "startTime": "2026-08-20T23:05:00Z",
-          "away": { "id": "sparks", "abbreviation": "LAS", "name": "Sparks", "score": null, "colorHex": "#552583" },
-          "home": { "id": "fever", "abbreviation": "IND", "name": "Fever", "score": null, "colorHex": "#FFC633" },
-          "detail": null
+          "id": "1", "mainText": "Sparks", "subText": "Fever",
+          "caption": "LIVE", "emphasized": true, "timestamp": 1787345100
         },
         {
-          "id": "2",
-          "status": "scheduled",
-          "startTime": "2026-08-21T02:10:00Z",
-          "away": { "id": "dodgers", "abbreviation": "LAD", "name": "Dodgers", "score": null, "colorHex": "#005A9C" },
-          "home": { "id": "sf", "abbreviation": "SF", "name": "Giants", "score": null, "colorHex": "#FD5A1E" },
-          "detail": null
+          "id": "2", "mainText": "Dodgers", "subText": "Giants",
+          "caption": null, "emphasized": false, "timestamp": 1787357400
         },
         {
-          "id": "3",
-          "status": "final",
-          "startTime": "2026-08-20T20:00:00Z",
-          "away": { "id": "warriors", "abbreviation": "GSW", "name": "Warriors", "score": null, "colorHex": "#1D428A" },
-          "home": { "id": "lakers", "abbreviation": "LAL", "name": "Lakers", "score": null, "colorHex": "#552583" },
-          "detail": null
+          "id": "3", "mainText": "Warriors", "subText": "Lakers",
+          "caption": "FINAL", "emphasized": false, "timestamp": 1787335200
         }
       ]
     }
     """.utf8)
 }
 
+private extension WidgetPayload {
+    static let empty = WidgetPayload(schemaVersion: 2, eyebrow: nil, items: [])
+}
+
 private extension JSONDecoder {
-    static let gameSchema: JSONDecoder = {
+    static let widgetPayload: JSONDecoder = {
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        decoder.dateDecodingStrategy = .secondsSince1970
         return decoder
     }()
 }
 
 struct GamesEntry: TimelineEntry {
     let date: Date
-    let day: GameDay
-    let games: [Game]
+    let payload: WidgetPayload
 }
 
 struct Provider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> GamesEntry {
-        GamesEntry(date: .now, day: .today, games: [])
+        GamesEntry(date: .now, payload: .empty)
     }
 
     typealias Intent = ClarkViewWidgetConfigurationIntent
 
     func snapshot(for configuration: Intent, in context: Context) async -> GamesEntry {
-        let games = await GameDataService.fetchGames(day: configuration.day, teams: configuration.teams)
-        return GamesEntry(date: .now, day: configuration.day, games: games)
+        // Swap for GameDataService.fetchPayload(day:teams:) once the server mirrors the v2
+        // (schemaVersion 2, item-list) contract — it still returns v1 as of this writing.
+        GamesEntry(date: .now, payload: GameDataService.mockPayload)
     }
 
     func timeline(for configuration: Intent, in context: Context) async -> Timeline<GamesEntry> {
-        let games = await GameDataService.fetchGames(day: configuration.day, teams: configuration.teams)
-        let entry = GamesEntry(date: .now, day: configuration.day, games: games)
+        let entry = GamesEntry(date: .now, payload: GameDataService.mockPayload)
         // Data doesn't change fast enough to justify burning the refresh budget more often
         // than this; retune if games start/finish mid-refresh-window.
         let nextRefresh = Calendar.current.date(byAdding: .minute, value: 60, to: .now)
@@ -105,32 +98,30 @@ struct Provider: AppIntentTimelineProvider {
     }
 }
 
-/// Team name only — no score, no live clock. The widget's whole value proposition is
-/// showing just "which of my teams, and when," not duplicating what every other sports
-/// app already shows; see statusCaption below for the same principle applied to status.
-private struct TeamLineView: View {
-    let team: TeamScore
+/// One line of an item's main/sub text — no score, no live clock. The widget's whole value
+/// proposition is showing just "which of my teams, and when," not duplicating what every
+/// other sports app already shows; see displayCaption below for the same principle applied
+/// to status.
+private struct ItemLineView: View {
+    let text: String
     let font: Font
 
     var body: some View {
-        Text(team.name)
+        Text(text)
             .font(font)
             .lineLimit(1)
     }
 }
 
 /// Status stays a single word or a bare time — never the live-game clock/quarter, and never
-/// a score. "LIVE"/"FINAL" tell you what you need (is it worth checking a real score tracker
-/// right now?) without importing the noise this widget is deliberately not competing on.
-private func statusCaption(for game: Game) -> (text: String, color: Color) {
-    switch game.status {
-    case .scheduled:
-        (game.startTime.formatted(date: .omitted, time: .shortened), .white.opacity(0.6))
-    case .live:
-        ("LIVE", .red)
-    case .final:
-        ("FINAL", .white.opacity(0.55))
+/// a score. The server pre-formats `caption` ("LIVE"/"FINAL") and decides `emphasized` for
+/// the view-based contract; the one exception is the not-yet-started case, where the client
+/// formats the raw `timestamp` itself so it respects the device's locale/24-hour setting.
+private func displayCaption(for item: WidgetItem) -> (text: String, color: Color) {
+    guard let caption = item.caption else {
+        return (item.timestamp.formatted(date: .omitted, time: .shortened), .white.opacity(0.6))
     }
+    return (caption, item.emphasized ? .red : .white.opacity(0.55))
 }
 
 private struct StackSizeKey: PreferenceKey {
@@ -144,7 +135,7 @@ private struct StackSizeKey: PreferenceKey {
 /// inside `content` still come from a TextStyle (see nameFont's comment on why that matters),
 /// the accessibility scaling curve is preserved: bump the system text size and the natural
 /// (pre-scale) measurement grows too, so the computed multiplier shrinks to compensate rather
-/// than overflowing the frame. Generic over one game's two lines (small) or several games'
+/// than overflowing the frame. Generic over one item's two lines (small) or several items'
 /// worth of blocks stacked together (medium/large) — same mechanism either way.
 ///
 /// Caveat worth verifying on-device: this is a two-pass measure-then-render technique, and
@@ -181,61 +172,63 @@ private struct AutoFitStack<Content: View>: View {
     }
 }
 
-/// Small widget: one game, maximized. This is deliberately not a scaled-down version of the
-/// multi-game layout below — small is a single-game "glance" case, so it gets its own
-/// full-bleed template instead of being squeezed into the block layout medium/large share.
-private struct HeroGameCard: View {
-    let game: Game
-    let day: GameDay
+/// Small widget: one item, maximized. This is deliberately not a scaled-down version of the
+/// multi-item layout below — small is a single-glance case, so it gets its own full-bleed
+/// template instead of being squeezed into the block layout medium/large share.
+private struct ItemHeroCard: View {
+    let item: WidgetItem
+    let eyebrow: String?
 
     private var heroFont: Font {
         .system(.largeTitle, design: .monospaced, weight: .black)
     }
 
     var body: some View {
-        let status = statusCaption(for: game)
+        let caption = displayCaption(for: item)
         VStack(alignment: .leading, spacing: 8) {
-            Text(day.rawValue.uppercased())
-                .font(.system(.caption2, design: .rounded, weight: .bold))
-                .tracking(1.5)
-                .foregroundStyle(.white.opacity(0.5))
-
-            AutoFitStack(spacing: 4) {
-                TeamLineView(team: game.away, font: heroFont)
-                TeamLineView(team: game.home, font: heroFont)
+            if let eyebrow {
+                Text(eyebrow)
+                    .font(.system(.caption2, design: .rounded, weight: .bold))
+                    .tracking(1.5)
+                    .foregroundStyle(.white.opacity(0.5))
             }
 
-            Text(status.text)
+            AutoFitStack(spacing: 4) {
+                ItemLineView(text: item.mainText, font: heroFont)
+                ItemLineView(text: item.subText, font: heroFont)
+            }
+
+            Text(caption.text)
                 .font(.system(.subheadline, design: .rounded, weight: .semibold))
-                .foregroundStyle(status.color)
+                .foregroundStyle(caption.color)
         }
         .foregroundStyle(.white)
     }
 }
 
-/// One game's block within the medium/large stack: two team-name lines + a status caption,
-/// all measured and scaled together by the enclosing AutoFitStack so caption-to-name
-/// proportions stay consistent as the shared scale grows or shrinks.
-private struct GameBlockView: View {
-    let game: Game
+/// One item's block within the medium/large stack: two text lines + a status caption, all
+/// measured and scaled together by the enclosing AutoFitStack so caption-to-text proportions
+/// stay consistent as the shared scale grows or shrinks.
+private struct ItemBlockView: View {
+    let item: WidgetItem
 
     // Confirmed (2026-08-20): any Font.system(size:...) construction silently drops `design`
     // in this widget's rendering pipeline, regardless of how weight is attached. Only the
     // TextStyle-relative initializer (.system(_:design:weight:)) threads `design` correctly
     // here — the reference tier only sets the *relative* size vs. the caption below; the
     // enclosing AutoFitStack rescales the whole block to fit anyway.
-    private var nameFont: Font {
+    private var textFont: Font {
         .system(.title2, design: .monospaced, weight: .black)
     }
 
     var body: some View {
-        let status = statusCaption(for: game)
+        let caption = displayCaption(for: item)
         VStack(alignment: .leading, spacing: 2) {
-            TeamLineView(team: game.away, font: nameFont)
-            TeamLineView(team: game.home, font: nameFont)
-            Text(status.text)
+            ItemLineView(text: item.mainText, font: textFont)
+            ItemLineView(text: item.subText, font: textFont)
+            Text(caption.text)
                 .font(.system(.caption, design: .rounded, weight: .semibold))
-                .foregroundStyle(status.color)
+                .foregroundStyle(caption.color)
         }
     }
 }
@@ -244,28 +237,30 @@ struct ClarkViewWidgetEntryView: View {
     @Environment(\.widgetFamily) private var family
     var entry: Provider.Entry
 
-    private var visibleGames: [Game] {
-        family == .systemMedium ? Array(entry.games.prefix(1)) : Array(entry.games.prefix(3))
+    private var visibleItems: [WidgetItem] {
+        family == .systemMedium ? Array(entry.payload.items.prefix(1)) : Array(entry.payload.items.prefix(3))
     }
 
     var body: some View {
         Group {
-            if entry.games.isEmpty {
+            if entry.payload.items.isEmpty {
                 Image(systemName: "sportscourt")
                     .font(.largeTitle)
                     .foregroundStyle(.secondary)
-            } else if family == .systemSmall, let game = entry.games.first {
-                HeroGameCard(game: game, day: entry.day)
+            } else if family == .systemSmall, let item = entry.payload.items.first {
+                ItemHeroCard(item: item, eyebrow: entry.payload.eyebrow)
                     .padding(14)
             } else {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text(entry.day.rawValue.uppercased())
-                        .font(.system(.caption, design: .rounded, weight: .bold))
-                        .tracking(1.5)
-                        .foregroundStyle(.white.opacity(0.5))
+                    if let eyebrow = entry.payload.eyebrow {
+                        Text(eyebrow)
+                            .font(.system(.caption, design: .rounded, weight: .bold))
+                            .tracking(1.5)
+                            .foregroundStyle(.white.opacity(0.5))
+                    }
                     AutoFitStack(spacing: family == .systemMedium ? 10 : 14) {
-                        ForEach(visibleGames) { game in
-                            GameBlockView(game: game)
+                        ForEach(visibleItems) { item in
+                            ItemBlockView(item: item)
                         }
                     }
                     .foregroundStyle(.white)
@@ -296,18 +291,18 @@ struct ClarkViewWidget: Widget {
 #Preview(as: .systemSmall) {
     ClarkViewWidget()
 } timeline: {
-    GamesEntry(date: .now, day: .today, games: GameDataService.mockGames)
-    GamesEntry(date: .now, day: .today, games: [])
+    GamesEntry(date: .now, payload: GameDataService.mockPayload)
+    GamesEntry(date: .now, payload: .empty)
 }
 
 #Preview(as: .systemMedium) {
     ClarkViewWidget()
 } timeline: {
-    GamesEntry(date: .now, day: .today, games: GameDataService.mockGames)
+    GamesEntry(date: .now, payload: GameDataService.mockPayload)
 }
 
 #Preview(as: .systemLarge) {
     ClarkViewWidget()
 } timeline: {
-    GamesEntry(date: .now, day: .today, games: GameDataService.mockGames)
+    GamesEntry(date: .now, payload: GameDataService.mockPayload)
 }
