@@ -18,16 +18,21 @@ import Foundation
 struct WidgetPayload: Codable {
     let schemaVersion: Int
     /// Small label above the list, e.g. "TODAY" / "TOMORROW" — already formatted for display.
-    /// Nil hides it.
+    /// Nil hides it. `eyebrowStyle(for:)` in ClarkViewWidget.swift string-matches the literal
+    /// value `"TODAY"` for the highlighted treatment — if the server changes casing/wording for
+    /// that state, the highlight silently stops applying (server contract doesn't guarantee this).
     let eyebrow: String?
+    /// Display order — the client renders these in array order with no client-side sort.
     let items: [WidgetItem]
 }
 
 struct WidgetItem: Codable, Identifiable {
     let id: String
-    /// The matchup title, pre-combined by the server as "<team1> @ <team2>".
+    /// The matchup title, pre-combined by the server as "<team1> @ <team2>". Rendered large/bold
+    /// (see `ItemHeroCard`/`ItemBlockView` in ClarkViewWidget.swift) — can wrap to 2 lines.
     let mainText: String
     /// Broadcast/availability info, e.g. "Channel 7 · local broadcast, not on any streaming app".
+    /// Rendered small/dim beneath `mainText`, not at the same weight — can run long, wraps to 2 lines.
     let subText: String
     /// Pre-formatted status word ("LIVE", "FINAL"). Nil means the game hasn't started —
     /// the client falls back to formatting `timestamp` as a local start time instead.

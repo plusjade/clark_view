@@ -29,10 +29,8 @@ private enum GameDataService {
         }
     }
 
-    /// Drives both the live provider and #Preview until the server mirrors the v2
-    /// (schemaVersion 2, item-list) contract — the live endpoint still returns v1 as of this
-    /// writing. Swap `fetchPayload`'s call site back to the network fetch below once it does;
-    /// `fetchPayload` itself is left wired up and unchanged so that's a one-line flip.
+    /// #Preview-only fixture now that the live provider calls `fetchPayload` directly — keeps
+    /// Xcode previews deterministic and offline instead of hitting the network at design time.
     static var mockPayload: WidgetPayload {
         (try? JSONDecoder.widgetPayload.decode(WidgetPayload.self, from: mockJSON)) ?? .empty
     }
@@ -44,12 +42,12 @@ private enum GameDataService {
       "items": [
         {
           "id": "1", "mainText": "Fever @ Wings",
-          "subText": "Channel 7 · local broadcast, not on any streaming app",
-          "caption": null, "emphasized": false, "timestamp": 1787443200
+          "subText": "ESPN 263 · DirecTV",
+          "caption": "LIVE", "emphasized": true, "timestamp": 1787443200
         },
         {
           "id": "2", "mainText": "Valkyries @ Sparks",
-          "subText": "AMZN · Prime Video, subscription required",
+          "subText": "AMZN · Prime Video",
           "caption": null, "emphasized": false, "timestamp": 1787450400
         }
       ]
@@ -82,13 +80,13 @@ struct Provider: AppIntentTimelineProvider {
     typealias Intent = ClarkViewWidgetConfigurationIntent
 
     func snapshot(for configuration: Intent, in context: Context) async -> GamesEntry {
-        // Swap for GameDataService.fetchPayload(day:teams:) once the server mirrors the v2
-        // (schemaVersion 2, item-list) contract — it still returns v1 as of this writing.
-        GamesEntry(date: .now, payload: GameDataService.mockPayload)
+        let payload = await GameDataService.fetchPayload(day: configuration.day, teams: configuration.teams)
+        return GamesEntry(date: .now, payload: payload)
     }
 
     func timeline(for configuration: Intent, in context: Context) async -> Timeline<GamesEntry> {
-        let entry = GamesEntry(date: .now, payload: GameDataService.mockPayload)
+        let payload = await GameDataService.fetchPayload(day: configuration.day, teams: configuration.teams)
+        let entry = GamesEntry(date: .now, payload: payload)
         // Data doesn't change fast enough to justify burning the refresh budget more often
         // than this; retune if games start/finish mid-refresh-window.
         let nextRefresh = Calendar.current.date(byAdding: .minute, value: 60, to: .now)
@@ -307,8 +305,8 @@ private struct ItemBlockView: View {
             .frame(width: Self.rowWidth, alignment: .leading)
 
             Text(item.subText)
-                .font(.system(.footnote, design: .default, weight: .medium))
-                .foregroundStyle(.white.opacity(0.55))
+                .font(.system(.subheadline, design: .monospaced, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.80))
                 .lineLimit(2)
                 .frame(width: Self.rowWidth, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
