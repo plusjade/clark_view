@@ -35,28 +35,44 @@ private enum GameDataService {
         (try? JSONDecoder.widgetPayload.decode(WidgetPayload.self, from: mockJSON)) ?? .empty
     }
 
-    private static let mockJSON = Data("""
-    {
-      "schemaVersion": 2,
-      "eyebrow": "TODAY",
-      "items": [
+    /// Timestamps are relative to `.now` (not hardcoded epoch values) so the fixture always
+    /// exercises all three `dayLabel` states — today/tomorrow/future — regardless of when the
+    /// preview is opened. "Deterministic" (see `mockPayload` above) means offline, not
+    /// fixed-clock. Pinned to 7pm same-day so a preview opened near midnight can't push
+    /// "today" into tomorrow's calendar date.
+    private static var mockJSON: Data {
+        let calendar = Calendar.current
+        let base = calendar.date(bySettingHour: 19, minute: 0, second: 0, of: .now) ?? .now
+        let todayTS = Int(base.timeIntervalSince1970)
+        let tomorrowTS = Int((calendar.date(byAdding: .day, value: 1, to: base) ?? base).timeIntervalSince1970)
+        let futureTS = Int((calendar.date(byAdding: .day, value: 5, to: base) ?? base).timeIntervalSince1970)
+        return Data("""
         {
-          "id": "1", "mainText": "Fever @ Wings",
-          "subText": "ESPN 263 · DirecTV",
-          "caption": "LIVE", "emphasized": true, "timestamp": 1787443200
-        },
-        {
-          "id": "2", "mainText": "Valkyries @ Sparks",
-          "subText": "AMZN · Prime Video",
-          "caption": null, "emphasized": false, "timestamp": 1787450400
+          "schemaVersion": 2,
+          "items": [
+            {
+              "id": "1", "mainText": "Fever @ Wings",
+              "subText": "ESPN 263 · DirecTV",
+              "caption": "LIVE", "emphasized": true, "timestamp": \(todayTS)
+            },
+            {
+              "id": "2", "mainText": "Valkyries @ Sparks",
+              "subText": "AMZN · Prime Video",
+              "caption": null, "emphasized": false, "timestamp": \(tomorrowTS)
+            },
+            {
+              "id": "3", "mainText": "Storm @ Mercury",
+              "subText": "NBA TV · League Pass",
+              "caption": null, "emphasized": false, "timestamp": \(futureTS)
+            }
+          ]
         }
-      ]
+        """.utf8)
     }
-    """.utf8)
 }
 
 private extension WidgetPayload {
-    static let empty = WidgetPayload(schemaVersion: 2, eyebrow: nil, items: [])
+    static let empty = WidgetPayload(schemaVersion: 2, items: [])
 }
 
 private extension JSONDecoder {
@@ -120,9 +136,28 @@ private func displayCaption(for item: WidgetItem) -> (text: String, color: Color
 }
 
 /// "TODAY" gets a rich yellow + heavy weight to draw the eye; every other eyebrow value (e.g.
-/// "TOMORROW") stays the existing dim, lighter-weight treatment.
+/// "TMRW", "AUG 16") stays the existing dim, lighter-weight treatment.
 private func eyebrowStyle(for eyebrow: String) -> (color: Color, weight: Font.Weight) {
-    eyebrow == "TODAY" ? (Color(red: 1.0, green: 0.78, blue: 0.0), .heavy) : (.white.opacity(0.5), .semibold)
+    eyebrow == "TODAY" ? (Color(red: 1.0, green: 0.78, blue: 0.0), .heavy) : (.white.opacity(0.8), .semibold)
+}
+
+/// Per-item day eyebrow, computed client-side from `timestamp` against the device's local
+/// calendar — same rationale as `timeParts` below. Falls back to an abbreviated month/day
+/// (e.g. "AUG 16") once a date is neither today nor tomorrow.
+///
+/// "TMRW", not "TOMORROW": the rail's fixed width means a longer string only fits via
+/// `minimumScaleFactor`, which is an accessibility regression (shrinks the one word that
+/// most needs to stay legible) rather than a real fix. Shortening the string lets it render
+/// at full size; autosizing stays on as a safety net, not the primary mechanism.
+private func dayLabel(for date: Date) -> String {
+    let calendar = Calendar.autoupdatingCurrent
+    if calendar.isDateInToday(date) { return "TODAY" }
+    if calendar.isDateInTomorrow(date) { return "TMRW" }
+
+    let formatter = DateFormatter()
+    formatter.locale = .autoupdatingCurrent
+    formatter.setLocalizedDateFormatFromTemplate("MMMd")
+    return formatter.string(from: date).uppercased()
 }
 
 /// Hour/minute/period split for TimeBlockView's stacked layout. `period` is nil on 24-hour
@@ -233,7 +268,6 @@ private struct AutoFitStack<Content: View>: View {
 /// template instead of being squeezed into the block layout medium/large share.
 private struct ItemHeroCard: View {
     let item: WidgetItem
-    let eyebrow: String?
 
     private var heroFont: Font {
         .system(.largeTitle, design: .default, weight: .black)
@@ -241,14 +275,13 @@ private struct ItemHeroCard: View {
 
     var body: some View {
         let caption = displayCaption(for: item)
+        let eyebrow = dayLabel(for: item.timestamp)
+        let eyebrowStyle = eyebrowStyle(for: eyebrow)
         VStack(alignment: .leading, spacing: 8) {
-            if let eyebrow {
-                let style = eyebrowStyle(for: eyebrow)
-                Text(eyebrow)
-                    .font(.system(.caption2, design: .rounded, weight: style.weight))
-                    .tracking(1.5)
-                    .foregroundStyle(style.color)
-            }
+            Text(eyebrow)
+                .font(.system(.caption2, design: .rounded, weight: eyebrowStyle.weight))
+                .tracking(1.5)
+                .foregroundStyle(eyebrowStyle.color)
 
             AutoFitStack(spacing: 4) {
                 ItemLineView(text: item.mainText, font: heroFont)
@@ -267,9 +300,12 @@ private struct ItemHeroCard: View {
     }
 }
 
-/// One item's block within the medium/large list: a header row (matchup title top-aligned
-/// against the time rail, so a wrapped second line grows downward instead of pulling the row
-/// up) plus a broadcast line beneath spanning the full width, scaled together by AutoFitStack.
+/// One item's block within the medium/large list: a header row (matchup title baseline-aligned
+/// against the time rail — both anchor to the same line the eye reads across — so a wrapped
+/// second line grows upward instead of shifting the shared baseline down) plus a broadcast
+/// line beneath. The broadcast line is centered and default-design (not monospaced, not
+/// left-aligned like the title) precisely so it reads as a secondary, distinct element rather
+/// than competing with the title for attention.
 ///
 /// Title and time rail each get a dedicated fixed width instead of negotiating for space, so
 /// the rail stays fully visible and a long title wraps in its own column rather than shoving
@@ -282,7 +318,7 @@ private struct ItemBlockView: View {
     // TextStyle-relative initializer threads it correctly. Default (sans), not monospaced —
     // that rationale is for the time rail's digits only.
     private var titleFont: Font {
-        .system(.title2, design: .default, weight: .black)
+        .system(.title, design: .default)
     }
 
     private static let rowWidth: CGFloat = 254
@@ -291,7 +327,7 @@ private struct ItemBlockView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            HStack(alignment: .top, spacing: Self.headerSpacing) {
+            HStack(alignment: .lastTextBaseline, spacing: Self.headerSpacing) {
                 ItemLineView(text: item.mainText, font: titleFont, lineLimit: 2)
                     .frame(
                         width: Self.rowWidth - Self.timeBlockWidth - Self.headerSpacing,
@@ -299,13 +335,29 @@ private struct ItemBlockView: View {
                     )
                     .fixedSize(horizontal: false, vertical: true)
 
-                TimeBlockView(item: item)
-                    .frame(width: Self.timeBlockWidth, alignment: .trailing)
+                let eyebrow = dayLabel(for: item.timestamp)
+                let eyebrowStyle = eyebrowStyle(for: eyebrow)
+                VStack(alignment: .trailing, spacing: 2) {
+                    // dayLabel's values ("TODAY"/"TMRW"/"AUG 16") are short enough to render
+                    // at full size in 56pt; lineLimit + a scale floor stay on as a safety net
+                    // for longer locale-specific month abbreviations, not the primary fit
+                    // mechanism — shrinking this label by default would be an accessibility
+                    // regression, not a fix.
+                    Text(eyebrow)
+                        .font(.system(.caption2, design: .rounded, weight: eyebrowStyle.weight))
+                        .tracking(0.5)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                        .foregroundStyle(eyebrowStyle.color)
+
+                    TimeBlockView(item: item)
+                }
+                .frame(width: Self.timeBlockWidth, alignment: .trailing)
             }
             .frame(width: Self.rowWidth, alignment: .leading)
 
             Text(item.subText)
-                .font(.system(.subheadline, design: .monospaced, weight: .semibold))
+                .font(.system(.title3, design: .default, weight: .regular))
                 .foregroundStyle(.white.opacity(0.80))
                 .lineLimit(2)
                 .frame(width: Self.rowWidth, alignment: .leading)
@@ -329,18 +381,10 @@ struct ClarkViewWidgetEntryView: View {
                     .font(.largeTitle)
                     .foregroundStyle(.secondary)
             } else if family == .systemSmall, let item = entry.payload.items.first {
-                ItemHeroCard(item: item, eyebrow: entry.payload.eyebrow)
+                ItemHeroCard(item: item)
                     .padding(14)
             } else {
                 VStack(alignment: .leading, spacing: 10) {
-                    if let eyebrow = entry.payload.eyebrow {
-                        let style = eyebrowStyle(for: eyebrow)
-                        Text(eyebrow)
-                            .font(.system(.caption, design: .rounded, weight: style.weight))
-                            .tracking(1.5)
-                            .foregroundStyle(style.color)
-                            .frame(maxWidth: .infinity, alignment: .trailing)
-                    }
                     AutoFitStack(spacing: family == .systemMedium ? 10 : 14) {
                         ForEach(Array(visibleItems.enumerated()), id: \.element.id) { index, item in
                             if index > 0 {

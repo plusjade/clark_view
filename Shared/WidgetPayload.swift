@@ -17,11 +17,6 @@ import Foundation
 /// server can't do precisely on the client's behalf.
 struct WidgetPayload: Codable {
     let schemaVersion: Int
-    /// Small label above the list, e.g. "TODAY" / "TOMORROW" — already formatted for display.
-    /// Nil hides it. `eyebrowStyle(for:)` in ClarkViewWidget.swift string-matches the literal
-    /// value `"TODAY"` for the highlighted treatment — if the server changes casing/wording for
-    /// that state, the highlight silently stops applying (server contract doesn't guarantee this).
-    let eyebrow: String?
     /// Display order — the client renders these in array order with no client-side sort.
     let items: [WidgetItem]
 }
@@ -41,6 +36,8 @@ struct WidgetItem: Codable, Identifiable {
     /// for "LIVE". A view instruction, not a game-status flag: it's read literally, with no
     /// string-matching against `caption`'s wording, so the server owns this decision outright.
     let emphasized: Bool
-    /// Unix epoch seconds, UTC.
+    /// Unix epoch seconds, UTC. Also drives the per-item "TODAY"/"TOMORROW"/"AUG 16" day
+    /// label (see `dayLabel(for:)` in ClarkViewWidget.swift) — same locale-formatting rationale
+    /// as the start-time fallback below.
     let timestamp: Date
 }
