@@ -25,9 +25,9 @@ struct WidgetPayload: Codable {
 
 struct WidgetItem: Codable, Identifiable {
     let id: String
-    /// First display line — e.g. the away team's name.
+    /// The matchup title, pre-combined by the server as "<team1> @ <team2>".
     let mainText: String
-    /// Second display line — e.g. the home team's name.
+    /// Broadcast/availability info, e.g. "Channel 7 · local broadcast, not on any streaming app".
     let subText: String
     /// Pre-formatted status word ("LIVE", "FINAL"). Nil means the game hasn't started —
     /// the client falls back to formatting `timestamp` as a local start time instead.

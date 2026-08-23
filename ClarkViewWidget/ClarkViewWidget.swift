@@ -43,16 +43,14 @@ private enum GameDataService {
       "eyebrow": "TODAY",
       "items": [
         {
-          "id": "1", "mainText": "Sparks", "subText": "Fever",
-          "caption": "LIVE", "emphasized": true, "timestamp": 1787345100
+          "id": "1", "mainText": "Fever @ Wings",
+          "subText": "Channel 7 · local broadcast, not on any streaming app",
+          "caption": null, "emphasized": false, "timestamp": 1787443200
         },
         {
-          "id": "2", "mainText": "Dodgers", "subText": "Giants",
-          "caption": null, "emphasized": false, "timestamp": 1787357400
-        },
-        {
-          "id": "3", "mainText": "Warriors", "subText": "Lakers",
-          "caption": "FINAL", "emphasized": false, "timestamp": 1787335200
+          "id": "2", "mainText": "Valkyries @ Sparks",
+          "subText": "AMZN · Prime Video, subscription required",
+          "caption": null, "emphasized": false, "timestamp": 1787450400
         }
       ]
     }
@@ -98,18 +96,17 @@ struct Provider: AppIntentTimelineProvider {
     }
 }
 
-/// One line of an item's main/sub text — no score, no live clock. The widget's whole value
-/// proposition is showing just "which of my teams, and when," not duplicating what every
-/// other sports app already shows; see displayCaption below for the same principle applied
-/// to status.
+/// An item's matchup title ("<team1> @ <team2>") — no score, no live clock. `lineLimit` defaults
+/// to a single line; the list row raises it so long matchups wrap instead of hitting the rail.
 private struct ItemLineView: View {
     let text: String
     let font: Font
+    var lineLimit: Int = 1
 
     var body: some View {
         Text(text)
             .font(font)
-            .lineLimit(1)
+            .lineLimit(lineLimit)
     }
 }
 
@@ -124,6 +121,71 @@ private func displayCaption(for item: WidgetItem) -> (text: String, color: Color
     return (caption, item.emphasized ? .red : .white.opacity(0.55))
 }
 
+/// "TODAY" gets a rich yellow + heavy weight to draw the eye; every other eyebrow value (e.g.
+/// "TOMORROW") stays the existing dim, lighter-weight treatment.
+private func eyebrowStyle(for eyebrow: String) -> (color: Color, weight: Font.Weight) {
+    eyebrow == "TODAY" ? (Color(red: 1.0, green: 0.78, blue: 0.0), .heavy) : (.white.opacity(0.5), .semibold)
+}
+
+/// Hour/minute/period split for TimeBlockView's stacked layout. `period` is nil on 24-hour
+/// locales, where there's no AM/PM to stack — the view falls back to a plain "HH:MM" line.
+private struct TimeParts {
+    let hour: String
+    let minute: String
+    let period: String?
+}
+
+private func timeParts(for date: Date) -> TimeParts {
+    let locale = Locale.autoupdatingCurrent
+    let calendar = Calendar.autoupdatingCurrent
+    let components = calendar.dateComponents([.hour, .minute], from: date)
+    let minute = String(format: "%02d", components.minute ?? 0)
+
+    let usesTwelveHour = (DateFormatter.dateFormat(fromTemplate: "j", options: 0, locale: locale) ?? "").contains("a")
+    guard usesTwelveHour else {
+        return TimeParts(hour: String(format: "%02d", components.hour ?? 0), minute: minute, period: nil)
+    }
+
+    var hour = (components.hour ?? 0) % 12
+    if hour == 0 { hour = 12 }
+    let periodFormatter = DateFormatter()
+    periodFormatter.locale = locale
+    periodFormatter.dateFormat = "a"
+    return TimeParts(hour: String(hour), minute: minute, period: periodFormatter.string(from: date))
+}
+
+/// Trailing time display for the list layout: a large hour digit with minute/period stacked
+/// beside it, mirroring a scoreboard clock. Falls back to `caption` (e.g. "LIVE"/"FINAL") when
+/// the game isn't in the not-yet-started state, same as displayCaption but laid out for a rail.
+private struct TimeBlockView: View {
+    let item: WidgetItem
+
+    var body: some View {
+        if let caption = item.caption {
+            Text(caption)
+                .font(.system(.title3, design: .rounded, weight: .heavy))
+                .foregroundStyle(item.emphasized ? .red : .white.opacity(0.55))
+        } else {
+            let parts = timeParts(for: item.timestamp)
+            HStack(alignment: .lastTextBaseline, spacing: 2) {
+                Text(parts.hour)
+                    .font(.system(.largeTitle, design: .monospaced, weight: .black))
+                if let period = parts.period {
+                    VStack(alignment: .leading, spacing: -2) {
+                        Text(parts.minute)
+                        Text(period)
+                    }
+                    .font(.system(.caption, design: .monospaced, weight: .black))
+                } else {
+                    Text(":\(parts.minute)")
+                        .font(.system(.largeTitle, design: .monospaced, weight: .black))
+                }
+            }
+            .foregroundStyle(.white)
+        }
+    }
+}
+
 private struct StackSizeKey: PreferenceKey {
     static var defaultValue = CGSize(width: 260, height: 200)
     static func reduce(value: inout CGSize, nextValue: () -> CGSize) { value = nextValue() }
@@ -131,18 +193,14 @@ private struct StackSizeKey: PreferenceKey {
 
 /// Measures `content`'s natural (unscaled) size via a hidden clone, then applies one shared
 /// `scaleEffect` so it fills as much of the available frame as the tighter of width/height
-/// allows — near full-bleed, capped by whichever axis runs out first. Because the base fonts
-/// inside `content` still come from a TextStyle (see nameFont's comment on why that matters),
-/// the accessibility scaling curve is preserved: bump the system text size and the natural
-/// (pre-scale) measurement grows too, so the computed multiplier shrinks to compensate rather
-/// than overflowing the frame. Generic over one item's two lines (small) or several items'
-/// worth of blocks stacked together (medium/large) — same mechanism either way.
+/// allows. Base fonts still come from a TextStyle, so the accessibility scaling curve is
+/// preserved: bump system text size and the natural measurement grows too, shrinking the
+/// computed multiplier to compensate rather than overflowing.
 ///
-/// Caveat worth verifying on-device: this is a two-pass measure-then-render technique, and
-/// WidgetKit snapshots the view for the Home Screen rather than live-rendering it — the
-/// `StackSizeKey` default is seeded close to a real measurement so a snapshot taken before the
-/// preference propagates isn't wildly wrong, but if you see a flash of oddly-scaled text on
-/// first placement, that's the mechanism to revisit.
+/// Caveat: this is a two-pass measure-then-render technique, and WidgetKit snapshots the view
+/// rather than live-rendering it — `StackSizeKey`'s default is seeded close to a real
+/// measurement so an early snapshot isn't wildly wrong, but a flash of oddly-scaled text on
+/// first placement is this mechanism to revisit.
 private struct AutoFitStack<Content: View>: View {
     let spacing: CGFloat
     @ViewBuilder let content: () -> Content
@@ -180,23 +238,28 @@ private struct ItemHeroCard: View {
     let eyebrow: String?
 
     private var heroFont: Font {
-        .system(.largeTitle, design: .monospaced, weight: .black)
+        .system(.largeTitle, design: .default, weight: .black)
     }
 
     var body: some View {
         let caption = displayCaption(for: item)
         VStack(alignment: .leading, spacing: 8) {
             if let eyebrow {
+                let style = eyebrowStyle(for: eyebrow)
                 Text(eyebrow)
-                    .font(.system(.caption2, design: .rounded, weight: .bold))
+                    .font(.system(.caption2, design: .rounded, weight: style.weight))
                     .tracking(1.5)
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(style.color)
             }
 
             AutoFitStack(spacing: 4) {
                 ItemLineView(text: item.mainText, font: heroFont)
-                ItemLineView(text: item.subText, font: heroFont)
             }
+
+            Text(item.subText)
+                .font(.system(.subheadline, design: .default, weight: .medium))
+                .foregroundStyle(.white.opacity(0.6))
+                .lineLimit(2)
 
             Text(caption.text)
                 .font(.system(.subheadline, design: .rounded, weight: .semibold))
@@ -206,29 +269,49 @@ private struct ItemHeroCard: View {
     }
 }
 
-/// One item's block within the medium/large stack: two text lines + a status caption, all
-/// measured and scaled together by the enclosing AutoFitStack so caption-to-text proportions
-/// stay consistent as the shared scale grows or shrinks.
+/// One item's block within the medium/large list: a header row (matchup title top-aligned
+/// against the time rail, so a wrapped second line grows downward instead of pulling the row
+/// up) plus a broadcast line beneath spanning the full width, scaled together by AutoFitStack.
+///
+/// Title and time rail each get a dedicated fixed width instead of negotiating for space, so
+/// the rail stays fully visible and a long title wraps in its own column rather than shoving
+/// it out of view — also what makes wrapping resolvable at all inside AutoFitStack's
+/// `.fixedSize()` pass, which proposes nil width here.
 private struct ItemBlockView: View {
     let item: WidgetItem
 
-    // Confirmed (2026-08-20): any Font.system(size:...) construction silently drops `design`
-    // in this widget's rendering pipeline, regardless of how weight is attached. Only the
-    // TextStyle-relative initializer (.system(_:design:weight:)) threads `design` correctly
-    // here — the reference tier only sets the *relative* size vs. the caption below; the
-    // enclosing AutoFitStack rescales the whole block to fit anyway.
-    private var textFont: Font {
-        .system(.title2, design: .monospaced, weight: .black)
+    // Confirmed (2026-08-20): Font.system(size:...) silently drops `design` here; only the
+    // TextStyle-relative initializer threads it correctly. Default (sans), not monospaced —
+    // that rationale is for the time rail's digits only.
+    private var titleFont: Font {
+        .system(.title2, design: .default, weight: .black)
     }
 
+    private static let rowWidth: CGFloat = 254
+    private static let timeBlockWidth: CGFloat = 56
+    private static let headerSpacing: CGFloat = 8
+
     var body: some View {
-        let caption = displayCaption(for: item)
         VStack(alignment: .leading, spacing: 2) {
-            ItemLineView(text: item.mainText, font: textFont)
-            ItemLineView(text: item.subText, font: textFont)
-            Text(caption.text)
-                .font(.system(.caption, design: .rounded, weight: .semibold))
-                .foregroundStyle(caption.color)
+            HStack(alignment: .top, spacing: Self.headerSpacing) {
+                ItemLineView(text: item.mainText, font: titleFont, lineLimit: 2)
+                    .frame(
+                        width: Self.rowWidth - Self.timeBlockWidth - Self.headerSpacing,
+                        alignment: .leading
+                    )
+                    .fixedSize(horizontal: false, vertical: true)
+
+                TimeBlockView(item: item)
+                    .frame(width: Self.timeBlockWidth, alignment: .trailing)
+            }
+            .frame(width: Self.rowWidth, alignment: .leading)
+
+            Text(item.subText)
+                .font(.system(.footnote, design: .default, weight: .medium))
+                .foregroundStyle(.white.opacity(0.55))
+                .lineLimit(2)
+                .frame(width: Self.rowWidth, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
@@ -253,13 +336,22 @@ struct ClarkViewWidgetEntryView: View {
             } else {
                 VStack(alignment: .leading, spacing: 10) {
                     if let eyebrow = entry.payload.eyebrow {
+                        let style = eyebrowStyle(for: eyebrow)
                         Text(eyebrow)
-                            .font(.system(.caption, design: .rounded, weight: .bold))
+                            .font(.system(.caption, design: .rounded, weight: style.weight))
                             .tracking(1.5)
-                            .foregroundStyle(.white.opacity(0.5))
+                            .foregroundStyle(style.color)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
                     }
                     AutoFitStack(spacing: family == .systemMedium ? 10 : 14) {
-                        ForEach(visibleItems) { item in
+                        ForEach(Array(visibleItems.enumerated()), id: \.element.id) { index, item in
+                            if index > 0 {
+                                // A system Divider() renders unpredictably under AutoFitStack's
+                                // scaleEffect; a plain rectangle scales reliably with everything else.
+                                Rectangle()
+                                    .fill(Color.white.opacity(0.15))
+                                    .frame(height: 1)
+                            }
                             ItemBlockView(item: item)
                         }
                     }
