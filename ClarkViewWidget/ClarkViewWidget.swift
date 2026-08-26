@@ -187,34 +187,59 @@ private func timeParts(for date: Date) -> TimeParts {
     return TimeParts(hour: String(hour), minute: minute, period: periodFormatter.string(from: date))
 }
 
+/// Tier of visual emphasis within the large layout's list: `.primary` is the first entry and
+/// keeps every existing font/weight/color exactly as before; `.secondary` is every entry after
+/// it, muted (not resized) so the first entry reads as clearly dominant.
+private enum ItemTier {
+    case primary
+    case secondary
+}
+
+/// Steps a font weight down one notch for `.secondary` rows, leaving `.primary` untouched.
+/// Used anywhere a tiered element must keep its exact size (the time rail's dimensions are
+/// shared across every card) and can only signal tier via weight/opacity instead.
+private func mutedWeight(_ weight: Font.Weight, tier: ItemTier) -> Font.Weight {
+    guard tier == .secondary else { return weight }
+    switch weight {
+    case .black: return .semibold
+    case .heavy: return .semibold
+    case .semibold: return .regular
+    default: return weight
+    }
+}
+
 /// Trailing time display for the list layout: a large hour digit with minute/period stacked
 /// beside it, mirroring a scoreboard clock. Falls back to `caption` (e.g. "LIVE"/"FINAL") when
 /// the game isn't in the not-yet-started state, same as displayCaption but laid out for a rail.
+///
+/// Dimensions (font sizes) are identical across tiers — the rail's footprint must line up card
+/// to card. Tier reads purely through weight + opacity muting on `.secondary` rows.
 private struct TimeBlockView: View {
     let item: WidgetItem
+    var tier: ItemTier = .primary
 
     var body: some View {
         if let caption = item.caption {
             Text(caption)
-                .font(.system(.title3, design: .rounded, weight: .heavy))
-                .foregroundStyle(item.emphasized ? .red : .white.opacity(0.55))
+                .font(.system(.title3, design: .rounded, weight: mutedWeight(.heavy, tier: tier)))
+                .foregroundStyle((item.emphasized ? Color.red : Color.white.opacity(0.55)).opacity(tier == .primary ? 1 : 0.75))
         } else {
             let parts = timeParts(for: item.timestamp)
             HStack(alignment: .lastTextBaseline, spacing: 2) {
                 Text(parts.hour)
-                    .font(.system(.largeTitle, design: .monospaced, weight: .black))
+                    .font(.system(.largeTitle, design: .monospaced, weight: mutedWeight(.black, tier: tier)))
                 if let period = parts.period {
                     VStack(alignment: .leading, spacing: -2) {
                         Text(parts.minute)
                         Text(period)
                     }
-                    .font(.system(.caption, design: .monospaced, weight: .black))
+                    .font(.system(.caption, design: .monospaced, weight: mutedWeight(.black, tier: tier)))
                 } else {
                     Text(":\(parts.minute)")
-                        .font(.system(.largeTitle, design: .monospaced, weight: .black))
+                        .font(.system(.largeTitle, design: .monospaced, weight: mutedWeight(.black, tier: tier)))
                 }
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(tier == .primary ? .white : .white.opacity(0.7))
         }
     }
 }
@@ -317,15 +342,19 @@ private struct ItemHeroCard: View {
 private struct ItemBlockView: View {
     let item: WidgetItem
     var rowWidth: CGFloat = Self.defaultRowWidth
+    var tier: ItemTier = .primary
 
     // Confirmed (2026-08-20): Font.system(size:...) silently drops `design` here; only the
     // TextStyle-relative initializer threads it correctly. Default (sans), not monospaced —
     // that rationale is for the time rail's digits only.
     private var titleFont: Font {
-        .system(.title, design: .default)
+        .system(tier == .primary ? .title : .title3, design: .default)
     }
 
     static let defaultRowWidth: CGFloat = 254
+    // Fixed across tiers, not just primary: 56pt is tuned so dayLabel's longest values render
+    // at full size (see the comment below); narrowing it for secondary rows would make the
+    // minimumScaleFactor floor load-bearing instead of a safety net.
     private static let timeBlockWidth: CGFloat = 56
     private static let headerSpacing: CGFloat = 8
 
@@ -348,21 +377,21 @@ private struct ItemBlockView: View {
                     // mechanism — shrinking this label by default would be an accessibility
                     // regression, not a fix.
                     Text(eyebrow)
-                        .font(.system(.caption2, design: .rounded, weight: eyebrowStyle.weight))
+                        .font(.system(.caption2, design: .rounded, weight: mutedWeight(eyebrowStyle.weight, tier: tier)))
                         .tracking(0.5)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
-                        .foregroundStyle(eyebrowStyle.color)
+                        .foregroundStyle(eyebrowStyle.color.opacity(tier == .primary ? 1 : 0.8))
 
-                    TimeBlockView(item: item)
+                    TimeBlockView(item: item, tier: tier)
                 }
                 .frame(width: Self.timeBlockWidth, alignment: .trailing)
             }
             .frame(width: rowWidth, alignment: .leading)
 
             Text(item.subText)
-                .font(.system(.title3, design: .default, weight: .regular))
-                .foregroundStyle(.white.opacity(0.80))
+                .font(.system(tier == .primary ? .title3 : .subheadline, design: .default, weight: .regular))
+                .foregroundStyle(.white.opacity(tier == .primary ? 0.80 : 0.65))
                 .lineLimit(2)
                 .frame(width: rowWidth, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
@@ -401,11 +430,13 @@ struct ClarkViewWidgetEntryView: View {
                                 if index > 0 {
                                     // A system Divider() renders unpredictably under AutoFitStack's
                                     // scaleEffect; a plain rectangle scales reliably with everything else.
+                                    // The primary/secondary boundary gets a slightly brighter line than
+                                    // dividers between secondary rows, reinforcing the tier break.
                                     Rectangle()
-                                        .fill(Color.white.opacity(0.15))
+                                        .fill(Color.white.opacity(index == 1 ? 0.18 : 0.10))
                                         .frame(height: 1)
                                 }
-                                ItemBlockView(item: item, rowWidth: rowWidth)
+                                ItemBlockView(item: item, rowWidth: rowWidth, tier: index == 0 ? .primary : .secondary)
                             }
                         }
                         .foregroundStyle(.white)
