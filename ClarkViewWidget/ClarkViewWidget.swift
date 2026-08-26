@@ -311,8 +311,12 @@ private struct ItemHeroCard: View {
 /// the rail stays fully visible and a long title wraps in its own column rather than shoving
 /// it out of view — also what makes wrapping resolvable at all inside AutoFitStack's
 /// `.fixedSize()` pass, which proposes nil width here.
+///
+/// `rowWidth` is caller-supplied: large keeps `defaultRowWidth`, medium passes the widget's
+/// actual available width so its single row spans it fully.
 private struct ItemBlockView: View {
     let item: WidgetItem
+    var rowWidth: CGFloat = Self.defaultRowWidth
 
     // Confirmed (2026-08-20): Font.system(size:...) silently drops `design` here; only the
     // TextStyle-relative initializer threads it correctly. Default (sans), not monospaced —
@@ -321,7 +325,7 @@ private struct ItemBlockView: View {
         .system(.title, design: .default)
     }
 
-    private static let rowWidth: CGFloat = 254
+    static let defaultRowWidth: CGFloat = 254
     private static let timeBlockWidth: CGFloat = 56
     private static let headerSpacing: CGFloat = 8
 
@@ -330,7 +334,7 @@ private struct ItemBlockView: View {
             HStack(alignment: .lastTextBaseline, spacing: Self.headerSpacing) {
                 ItemLineView(text: item.mainText, font: titleFont, lineLimit: 2)
                     .frame(
-                        width: Self.rowWidth - Self.timeBlockWidth - Self.headerSpacing,
+                        width: rowWidth - Self.timeBlockWidth - Self.headerSpacing,
                         alignment: .leading
                     )
                     .fixedSize(horizontal: false, vertical: true)
@@ -354,13 +358,13 @@ private struct ItemBlockView: View {
                 }
                 .frame(width: Self.timeBlockWidth, alignment: .trailing)
             }
-            .frame(width: Self.rowWidth, alignment: .leading)
+            .frame(width: rowWidth, alignment: .leading)
 
             Text(item.subText)
                 .font(.system(.title3, design: .default, weight: .regular))
                 .foregroundStyle(.white.opacity(0.80))
                 .lineLimit(2)
-                .frame(width: Self.rowWidth, alignment: .leading)
+                .frame(width: rowWidth, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -384,22 +388,30 @@ struct ClarkViewWidgetEntryView: View {
                 ItemHeroCard(item: item)
                     .padding(14)
             } else {
-                VStack(alignment: .leading, spacing: 10) {
-                    AutoFitStack(spacing: family == .systemMedium ? 10 : 14) {
-                        ForEach(Array(visibleItems.enumerated()), id: \.element.id) { index, item in
-                            if index > 0 {
-                                // A system Divider() renders unpredictably under AutoFitStack's
-                                // scaleEffect; a plain rectangle scales reliably with everything else.
-                                Rectangle()
-                                    .fill(Color.white.opacity(0.15))
-                                    .frame(height: 1)
+                let padding: CGFloat = 18
+                GeometryReader { proxy in
+                    // Large keeps the tuned fixed-width column; medium shows a single row, so
+                    // give it the frame's real available width instead of large's column width.
+                    let rowWidth = family == .systemMedium
+                        ? proxy.size.width - padding * 2
+                        : ItemBlockView.defaultRowWidth
+                    VStack(alignment: .leading, spacing: 10) {
+                        AutoFitStack(spacing: family == .systemMedium ? 10 : 14) {
+                            ForEach(Array(visibleItems.enumerated()), id: \.element.id) { index, item in
+                                if index > 0 {
+                                    // A system Divider() renders unpredictably under AutoFitStack's
+                                    // scaleEffect; a plain rectangle scales reliably with everything else.
+                                    Rectangle()
+                                        .fill(Color.white.opacity(0.15))
+                                        .frame(height: 1)
+                                }
+                                ItemBlockView(item: item, rowWidth: rowWidth)
                             }
-                            ItemBlockView(item: item)
                         }
+                        .foregroundStyle(.white)
                     }
-                    .foregroundStyle(.white)
+                    .padding(padding)
                 }
-                .padding(18)
             }
         }
         .containerBackground(.black, for: .widget)
