@@ -29,7 +29,7 @@ struct WidgetItem: Codable, Identifiable {
     /// Broadcast/availability info, e.g. "Channel 7 · local broadcast, not on any streaming app".
     /// Rendered small/dim beneath `mainText`, not at the same weight — can run long, wraps to 2 lines.
     let subText: String
-    /// Pre-formatted status word ("LIVE", "FINAL"). Nil means the game hasn't started —
+    /// Pre-formatted status word ("LIVE", "END"). Nil means the game hasn't started —
     /// the client falls back to formatting `timestamp` as a local start time instead.
     let caption: String?
     /// Render `caption` in the attention color (vs. the default dim treatment) — e.g. true

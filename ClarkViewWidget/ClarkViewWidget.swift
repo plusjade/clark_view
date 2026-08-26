@@ -40,12 +40,19 @@ private enum GameDataService {
     /// preview is opened. "Deterministic" (see `mockPayload` above) means offline, not
     /// fixed-clock. Pinned to 7pm same-day so a preview opened near midnight can't push
     /// "today" into tomorrow's calendar date.
+    ///
+    /// Items 2 and 3 (the two rows that actually render a start time — item 1's "LIVE" caption
+    /// hides its timestamp) are pinned to 2-digit 12-hour values (10pm, 12 noon) rather than
+    /// reusing the 7pm base: a single-digit-only fixture is exactly how TimeBlockView's 2-digit
+    /// hour clipping shipped unnoticed.
     private static var mockJSON: Data {
         let calendar = Calendar.current
         let base = calendar.date(bySettingHour: 19, minute: 0, second: 0, of: .now) ?? .now
         let todayTS = Int(base.timeIntervalSince1970)
-        let tomorrowTS = Int((calendar.date(byAdding: .day, value: 1, to: base) ?? base).timeIntervalSince1970)
-        let futureTS = Int((calendar.date(byAdding: .day, value: 5, to: base) ?? base).timeIntervalSince1970)
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: base) ?? base
+        let tomorrowTS = Int((calendar.date(bySettingHour: 22, minute: 0, second: 0, of: tomorrow) ?? tomorrow).timeIntervalSince1970)
+        let future = calendar.date(byAdding: .day, value: 5, to: base) ?? base
+        let futureTS = Int((calendar.date(bySettingHour: 12, minute: 0, second: 0, of: future) ?? future).timeIntervalSince1970)
         return Data("""
         {
           "schemaVersion": 2,
@@ -125,7 +132,7 @@ private struct ItemLineView: View {
 }
 
 /// Status stays a single word or a bare time — never the live-game clock/quarter, and never
-/// a score. The server pre-formats `caption` ("LIVE"/"FINAL") and decides `emphasized` for
+/// a score. The server pre-formats `caption` ("LIVE"/"END") and decides `emphasized` for
 /// the view-based contract; the one exception is the not-yet-started case, where the client
 /// formats the raw `timestamp` itself so it respects the device's locale/24-hour setting.
 private func displayCaption(for item: WidgetItem) -> (text: String, color: Color) {
@@ -209,7 +216,7 @@ private func mutedWeight(_ weight: Font.Weight, tier: ItemTier) -> Font.Weight {
 }
 
 /// Trailing time display for the list layout: a large hour digit with minute/period stacked
-/// beside it, mirroring a scoreboard clock. Falls back to `caption` (e.g. "LIVE"/"FINAL") when
+/// beside it, mirroring a scoreboard clock. Falls back to `caption` (e.g. "LIVE"/"END") when
 /// the game isn't in the not-yet-started state, same as displayCaption but laid out for a rail.
 ///
 /// Dimensions (font sizes) are identical across tiers — the rail's footprint must line up card
@@ -225,6 +232,9 @@ private struct TimeBlockView: View {
                 .foregroundStyle((item.emphasized ? Color.red : Color.white.opacity(0.55)).opacity(tier == .primary ? 1 : 0.75))
         } else {
             let parts = timeParts(for: item.timestamp)
+            // lineLimit + minimumScaleFactor are a safety net, not the primary fit mechanism —
+            // ItemBlockView.timeBlockWidth is sized to fit a 2-digit hour ("10"/"11"/"12") at
+            // the default text size without shrinking; this only catches larger Dynamic Type.
             HStack(alignment: .lastTextBaseline, spacing: 2) {
                 Text(parts.hour)
                     .font(.system(.largeTitle, design: .monospaced, weight: mutedWeight(.black, tier: tier)))
@@ -239,6 +249,8 @@ private struct TimeBlockView: View {
                         .font(.system(.largeTitle, design: .monospaced, weight: mutedWeight(.black, tier: tier)))
                 }
             }
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
             .foregroundStyle(tier == .primary ? .white : .white.opacity(0.7))
         }
     }
@@ -352,10 +364,11 @@ private struct ItemBlockView: View {
     }
 
     static let defaultRowWidth: CGFloat = 254
-    // Fixed across tiers, not just primary: 56pt is tuned so dayLabel's longest values render
+    // Fixed across tiers, not just primary: 64pt is tuned so dayLabel's longest values *and* a
+    // 2-digit hour ("10"/"11"/"12", ~59pt measured on-device at the default text size) render
     // at full size (see the comment below); narrowing it for secondary rows would make the
     // minimumScaleFactor floor load-bearing instead of a safety net.
-    private static let timeBlockWidth: CGFloat = 56
+    private static let timeBlockWidth: CGFloat = 64
     private static let headerSpacing: CGFloat = 8
 
     var body: some View {
