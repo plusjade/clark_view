@@ -440,13 +440,20 @@ struct ClarkViewWidgetEntryView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         AutoFitStack(spacing: family == .systemMedium ? 10 : 14) {
                             ForEach(Array(visibleItems.enumerated()), id: \.element.id) { index, item in
-                                if index > 0 {
+                                if index == 1 {
+                                    // The primary/secondary boundary reads as a visual break, not
+                                    // another list separator: short, centered, and bright enough to
+                                    // register at a glance, vs. the full-width dividers below it
+                                    // which are doing information-based separation between rows.
+                                    Rectangle()
+                                        .fill(Color.white.opacity(0.4))
+                                        .frame(width: rowWidth * 0.75, height: 2)
+                                        .frame(width: rowWidth, alignment: .center)
+                                } else if index > 1 {
                                     // A system Divider() renders unpredictably under AutoFitStack's
                                     // scaleEffect; a plain rectangle scales reliably with everything else.
-                                    // The primary/secondary boundary gets a slightly brighter line than
-                                    // dividers between secondary rows, reinforcing the tier break.
                                     Rectangle()
-                                        .fill(Color.white.opacity(index == 1 ? 0.18 : 0.10))
+                                        .fill(Color.white.opacity(0.10))
                                         .frame(height: 1)
                                 }
                                 ItemBlockView(item: item, rowWidth: rowWidth, tier: index == 0 ? .primary : .secondary)
