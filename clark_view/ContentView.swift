@@ -22,6 +22,9 @@ struct ContentView: View {
 }
 
 private struct PairedView: View {
+    @State private var status: DeviceStatusClient.DeviceStatus?
+    @State private var isLoading = false
+
     var body: some View {
         VStack(spacing: 12) {
             Image(systemName: "checkmark.circle.fill")
@@ -34,8 +37,75 @@ private struct PairedView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
+
+            DiagnosticsView(status: status, isLoading: isLoading, onRefresh: refresh)
         }
         .padding()
+        .task { await refresh() }
+    }
+
+    private func refresh() async {
+        isLoading = true
+        status = await DeviceStatusClient.fetch(device: DeviceIdentity.deviceID)
+        isLoading = false
+    }
+}
+
+/// Prototype-level, not user-facing polish: raw fields off `/config/status`,
+/// straight from the server, so it's obvious when what's stored doesn't match
+/// what's expected — no reformatting that could itself hide a drift.
+private struct DiagnosticsView: View {
+    let status: DeviceStatusClient.DeviceStatus?
+    let isLoading: Bool
+    let onRefresh: () async -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Diagnostics")
+                    .font(.caption.bold())
+                Spacer()
+                Button {
+                    Task { await onRefresh() }
+                } label: {
+                    if isLoading {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                }
+                .disabled(isLoading)
+            }
+
+            if let status {
+                row("Device ID", status.deviceId)
+                row("Device Name", status.name ?? "—")
+                row("Config ID", status.configId ?? "—")
+                row("Sports", displayList(status.sports))
+                row("Teams", displayList(status.teams))
+            } else if !isLoading {
+                Text("Couldn't load status")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .font(.system(.footnote, design: .monospaced))
+        .padding(10)
+        .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func displayList(_ values: [String]?) -> String {
+        guard let values, !values.isEmpty else { return "(all)" }
+        return values.joined(separator: ", ")
+    }
+
+    private func row(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text(label)
+                .foregroundStyle(.secondary)
+                .frame(width: 90, alignment: .leading)
+            Text(value)
+        }
     }
 }
 
