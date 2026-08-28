@@ -493,7 +493,7 @@ struct ClarkViewWidgetEntryView: View {
 }
 
 struct ClarkViewWidget: Widget {
-    let kind: String = "ClarkViewWidget"
+    let kind: String = WidgetKind.main
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: Provider()) { entry in

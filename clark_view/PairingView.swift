@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import WidgetKit
 
 /// The one screen the receiver ever needs: enter the 6-character code shown in
 /// whoever-set-up-your-teams's browser (`POST /pair`), then this device is done.
@@ -63,6 +64,7 @@ struct PairingView: View {
             switch outcome {
             case .paired:
                 DeviceIdentity.isPaired = true
+                WidgetCenter.shared.reloadTimelines(ofKind: WidgetKind.main)
                 onPaired()
             case .invalidOrExpiredCode:
                 errorMessage = "That code didn't work — ask for a new one."
