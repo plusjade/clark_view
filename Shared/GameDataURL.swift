@@ -14,7 +14,7 @@ import Foundation
 /// single round trip. Shared by the app and the widget extension so the one
 /// remaining query-param contract only lives in one place.
 enum GameDataURL {
-    static let baseURL = URL(string: "https://plusjade--f0eeffb89a9311f19bb61607ee4eb77e.web.val.run/")!
+    static let baseURL = URL(string: "https://jade.beer/")!
 
     static func resolveURL(device: String, pixelWidth: Int, pixelHeight: Int, tzSecondsFromGMT: Int) -> URL {
         var components = URLComponents(
