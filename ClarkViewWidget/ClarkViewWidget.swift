@@ -7,14 +7,19 @@
 
 import WidgetKit
 import SwiftUI
+import UIKit
 
 private enum GameDataService {
-    static func fetchPayload(day: GameDay, teams: [FavoriteTeam]) async -> WidgetPayload {
+    static func fetchPayload(context: Provider.Context) async -> WidgetPayload {
+        let scale = UITraitCollection.current.displayScale
+        let pixelWidth = Int((context.displaySize.width * scale).rounded())
+        let pixelHeight = Int((context.displaySize.height * scale).rounded())
         let request = URLRequest(
-            url: GameImageURL.jsonURL(
-                day: day.rawValue,
-                tzSecondsFromGMT: TimeZone.current.secondsFromGMT(),
-                teamIDs: teams.map(\.id)
+            url: GameDataURL.resolveURL(
+                device: DeviceIdentity.deviceID,
+                pixelWidth: pixelWidth,
+                pixelHeight: pixelHeight,
+                tzSecondsFromGMT: TimeZone.current.secondsFromGMT()
             ),
             cachePolicy: .reloadIgnoringLocalCacheData
         )
@@ -95,25 +100,30 @@ struct GamesEntry: TimelineEntry {
     let payload: WidgetPayload
 }
 
-struct Provider: AppIntentTimelineProvider {
+// Plain TimelineProvider, not AppIntentTimelineProvider: the receiver has nothing to
+// configure locally anymore (teams/sports move server-side, set from a browser), so
+// there's no Edit Widget sheet to back — see docs/widget-config-plan.md.
+struct Provider: TimelineProvider {
     func placeholder(in context: Context) -> GamesEntry {
         GamesEntry(date: .now, payload: .empty)
     }
 
-    typealias Intent = ClarkViewWidgetConfigurationIntent
-
-    func snapshot(for configuration: Intent, in context: Context) async -> GamesEntry {
-        let payload = await GameDataService.fetchPayload(day: configuration.day, teams: configuration.teams)
-        return GamesEntry(date: .now, payload: payload)
+    func getSnapshot(in context: Context, completion: @escaping (GamesEntry) -> Void) {
+        Task {
+            let payload = await GameDataService.fetchPayload(context: context)
+            completion(GamesEntry(date: .now, payload: payload))
+        }
     }
 
-    func timeline(for configuration: Intent, in context: Context) async -> Timeline<GamesEntry> {
-        let payload = await GameDataService.fetchPayload(day: configuration.day, teams: configuration.teams)
-        let entry = GamesEntry(date: .now, payload: payload)
-        // Data doesn't change fast enough to justify burning the refresh budget more often
-        // than this; retune if games start/finish mid-refresh-window.
-        let nextRefresh = Calendar.current.date(byAdding: .minute, value: 60, to: .now)
-        return Timeline(entries: [entry], policy: .after(nextRefresh ?? .now.addingTimeInterval(3600)))
+    func getTimeline(in context: Context, completion: @escaping (Timeline<GamesEntry>) -> Void) {
+        Task {
+            let payload = await GameDataService.fetchPayload(context: context)
+            let entry = GamesEntry(date: .now, payload: payload)
+            // Data doesn't change fast enough to justify burning the refresh budget more often
+            // than this; retune if games start/finish mid-refresh-window.
+            let nextRefresh = Calendar.current.date(byAdding: .minute, value: 60, to: .now)
+            completion(Timeline(entries: [entry], policy: .after(nextRefresh ?? .now.addingTimeInterval(3600))))
+        }
     }
 }
 
@@ -423,9 +433,22 @@ struct ClarkViewWidgetEntryView: View {
     var body: some View {
         Group {
             if entry.payload.items.isEmpty {
-                Image(systemName: "sportscourt")
-                    .font(.largeTitle)
-                    .foregroundStyle(.secondary)
+                // `/config/resolve` never errors — an unpaired device still gets an
+                // all-sports default (see docs/widget-config-plan.md) — so an empty
+                // payload alone doesn't mean "not paired." `isPaired` is a local,
+                // display-only cache: it only changes which copy renders here, never
+                // whether the fetch above happens.
+                VStack(spacing: 6) {
+                    Image(systemName: DeviceIdentity.isPaired ? "sportscourt" : "person.badge.plus")
+                        .font(.largeTitle)
+                        .foregroundStyle(.secondary)
+                    if !DeviceIdentity.isPaired {
+                        Text("Open the app to finish setup")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+                }
             } else if family == .systemSmall, let item = entry.payload.items.first {
                 ItemHeroCard(item: item)
                     .padding(14)
@@ -473,13 +496,11 @@ struct ClarkViewWidget: Widget {
     let kind: String = "ClarkViewWidget"
 
     var body: some WidgetConfiguration {
-        AppIntentConfiguration(
-            kind: kind, intent: ClarkViewWidgetConfigurationIntent.self, provider: Provider()
-        ) { entry in
+        StaticConfiguration(kind: kind, provider: Provider()) { entry in
             ClarkViewWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("Games")
-        .description("Shows a day's games.")
+        .description("Shows upcoming games for your paired teams.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
         .contentMarginsDisabled()
     }
