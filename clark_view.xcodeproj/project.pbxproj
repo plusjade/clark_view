@@ -60,6 +60,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		58AC1EA169A907F2703BE20D /* Exceptions for "clark_view" folder in "clark_view" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = A497E00B303443030039483F /* clark_view */;
+		};
 		A497E051303448F00039483F /* Exceptions for "ClarkViewWidget" folder in "ClarkViewWidgetExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -72,6 +79,9 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A497E00E303443030039483F /* clark_view */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				58AC1EA169A907F2703BE20D /* Exceptions for "clark_view" folder in "clark_view" target */,
+			);
 			path = clark_view;
 			sourceTree = "<group>";
 		};
@@ -525,6 +535,7 @@
 				DEVELOPMENT_TEAM = 8ADZL76VCT;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = clark_view/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Clark view";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -560,6 +571,7 @@
 				DEVELOPMENT_TEAM = 8ADZL76VCT;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = clark_view/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Clark view";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

@@ -25,7 +25,10 @@ enum DeviceStatusClient {
     // GameDataURL.baseURL now points at) while working on the val.run URL —
     // every other route works on both, so hitting val.run directly here until
     // whoever owns jade.beer's setup sorts out the domain-side staleness.
-    private static let diagnosticsBaseURL = URL(string: "https://plusjade--f0eeffb89a9311f19bb61607ee4eb77e.web.val.run/")!
+    // Not `private`: PushTokenClient hits the same val.run fallback for
+    // `/device/token`, a newer route that 404s on jade.beer the same way —
+    // see that file for the confirmed repro.
+    static let diagnosticsBaseURL = URL(string: "https://plusjade--f0eeffb89a9311f19bb61607ee4eb77e.web.val.run/")!
 
     static func fetch(device: String) async -> DeviceStatus? {
         let url = diagnosticsBaseURL.appendingPathComponent("config/status/\(device)")
