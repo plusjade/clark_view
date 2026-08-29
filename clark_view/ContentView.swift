@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import WidgetKit
 
 /// The receiver has exactly one job: get paired, then get out of the way. Teams and
 /// sports are configured from a browser, not this app — see docs/widget-config-plan.md.
@@ -37,6 +38,13 @@ private struct PairedView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
+
+            Button {
+                WidgetCenter.shared.reloadTimelines(ofKind: WidgetKind.main)
+            } label: {
+                Label("Refresh Widget", systemImage: "arrow.clockwise")
+            }
+            .buttonStyle(.bordered)
 
             DiagnosticsView(status: status, isLoading: isLoading, onRefresh: refresh)
         }

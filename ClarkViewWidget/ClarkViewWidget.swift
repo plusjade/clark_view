@@ -5,6 +5,7 @@
 //  Created by Jade Dominguez on 8/18/26.
 //
 
+import AppIntents
 import WidgetKit
 import SwiftUI
 import UIKit
@@ -422,6 +423,22 @@ private struct ItemBlockView: View {
     }
 }
 
+/// Small, dim, corner-only — sized to register as "there's a refresh
+/// affordance" without competing with the game data for attention. Runs
+/// `RefreshWidgetIntent` in-process; no app launch on tap.
+private struct RefreshButton: View {
+    var body: some View {
+        Button(intent: RefreshWidgetIntent()) {
+            Image(systemName: "arrow.clockwise")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.55))
+                .padding(6)
+                .background(Circle().fill(Color.white.opacity(0.12)))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 struct ClarkViewWidgetEntryView: View {
     @Environment(\.widgetFamily) private var family
     var entry: Provider.Entry
@@ -460,31 +477,46 @@ struct ClarkViewWidgetEntryView: View {
                     let rowWidth = family == .systemMedium
                         ? proxy.size.width - padding * 2
                         : ItemBlockView.defaultRowWidth
-                    VStack(alignment: .leading, spacing: 10) {
-                        AutoFitStack(spacing: family == .systemMedium ? 10 : 14) {
-                            ForEach(Array(visibleItems.enumerated()), id: \.element.id) { index, item in
-                                if index == 1 {
-                                    // The primary/secondary boundary reads as a visual break, not
-                                    // another list separator: short, centered, and bright enough to
-                                    // register at a glance, vs. the full-width dividers below it
-                                    // which are doing information-based separation between rows.
-                                    Rectangle()
-                                        .fill(Color.white.opacity(0.4))
-                                        .frame(width: rowWidth * 0.75, height: 2)
-                                        .frame(width: rowWidth, alignment: .center)
-                                } else if index > 1 {
-                                    // A system Divider() renders unpredictably under AutoFitStack's
-                                    // scaleEffect; a plain rectangle scales reliably with everything else.
-                                    Rectangle()
-                                        .fill(Color.white.opacity(0.10))
-                                        .frame(height: 1)
+                    // The refresh button lives in this ZStack, not inside the padded VStack
+                    // below: AutoFitStack scales its content to fill exactly the padded area
+                    // (min(widthScale, heightScale)), so a fully-packed large widget can reach
+                    // every padded edge. Overlaying outside that padding puts the button in
+                    // space that's guaranteed empty by construction, instead of risking it
+                    // sitting on top of a game's broadcast line.
+                    ZStack(alignment: .bottomLeading) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            AutoFitStack(spacing: family == .systemMedium ? 10 : 14) {
+                                ForEach(Array(visibleItems.enumerated()), id: \.element.id) { index, item in
+                                    if index == 1 {
+                                        // The primary/secondary boundary reads as a visual break, not
+                                        // another list separator: short, centered, and bright enough to
+                                        // register at a glance, vs. the full-width dividers below it
+                                        // which are doing information-based separation between rows.
+                                        Rectangle()
+                                            .fill(Color.white.opacity(0.4))
+                                            .frame(width: rowWidth * 0.75, height: 2)
+                                            .frame(width: rowWidth, alignment: .center)
+                                    } else if index > 1 {
+                                        // A system Divider() renders unpredictably under AutoFitStack's
+                                        // scaleEffect; a plain rectangle scales reliably with everything else.
+                                        Rectangle()
+                                            .fill(Color.white.opacity(0.10))
+                                            .frame(height: 1)
+                                    }
+                                    ItemBlockView(
+                                        item: item,
+                                        rowWidth: rowWidth,
+                                        tier: index == 0 ? .primary : .secondary
+                                    )
                                 }
-                                ItemBlockView(item: item, rowWidth: rowWidth, tier: index == 0 ? .primary : .secondary)
                             }
+                            .foregroundStyle(.white)
                         }
-                        .foregroundStyle(.white)
+                        .padding(padding)
+
+                        RefreshButton()
+                            .padding(6)
                     }
-                    .padding(padding)
                 }
             }
         }
