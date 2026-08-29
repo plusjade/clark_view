@@ -15,7 +15,10 @@ struct ContentView: View {
 
     var body: some View {
         if isPaired {
-            PairedView()
+            PairedView(onUnpaired: {
+                DeviceIdentity.isPaired = false
+                isPaired = false
+            })
         } else {
             PairingView(onPaired: { isPaired = true })
         }
@@ -23,6 +26,8 @@ struct ContentView: View {
 }
 
 private struct PairedView: View {
+    let onUnpaired: () -> Void
+
     @State private var status: DeviceStatusClient.DeviceStatus?
     @State private var isLoading = false
 
@@ -54,8 +59,16 @@ private struct PairedView: View {
 
     private func refresh() async {
         isLoading = true
-        status = await DeviceStatusClient.fetch(device: DeviceIdentity.deviceID)
+        let fetched = await DeviceStatusClient.fetch(device: DeviceIdentity.deviceID)
+        status = fetched
         isLoading = false
+        // Only an explicit `paired: false` from the server corrects the local
+        // cache — a failed fetch (network blip) comes back nil and must not
+        // be treated the same, or a transient error would bounce someone back
+        // to the pairing screen.
+        if let fetched, !fetched.paired {
+            onUnpaired()
+        }
     }
 }
 
