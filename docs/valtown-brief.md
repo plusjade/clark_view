@@ -86,7 +86,7 @@ Prefer changing pure helpers and their tests over adding policy directly to an I
 | --- | --- | --- |
 | `GET /` | Browser, diagnostics, render verification | Stateless sports endpoint. `format=json` is the widget contract; HTML is the default and PNG is also supported. Repeated `sports[]` and `teams[]` parameters are validated without turning drift into a fatal widget error. |
 | `GET /config/resolve` | Widget | Accepts `device`, `d=<pixelWidth>x<pixelHeight>`, and `tz=<seconds east of GMT>`. Looks up the device and returns an uncached 302 to `/?format=json&w=&h=&...`. The widget's `URLSession` follows it. |
-| `POST /pair` | Containing app | JSON `{code, device}`. Returns `{ok: true, configId}` or 404 `{ok: false}`. Codes are six characters, reusable until their 30-minute expiry. Re-pairing replaces the binding. |
+| `POST /pair` | Containing app | JSON `{code, device}`. Returns `{ok: true, configId}` (200), an unknown code as `{ok: false}` (404), or an expired code as `{ok: false, message: "expired"}` (422). Codes are six characters, reusable until their 30-minute expiry. Re-pairing replaces the binding. |
 | `POST /device/token` | Containing app | JSON `{device, token}`. Upserts the APNs token independently of pairing. |
 | `GET /config/status/:deviceId` | Containing app diagnostics | Always returns 200 for a syntactically valid request; an unknown device is `{deviceId, paired: false}`. |
 | `GET /config/new` | Helper's browser | Blank team/sport picker. |

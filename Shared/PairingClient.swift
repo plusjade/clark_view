@@ -34,7 +34,9 @@ enum PairingClient {
         guard httpResponse.statusCode == 200,
               let decoded = try? JSONDecoder().decode(PairResponse.self, from: data),
               decoded.ok, let configID = decoded.configId else {
-            return httpResponse.statusCode == 404 ? .invalidOrExpiredCode : .networkError
+            // 404: no such code. 422: code exists but has expired — the server
+            // distinguishes them server-side, but the app shows the same copy either way.
+            return (httpResponse.statusCode == 404 || httpResponse.statusCode == 422) ? .invalidOrExpiredCode : .networkError
         }
         return .paired(configID: configID)
     }
