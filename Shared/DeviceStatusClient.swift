@@ -22,16 +22,14 @@ enum DeviceStatusClient {
     }
 
     // KNOWN GAP (2026-08-28): this route 404s on jade.beer (the custom domain
-    // GameDataURL.baseURL now points at) while working on the val.run URL —
-    // every other route works on both, so hitting val.run directly here until
-    // whoever owns jade.beer's setup sorts out the domain-side staleness.
-    // Not `private`: PushTokenClient hits the same val.run fallback for
-    // `/device/token`, a newer route that 404s on jade.beer the same way —
-    // see that file for the confirmed repro.
-    static let diagnosticsBaseURL = URL(string: "https://plusjade--f0eeffb89a9311f19bb61607ee4eb77e.web.val.run/")!
-
+    // GameDataURL.baseURL points at) while working on the val.run URL — every
+    // other route works on both. A per-route val.run fallback was tried and
+    // reverted (2026-08-29): keeping two base URLs in sync is more trouble
+    // than it's worth, and jade.beer is meant to be the one domain the app
+    // ever talks to. Diagnostics just 404s until jade.beer's domain-side
+    // staleness is sorted out on the server.
     static func fetch(device: String) async -> DeviceStatus? {
-        let url = diagnosticsBaseURL.appendingPathComponent("config/status/\(device)")
+        let url = GameDataURL.baseURL.appendingPathComponent("config/status/\(device)")
         let request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
         guard let (data, response) = try? await URLSession.shared.data(for: request),
               let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {

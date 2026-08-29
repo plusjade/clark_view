@@ -16,12 +16,13 @@ import Foundation
 ///
 /// KNOWN GAP (2026-08-28): confirmed `/device/token` 404s on jade.beer (curl
 /// -X POST) the same way `/config/status/:deviceId` already does — see
-/// `DeviceStatusClient`. Hits val.run directly, same workaround, until
+/// `DeviceStatusClient`. A val.run fallback was tried and reverted
+/// (2026-08-29) to keep the app on one base URL; this just 404s until
 /// jade.beer's domain-side staleness is sorted out.
 enum PushTokenClient {
     static func upload(device: String, token: Data) async {
         let hexToken = token.map { String(format: "%02x", $0) }.joined()
-        var request = URLRequest(url: DeviceStatusClient.diagnosticsBaseURL.appendingPathComponent("device/token"))
+        var request = URLRequest(url: GameDataURL.baseURL.appendingPathComponent("device/token"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try? JSONEncoder().encode(["device": device, "token": hexToken])
