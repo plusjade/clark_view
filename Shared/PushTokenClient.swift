@@ -13,12 +13,6 @@ import Foundation
 /// `didRegisterForRemoteNotificationsWithDeviceToken`. Fire-and-forget: a
 /// failed upload just means the next silent push misses this device until
 /// the token re-registers, never a user-visible error.
-///
-/// KNOWN GAP (2026-08-28): confirmed `/device/token` 404s on jade.beer (curl
-/// -X POST) the same way `/config/status/:deviceId` already does — see
-/// `DeviceStatusClient`. A val.run fallback was tried and reverted
-/// (2026-08-29) to keep the app on one base URL; this just 404s until
-/// jade.beer's domain-side staleness is sorted out.
 enum PushTokenClient {
     static func upload(device: String, token: Data) async {
         let hexToken = token.map { String(format: "%02x", $0) }.joined()
