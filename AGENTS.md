@@ -4,9 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-SwiftUI iOS app scaffold (Xcode "App" template). Target `clark_view`, bundle id `plusjade.clark-view`, deployment target iOS 26.5, Swift 5.0. No third-party dependencies.
+SwiftUI iOS app with a WidgetKit extension. App target `clark_view`, bundle id `plusjade.clark-view`, deployment target iOS 26.5, Swift 5.0. No third-party dependencies.
 
-Three targets: `clark_view` (app), `clark_viewTests` (unit tests), `clark_viewUITests` (UI tests).
+Four targets: `clark_view` (app), `ClarkViewWidgetExtension` (widget), `clark_viewTests` (unit tests), and `clark_viewUITests` (UI tests).
+
+Clark View is widget-first: the containing app handles pairing and diagnostics, while the user-facing sports experience lives in `ClarkViewWidget`. Its server API and browser-managed configuration are hosted by the Val Town project `plusjade/sports-today`. Before using Val Town MCP tools or changing the iOS/server boundary, read [`docs/valtown-brief.md`](docs/valtown-brief.md); it caches the endpoint identity, route and payload contracts, ownership boundaries, and the bounded MCP workflow intended to prevent redundant remote reads.
 
 ## Build & test
 
