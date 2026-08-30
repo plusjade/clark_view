@@ -75,7 +75,7 @@ The remote val has one HTTP file plus `lib/` and `render/` modules:
 | `lib/sleeper.ts` | Outbound Sleeper data access. |
 | `lib/push.ts` | Best-effort APNs silent push delivery. |
 | `render/json.ts` | The native widget's schema-versioned response. |
-| `render/configHtml.ts` | The helper-facing browser configurator: five focused documents (`configIndexDocument`, `configNewDocument`, `configSettingsDocument`, `configDevicesDocument`, `configPairDocument`) sharing a `pageShell`/`configNav`, not one monolithic page. |
+| `render/configHtml.ts` | The helper-facing browser configurator: six focused documents (`configIndexDocument`, `configNewDocument`, `configSettingsDocument`, `configDevicesDocument`, `configPairDocument`, `configPreviewDocument`) sharing a `pageShell`/`configNav`, not one monolithic page. |
 | Other `render/*` files | HTML/PNG rendering retained by the general sports endpoint; not the native widget's rendering path. |
 
 Prefer changing pure helpers and their tests over adding policy directly to an I/O module. Keep `main.ts` as route wiring and edge behavior.
@@ -92,10 +92,11 @@ Prefer changing pure helpers and their tests over adding policy directly to an I
 | `GET /config` | Helper's browser | Prototype-stage only, no auth: every config row (id, resolved favorites, paired-device count, last-updated) as a live link. Not the unguessable-capability pattern the id-scoped routes below use — an accepted bypass until `/config` gets real access control. |
 | `GET /config/new` | Helper's browser | Blank team/sport picker. |
 | `POST /config/new` | Helper's browser | Creates a configuration and redirects to its capability URL. |
-| `GET/POST /config/:id` | Helper's browser | The Settings sub-view only — reads or updates the sports/teams selection. The unguessable URL is the capability; do not expose real ids in logs or docs. Saving also attempts silent pushes. Device list and pairing live on their own routes below, reached via a persistent top nav (Settings \| Devices \| Pair a device) plus a "← All configs" breadcrumb. |
+| `GET/POST /config/:id` | Helper's browser | The Settings sub-view only — reads or updates the sports/teams selection. The unguessable URL is the capability; do not expose real ids in logs or docs. Saving also attempts silent pushes. Device list, pairing, and preview live on their own routes below, reached via a persistent top nav (Settings \| Devices \| Pair a device \| Preview) plus a "← All configs" breadcrumb. |
 | `GET /config/:id/devices` | Helper's browser | The paired-device list and rename forms. Each row shows the device id, paired-since timestamp, and push-registration status (whether an APNs token is on file, and when it last updated) alongside the existing name input. |
 | `GET /config/:id/pair` | Helper's browser | The pairing-code flow. Below the mint-a-code button, lists this config's expired pairing codes (code, created, expired) — nothing prunes `pairing_codes`, so this is every code that's aged out for that config, most recent first. |
 | `POST /config/:id/code` | Helper's browser | Creates a pairing code and renders the pair view with the freshly minted code (plus the same expired-codes list). This mutates live SQLite state. |
+| `GET /config/:id/preview` | Helper's browser | A read-only render of what `/config/resolve` would currently hand the widget for this config — the items list as a table, plus the full `format=json` response pretty-printed in a `<pre>`. Genuinely live: it runs this config through the same `gamesHandler` path as `/` itself (real Sleeper calls), not a cached snapshot, so a Sleeper failure surfaces as this page's own error state rather than a 500. |
 | `POST /config/:id/devices/:deviceId` | Helper's browser | Renames a paired device for the helper's reference. Redirects back to `/config/:id/devices`. |
 
 Current fallback behavior matters: an unknown or unpaired device is resolved with the legacy `fever` + `sparks` team configuration. An older comment in the widget still describes an all-sports fallback; treat the deployed server behavior above as current until a deliberate cross-project change reconciles both sides.
