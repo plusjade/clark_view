@@ -35,30 +35,45 @@ private enum GameDataService {
         }
     }
 
-    /// #Preview-only fixture now that the live provider calls `fetchPayload` directly — keeps
+    /// #Preview-only fixtures now that the live provider calls `fetchPayload` directly — keeps
     /// Xcode previews deterministic and offline instead of hitting the network at design time.
+    /// Small/medium only ever render item 1, so they keep the "LIVE" state that's always been
+    /// here; large's primary card is the one place that renders a not-yet-started primary item,
+    /// so it gets `mockPayloadUpcoming` instead (see that property).
     static var mockPayload: WidgetPayload {
-        (try? JSONDecoder.widgetPayload.decode(WidgetPayload.self, from: mockJSON)) ?? .empty
+        (try? JSONDecoder.widgetPayload.decode(WidgetPayload.self, from: mockJSON(primaryCaption: "LIVE", primaryEmphasized: true))) ?? .empty
+    }
+
+    /// Same fixture, but item 1 (primary) has no caption, so `displayCaption`/`TimeBlockView`
+    /// fall into the not-yet-started branch and format its `timestamp` instead of showing
+    /// "LIVE" — lets the large layout's primary card preview an actual time.
+    static var mockPayloadUpcoming: WidgetPayload {
+        (try? JSONDecoder.widgetPayload.decode(WidgetPayload.self, from: mockJSON(primaryCaption: nil, primaryEmphasized: false))) ?? .empty
     }
 
     /// Timestamps are relative to `.now` (not hardcoded epoch values) so the fixture always
     /// exercises all three `dayLabel` states — today/tomorrow/future — regardless of when the
     /// preview is opened. "Deterministic" (see `mockPayload` above) means offline, not
-    /// fixed-clock. Pinned to 7pm same-day so a preview opened near midnight can't push
-    /// "today" into tomorrow's calendar date.
+    /// fixed-clock.
     ///
-    /// Items 2 and 3 (the two rows that actually render a start time — item 1's "LIVE" caption
-    /// hides its timestamp) are pinned to 2-digit 12-hour values (10pm, 12 noon) rather than
-    /// reusing the 7pm base: a single-digit-only fixture is exactly how TimeBlockView's 2-digit
-    /// hour clipping shipped unnoticed.
-    private static var mockJSON: Data {
+    /// Item 1 (primary) is pinned 2 hours out from whenever the preview opens, guaranteeing a
+    /// not-yet-started time regardless of `primaryCaption` — so switching to
+    /// `mockPayloadUpcoming` only changes whether that time is shown, not what it is.
+    ///
+    /// Items 2 and 3 are pinned to 7pm same-day as a `base`, not `.now`, so a preview opened
+    /// near midnight can't push "today" into tomorrow's calendar date. They're pinned to
+    /// 2-digit 12-hour values (10pm, 12 noon) rather than reusing the 7pm base directly: a
+    /// single-digit-only fixture is exactly how TimeBlockView's 2-digit hour clipping shipped
+    /// unnoticed.
+    private static func mockJSON(primaryCaption: String?, primaryEmphasized: Bool) -> Data {
         let calendar = Calendar.current
+        let primaryTS = Int(Date.now.addingTimeInterval(2 * 3600).timeIntervalSince1970)
         let base = calendar.date(bySettingHour: 19, minute: 0, second: 0, of: .now) ?? .now
-        let todayTS = Int(base.timeIntervalSince1970)
         let tomorrow = calendar.date(byAdding: .day, value: 1, to: base) ?? base
         let tomorrowTS = Int((calendar.date(bySettingHour: 22, minute: 0, second: 0, of: tomorrow) ?? tomorrow).timeIntervalSince1970)
         let future = calendar.date(byAdding: .day, value: 5, to: base) ?? base
         let futureTS = Int((calendar.date(bySettingHour: 12, minute: 0, second: 0, of: future) ?? future).timeIntervalSince1970)
+        let captionJSON = primaryCaption.map { "\"\($0)\"" } ?? "null"
         return Data("""
         {
           "schemaVersion": 2,
@@ -66,7 +81,7 @@ private enum GameDataService {
             {
               "id": "1", "mainText": "Fever @ Wings",
               "subText": "ESPN 263 · DirecTV",
-              "caption": "LIVE", "emphasized": true, "timestamp": \(todayTS)
+              "caption": \(captionJSON), "emphasized": \(primaryEmphasized), "timestamp": \(primaryTS)
             },
             {
               "id": "2", "mainText": "Valkyries @ Sparks",
@@ -226,21 +241,43 @@ private func mutedWeight(_ weight: Font.Weight, tier: ItemTier) -> Font.Weight {
     }
 }
 
-/// Trailing time display for the list layout: a large hour digit with minute/period stacked
-/// beside it, mirroring a scoreboard clock. Falls back to `caption` (e.g. "LIVE"/"END") when
-/// the game isn't in the not-yet-started state, same as displayCaption but laid out for a rail.
+/// Trailing time display: a hour digit with minute/period stacked beside it, mirroring a
+/// scoreboard clock. Falls back to `caption` (e.g. "LIVE"/"END") when the game isn't in the
+/// not-yet-started state.
 ///
-/// Dimensions (font sizes) are identical across tiers — the rail's footprint must line up card
-/// to card. Tier reads purely through weight + opacity muting on `.secondary` rows.
+/// `.block` (the primary item) and `.compact` (`SecondaryItemRow`) are the same layout at two
+/// sizes, not two designs — `SecondaryItemRow` tried spelling the time out as running text
+/// ("10:00 PM") instead, but that ate the width `mainText` needs most and lost the
+/// glanceable scoreboard shape. `.compact`'s sizes are still pulled from existing TextStyles
+/// used elsewhere in this file (`.title3`/`.caption`), not shrunk further — a smaller stacked
+/// block should still read as clearly as everything else on the row, not become the one
+/// illegible element in exchange for a few points of width.
 private struct TimeBlockView: View {
+    enum Style {
+        case block
+        case compact
+    }
+
     let item: WidgetItem
     var tier: ItemTier = .primary
+    var style: Style = .block
+
+    private var sizes: (hour: Font.TextStyle, minute: Font.TextStyle, caption: Font.TextStyle) {
+        switch style {
+        case .block: return (.largeTitle, .caption, .title3)
+        case .compact: return (.title3, .caption, .subheadline)
+        }
+    }
 
     var body: some View {
         if let caption = item.caption {
             Text(caption)
-                .font(.system(.title3, design: .rounded, weight: mutedWeight(.heavy, tier: tier)))
-                .foregroundStyle((item.emphasized ? Color.red : Color.white.opacity(0.55)).opacity(tier == .primary ? 1 : 0.75))
+                .font(.system(sizes.caption, design: .rounded, weight: mutedWeight(.heavy, tier: tier)))
+                // No extra opacity multiplier for `.secondary` here (unlike the hour/minute
+                // branch below): these two base colors are ~6:1 and ~5.9:1 against black on
+                // their own — that's already the tier's entire contrast budget. `mutedWeight`
+                // still carries the tier distinction via weight.
+                .foregroundStyle(item.emphasized ? Color.red : Color.white.opacity(0.55))
         } else {
             let parts = timeParts(for: item.timestamp)
             // lineLimit + minimumScaleFactor are a safety net, not the primary fit mechanism —
@@ -248,21 +285,27 @@ private struct TimeBlockView: View {
             // the default text size without shrinking; this only catches larger Dynamic Type.
             HStack(alignment: .lastTextBaseline, spacing: 2) {
                 Text(parts.hour)
-                    .font(.system(.largeTitle, design: .monospaced, weight: mutedWeight(.black, tier: tier)))
+                    .font(.system(sizes.hour, design: .monospaced, weight: mutedWeight(.black, tier: tier)))
                 if let period = parts.period {
                     VStack(alignment: .leading, spacing: -2) {
                         Text(parts.minute)
                         Text(period)
                     }
-                    .font(.system(.caption, design: .monospaced, weight: mutedWeight(.black, tier: tier)))
+                    .font(.system(sizes.minute, design: .monospaced, weight: mutedWeight(.black, tier: tier)))
                 } else {
                     Text(":\(parts.minute)")
-                        .font(.system(.largeTitle, design: .monospaced, weight: mutedWeight(.black, tier: tier)))
+                        .font(.system(sizes.hour, design: .monospaced, weight: mutedWeight(.black, tier: tier)))
                 }
             }
             .lineLimit(1)
             .minimumScaleFactor(0.7)
             .foregroundStyle(tier == .primary ? .white : .white.opacity(0.7))
+            // The hour, minute, and period above are three separate Text views so the hour
+            // digit can be sized independently — but that means VoiceOver would otherwise
+            // read them as three separate stops ("4" … "45" … "PM"). Collapse them into one
+            // element with a properly formatted label ("4:45 PM") instead.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(item.timestamp.formatted(date: .omitted, time: .shortened))
         }
     }
 }
@@ -348,74 +391,60 @@ private struct ItemHeroCard: View {
     }
 }
 
-/// One item's block within the medium/large list: a header row (matchup title baseline-aligned
-/// against the time rail — both anchor to the same line the eye reads across — so a wrapped
-/// second line grows upward instead of shifting the shared baseline down) plus a broadcast
-/// line beneath. The broadcast line is centered and default-design (not monospaced, not
-/// left-aligned like the title) precisely so it reads as a secondary, distinct element rather
-/// than competing with the title for attention.
-///
-/// Title and time rail each get a dedicated fixed width instead of negotiating for space, so
-/// the rail stays fully visible and a long title wraps in its own column rather than shoving
-/// it out of view — also what makes wrapping resolvable at all inside AutoFitStack's
-/// `.fixedSize()` pass, which proposes nil width here.
+/// The primary item's card — the one thing the widget wants read first: a day/time row
+/// (right-justified, on its own line — dayLabel and `TimeBlockView` sit side by side rather
+/// than stacked, trading the vertical space a stacked pairing would cost for the row's own
+/// height back), then the matchup title, then a broadcast line beneath — each spanning the
+/// card's full width instead of sharing a row, so mainText and subText get the whole line for
+/// their content rather than a column squeezed beside the time rail. The broadcast line is
+/// centered and default-design (not monospaced, not left-aligned like the title) precisely so
+/// it reads as a secondary, distinct element rather than competing with the title for
+/// attention.
 ///
 /// `rowWidth` is caller-supplied: large keeps `defaultRowWidth`, medium passes the widget's
-/// actual available width so its single row spans it fully.
+/// actual available width so its single row spans it fully. Every other item in the large
+/// layout uses `SecondaryItemRow` instead — this view is always tier `.primary`.
 private struct ItemBlockView: View {
     let item: WidgetItem
     var rowWidth: CGFloat = Self.defaultRowWidth
-    var tier: ItemTier = .primary
 
     // Confirmed (2026-08-20): Font.system(size:...) silently drops `design` here; only the
     // TextStyle-relative initializer threads it correctly. Default (sans), not monospaced —
     // that rationale is for the time rail's digits only.
     private var titleFont: Font {
-        .system(tier == .primary ? .title : .title3, design: .default)
+        .system(.title, design: .default)
     }
 
     static let defaultRowWidth: CGFloat = 254
-    // Fixed across tiers, not just primary: 64pt is tuned so dayLabel's longest values *and* a
-    // 2-digit hour ("10"/"11"/"12", ~59pt measured on-device at the default text size) render
-    // at full size (see the comment below); narrowing it for secondary rows would make the
-    // minimumScaleFactor floor load-bearing instead of a safety net.
-    private static let timeBlockWidth: CGFloat = 64
-    private static let headerSpacing: CGFloat = 8
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            HStack(alignment: .lastTextBaseline, spacing: Self.headerSpacing) {
-                ItemLineView(text: item.mainText, font: titleFont, lineLimit: 2)
-                    .frame(
-                        width: rowWidth - Self.timeBlockWidth - Self.headerSpacing,
-                        alignment: .leading
-                    )
-                    .fixedSize(horizontal: false, vertical: true)
+            let eyebrow = dayLabel(for: item.timestamp)
+            let eyebrowStyle = eyebrowStyle(for: eyebrow)
+            HStack(alignment: .center, spacing: 6) {
+                // dayLabel's values ("TODAY"/"TMRW"/"AUG 16") are short enough to render
+                // at full size in 56pt; lineLimit + a scale floor stay on as a safety net
+                // for longer locale-specific month abbreviations, not the primary fit
+                // mechanism — shrinking this label by default would be an accessibility
+                // regression, not a fix.
+                Text(eyebrow)
+                    .font(.system(.subheadline, design: .rounded, weight: eyebrowStyle.weight))
+                    .tracking(0.5)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                    .foregroundStyle(eyebrowStyle.color)
 
-                let eyebrow = dayLabel(for: item.timestamp)
-                let eyebrowStyle = eyebrowStyle(for: eyebrow)
-                VStack(alignment: .trailing, spacing: 2) {
-                    // dayLabel's values ("TODAY"/"TMRW"/"AUG 16") are short enough to render
-                    // at full size in 56pt; lineLimit + a scale floor stay on as a safety net
-                    // for longer locale-specific month abbreviations, not the primary fit
-                    // mechanism — shrinking this label by default would be an accessibility
-                    // regression, not a fix.
-                    Text(eyebrow)
-                        .font(.system(.caption2, design: .rounded, weight: mutedWeight(eyebrowStyle.weight, tier: tier)))
-                        .tracking(0.5)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
-                        .foregroundStyle(eyebrowStyle.color.opacity(tier == .primary ? 1 : 0.8))
-
-                    TimeBlockView(item: item, tier: tier)
-                }
-                .frame(width: Self.timeBlockWidth, alignment: .trailing)
+                TimeBlockView(item: item)
             }
-            .frame(width: rowWidth, alignment: .leading)
+            .frame(width: rowWidth, alignment: .trailing)
+
+            ItemLineView(text: item.mainText, font: titleFont, lineLimit: 2)
+                .frame(width: rowWidth, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
 
             Text(item.subText)
-                .font(.system(tier == .primary ? .title3 : .subheadline, design: .default, weight: .regular))
-                .foregroundStyle(.white.opacity(tier == .primary ? 0.80 : 0.65))
+                .font(.system(.title3, design: .default, weight: .regular))
+                .foregroundStyle(.white.opacity(0.80))
                 .lineLimit(2)
                 .frame(width: rowWidth, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
@@ -423,17 +452,61 @@ private struct ItemBlockView: View {
     }
 }
 
-/// Small, dim, corner-only — sized to register as "there's a refresh
-/// affordance" without competing with the game data for attention. Runs
+/// Every item after the primary one, in the large layout: the same structural layout as
+/// `ItemBlockView` — a day/time row (day label beside `TimeBlockView`, right-justified, on its
+/// own line) then the matchup title on its own line, each spanning the row's full width — just
+/// at `.compact` scale and without a subText line. This is the "everything else" glance,
+/// deliberately smaller so it reads as a preview list rather than a second card competing with
+/// the primary item.
+///
+/// Two deliberate departures from `ItemBlockView`, both secondary-only: the day/time row aligns
+/// on `.lastTextBaseline` (vs. primary's `.center`), and mainText is right-justified instead of
+/// left. The right-justified title is a left-to-right semantic, not just a visual one — primary
+/// reads left-aligned because it's the active item; secondary rows read right-aligned because
+/// they're the queue, not yet in play.
+private struct SecondaryItemRow: View {
+    let item: WidgetItem
+    var rowWidth: CGFloat = ItemBlockView.defaultRowWidth
+
+    var body: some View {
+        let eyebrow = dayLabel(for: item.timestamp)
+        let eyebrowStyle = eyebrowStyle(for: eyebrow)
+        VStack(alignment: .trailing, spacing: 2) {
+            HStack(alignment: .lastTextBaseline, spacing: 6) {
+                Text(eyebrow)
+                    .font(.system(.caption2, design: .rounded, weight: mutedWeight(eyebrowStyle.weight, tier: .secondary)))
+                    .tracking(0.5)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                    .foregroundStyle(eyebrowStyle.color.opacity(0.8))
+
+                TimeBlockView(item: item, tier: .secondary, style: .compact)
+            }
+            .frame(width: rowWidth, alignment: .trailing)
+
+            ItemLineView(text: item.mainText, font: .system(.body, design: .default, weight: .semibold), lineLimit: 2)
+                .multilineTextAlignment(.trailing)
+                .foregroundStyle(.white.opacity(0.85))
+                .frame(width: rowWidth, alignment: .trailing)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+/// Corner-only, dim enough to stay out of the way of the game data — but sized to Apple's
+/// 44×44pt HIG minimum tap target, not just a visually-small icon with padding around it.
+/// Moving mainText/subText onto their own full-width lines (see `ItemBlockView`) freed up the
+/// bottom-left corner this sits in, so the icon itself grew too, not just the hit area. Runs
 /// `RefreshWidgetIntent` in-process; no app launch on tap.
 private struct RefreshButton: View {
     var body: some View {
         Button(intent: RefreshWidgetIntent()) {
             Image(systemName: "arrow.clockwise")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.55))
-                .padding(6)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.65))
+                .frame(width: 44, height: 44)
                 .background(Circle().fill(Color.white.opacity(0.12)))
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
     }
@@ -485,17 +558,26 @@ struct ClarkViewWidgetEntryView: View {
                     // sitting on top of a game's broadcast line.
                     ZStack(alignment: .bottomLeading) {
                         VStack(alignment: .leading, spacing: 10) {
-                            AutoFitStack(spacing: family == .systemMedium ? 10 : 14) {
+                            AutoFitStack(spacing: family == .systemMedium ? 10 : 12) {
                                 ForEach(Array(visibleItems.enumerated()), id: \.element.id) { index, item in
                                     if index == 1 {
-                                        // The primary/secondary boundary reads as a visual break, not
-                                        // another list separator: short, centered, and bright enough to
-                                        // register at a glance, vs. the full-width dividers below it
-                                        // which are doing information-based separation between rows.
-                                        Rectangle()
-                                            .fill(Color.white.opacity(0.4))
-                                            .frame(width: rowWidth * 0.75, height: 2)
-                                            .frame(width: rowWidth, alignment: .center)
+                                        // The primary/secondary boundary is a section change, not just
+                                        // another row separator: a bolder hairline plus a "THEN" label so
+                                        // the split reads as "what's next" vs. "everything else", not
+                                        // another divider of the same kind as the ones below it. Both are
+                                        // tuned to WCAG minimums, not just a visual guess: 0.4 opacity is
+                                        // this hairline's ~3:1 non-text-contrast floor, and 0.55 is the
+                                        // label's ~4.5:1 text-contrast floor at this size.
+                                        VStack(alignment: .leading, spacing: 5) {
+                                            Rectangle()
+                                                .fill(Color.white.opacity(0.4))
+                                                .frame(height: 1)
+                                            Text("THEN…")
+                                                .font(.system(.caption2, design: .rounded, weight: .bold))
+                                                .tracking(1.5)
+                                                .foregroundStyle(.white.opacity(0.55))
+                                        }
+                                        .frame(width: rowWidth, alignment: .leading)
                                     } else if index > 1 {
                                         // A system Divider() renders unpredictably under AutoFitStack's
                                         // scaleEffect; a plain rectangle scales reliably with everything else.
@@ -503,11 +585,11 @@ struct ClarkViewWidgetEntryView: View {
                                             .fill(Color.white.opacity(0.10))
                                             .frame(height: 1)
                                     }
-                                    ItemBlockView(
-                                        item: item,
-                                        rowWidth: rowWidth,
-                                        tier: index == 0 ? .primary : .secondary
-                                    )
+                                    if index == 0 {
+                                        ItemBlockView(item: item, rowWidth: rowWidth)
+                                    } else {
+                                        SecondaryItemRow(item: item, rowWidth: rowWidth)
+                                    }
                                 }
                             }
                             .foregroundStyle(.white)
@@ -554,5 +636,5 @@ struct ClarkViewWidget: Widget {
 #Preview(as: .systemLarge) {
     ClarkViewWidget()
 } timeline: {
-    GamesEntry(date: .now, payload: GameDataService.mockPayload)
+    GamesEntry(date: .now, payload: GameDataService.mockPayloadUpcoming)
 }
