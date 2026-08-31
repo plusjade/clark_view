@@ -528,7 +528,8 @@ private struct RefreshButton: View {
 private struct WidgetBackground: View {
     var hasSecondaryItems: Bool
 
-    static let secondaryTone = Color(red: 0.11, green: 0.11, blue: 0.12)
+    //static let secondaryTone = Color(red: 0.11, green: 0.11, blue: 0.12)
+    static let secondaryTone = Color(red: 0, green: 0, blue: 0) // black
 
     var body: some View {
         hasSecondaryItems ? Self.secondaryTone : .black
@@ -600,7 +601,7 @@ struct ClarkViewWidgetEntryView: View {
                                         // spacing) makes it part of primary's own layout box, so the
                                         // black `.background` below — sized to match its content by
                                         // default — covers the gutter too, without measuring it.
-                                        .padding(.bottom, secondaryItems.isEmpty ? 0 : 20)
+                                        .padding(.bottom, secondaryItems.isEmpty ? 0 : 18)
                                         .background {
                                             if !secondaryItems.isEmpty {
                                                 // Negative padding bleeds this past its own content's
@@ -631,23 +632,19 @@ struct ClarkViewWidgetEntryView: View {
                                     // never visually touch even at zero vertical gap — and collapsing
                                     // it hands that space back to AutoFitStack's scale-to-fit, so
                                     // everything renders larger.
-                                    VStack(alignment: .leading, spacing: 0) {
+                                    VStack(alignment: .trailing, spacing: 10) {
                                         // The primary/secondary boundary is a section change, not just
                                         // another row separator: a bolder hairline plus a "THEN" label
                                         // so the split reads as "what's next" vs. "everything else".
                                         // Tuned to WCAG minimums, not just a visual guess: 0.4 opacity
                                         // is this hairline's ~3:1 non-text-contrast floor, and 0.55 is
                                         // the label's ~4.5:1 text-contrast floor at this size.
-                                        VStack(alignment: .leading, spacing: 5) {
+                                        VStack(alignment: .trailing, spacing: 5) {
                                             Rectangle()
                                                 .fill(Color.white.opacity(0.4))
                                                 .frame(height: 0.5)
-                                            Text("THEN…")
-                                                .font(.system(.caption2, design: .rounded, weight: .bold))
-                                                .tracking(1.5)
-                                                .foregroundStyle(.white.opacity(0.55))
                                         }
-                                        .frame(width: rowWidth, alignment: .leading)
+                                        .frame(width: (rowWidth * 0.75), alignment: .trailing)
 
                                         // No separator between rows here (unlike the old flat list) —
                                         // condensed spacing alone is enough to read as a list once each
