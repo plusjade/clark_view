@@ -418,7 +418,9 @@ private struct ItemBlockView: View {
     static let defaultRowWidth: CGFloat = 254
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        // 10pt, not the tight 2pt secondary rows use — this is the primary card's own share of
+        // "give it more room," alongside the wider gap around the whole card in the caller.
+        VStack(alignment: .leading, spacing: 10) {
             let eyebrow = dayLabel(for: item.timestamp)
             let eyebrowStyle = eyebrowStyle(for: eyebrow)
             HStack(alignment: .center, spacing: 6) {
@@ -512,12 +514,37 @@ private struct RefreshButton: View {
     }
 }
 
+/// Base backdrop for the widget: the tint color when the large layout has secondary items to
+/// distinguish from primary, plain black otherwise (small, medium, empty state, a large with
+/// just one item). This is deliberately *not* the dual-tone split itself — it's just the
+/// secondary tone shown everywhere by default. The primary card carves out its own opaque black
+/// region on top of this (see the `.background` attached to `ItemBlockView` below), so the two
+/// tones never need to agree on a shared boundary computed twice in two different places.
+///
+/// The secondary rows render on top of this tint rather than pure black, which nudges their
+/// contrast down slightly from the WCAG floor they were tuned against (roughly a 19% cut, e.g.
+/// the "END"-style caption text goes from ~6.3:1 to ~5.1:1) — still clear of the 4.5:1 AA
+/// minimum, just with less headroom than before. Worth a look if this tone gets any darker.
+private struct WidgetBackground: View {
+    var hasSecondaryItems: Bool
+
+    static let secondaryTone = Color(red: 0.11, green: 0.11, blue: 0.12)
+
+    var body: some View {
+        hasSecondaryItems ? Self.secondaryTone : .black
+    }
+}
+
 struct ClarkViewWidgetEntryView: View {
     @Environment(\.widgetFamily) private var family
     var entry: Provider.Entry
 
     private var visibleItems: [WidgetItem] {
         family == .systemMedium ? Array(entry.payload.items.prefix(1)) : Array(entry.payload.items.prefix(3))
+    }
+
+    private var hasSecondaryItems: Bool {
+        family == .systemLarge && visibleItems.count > 1
     }
 
     var body: some View {
@@ -556,39 +583,81 @@ struct ClarkViewWidgetEntryView: View {
                     // every padded edge. Overlaying outside that padding puts the button in
                     // space that's guaranteed empty by construction, instead of risking it
                     // sitting on top of a game's broadcast line.
+                    let secondaryItems = visibleItems.dropFirst()
                     ZStack(alignment: .bottomLeading) {
                         VStack(alignment: .leading, spacing: 10) {
-                            AutoFitStack(spacing: family == .systemMedium ? 10 : 12) {
-                                ForEach(Array(visibleItems.enumerated()), id: \.element.id) { index, item in
-                                    if index == 1 {
+                            // Two top-level groups, not a flat row list: the primary card (with its
+                            // own trailing gutter baked into its padding below, not shared VStack
+                            // spacing) and the "THEN"-divider-plus-secondary-rows as one combined
+                            // block. AutoFitStack's own spacing is 0 — every gap that matters is
+                            // owned by the specific view that needs it, which is what lets the
+                            // primary card's own `.background` (below) bleed through exactly that
+                            // gutter without having to measure where it actually lands.
+                            AutoFitStack(spacing: 0) {
+                                if let primary = visibleItems.first {
+                                    ItemBlockView(item: primary, rowWidth: rowWidth)
+                                        // Baking the gutter in here (rather than as AutoFitStack
+                                        // spacing) makes it part of primary's own layout box, so the
+                                        // black `.background` below — sized to match its content by
+                                        // default — covers the gutter too, without measuring it.
+                                        .padding(.bottom, secondaryItems.isEmpty ? 0 : 20)
+                                        .background {
+                                            if !secondaryItems.isEmpty {
+                                                // Negative padding bleeds this past its own content's
+                                                // bounds toward the widget's true top/side edges. Not
+                                                // exactly `-padding`: this sits *inside* AutoFitStack's
+                                                // scaleEffect, while the outer `padding` is applied
+                                                // outside it — if content is tall enough to force
+                                                // scale-down, an exact `-padding` bleed would fall short
+                                                // by that same factor and leave a sliver of the wrong
+                                                // tone at the edge. Overshooting is harmless (clipped by
+                                                // the widget's own corner radius); undershooting isn't,
+                                                // so this bleeds several times further than should ever
+                                                // be needed rather than tracking the scale precisely.
+                                                Color.black
+                                                    .padding(.top, -padding * 4)
+                                                    .padding(.horizontal, -padding * 4)
+                                            }
+                                        }
+                                }
+
+                                if !secondaryItems.isEmpty {
+                                    // The divider and the secondary rows are one combined group here
+                                    // (spacing: 0 between them), not two separate AutoFitStack
+                                    // children — that's what keeps this group's own gap from the
+                                    // primary card above at the full 20pt while the divider sits flush
+                                    // against the rows beneath it. No padding needed there: "THEN" is
+                                    // left-justified and the rows are right-justified, so the two
+                                    // never visually touch even at zero vertical gap — and collapsing
+                                    // it hands that space back to AutoFitStack's scale-to-fit, so
+                                    // everything renders larger.
+                                    VStack(alignment: .leading, spacing: 0) {
                                         // The primary/secondary boundary is a section change, not just
-                                        // another row separator: a bolder hairline plus a "THEN" label so
-                                        // the split reads as "what's next" vs. "everything else", not
-                                        // another divider of the same kind as the ones below it. Both are
-                                        // tuned to WCAG minimums, not just a visual guess: 0.4 opacity is
-                                        // this hairline's ~3:1 non-text-contrast floor, and 0.55 is the
-                                        // label's ~4.5:1 text-contrast floor at this size.
+                                        // another row separator: a bolder hairline plus a "THEN" label
+                                        // so the split reads as "what's next" vs. "everything else".
+                                        // Tuned to WCAG minimums, not just a visual guess: 0.4 opacity
+                                        // is this hairline's ~3:1 non-text-contrast floor, and 0.55 is
+                                        // the label's ~4.5:1 text-contrast floor at this size.
                                         VStack(alignment: .leading, spacing: 5) {
                                             Rectangle()
                                                 .fill(Color.white.opacity(0.4))
-                                                .frame(height: 1)
+                                                .frame(height: 0.5)
                                             Text("THEN…")
                                                 .font(.system(.caption2, design: .rounded, weight: .bold))
                                                 .tracking(1.5)
                                                 .foregroundStyle(.white.opacity(0.55))
                                         }
                                         .frame(width: rowWidth, alignment: .leading)
-                                    } else if index > 1 {
-                                        // A system Divider() renders unpredictably under AutoFitStack's
-                                        // scaleEffect; a plain rectangle scales reliably with everything else.
-                                        Rectangle()
-                                            .fill(Color.white.opacity(0.10))
-                                            .frame(height: 1)
-                                    }
-                                    if index == 0 {
-                                        ItemBlockView(item: item, rowWidth: rowWidth)
-                                    } else {
-                                        SecondaryItemRow(item: item, rowWidth: rowWidth)
+
+                                        // No separator between rows here (unlike the old flat list) —
+                                        // condensed spacing alone is enough to read as a list once each
+                                        // row is this compact, and a hairline per row fought the
+                                        // "queue, not a card" read `SecondaryItemRow` is going for.
+                                        VStack(alignment: .trailing, spacing: 6) {
+                                            ForEach(Array(secondaryItems), id: \.id) { item in
+                                                SecondaryItemRow(item: item, rowWidth: rowWidth)
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -602,7 +671,9 @@ struct ClarkViewWidgetEntryView: View {
                 }
             }
         }
-        .containerBackground(.black, for: .widget)
+        .containerBackground(for: .widget) {
+            WidgetBackground(hasSecondaryItems: hasSecondaryItems)
+        }
     }
 }
 
