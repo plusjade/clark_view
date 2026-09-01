@@ -8,8 +8,6 @@
 import SwiftUI
 import WidgetKit
 
-/// The receiver has exactly one job: get paired, then get out of the way. Teams and
-/// sports are configured from a browser, not this app — see docs/widget-config-plan.md.
 struct ContentView: View {
     @State private var isPaired = DeviceIdentity.isPaired
 

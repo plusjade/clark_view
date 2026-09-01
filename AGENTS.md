@@ -1,7 +1,5 @@
 # Agent instructions
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## Project
 
 SwiftUI iOS app with a WidgetKit extension. App target `clark_view`, bundle id `plusjade.clark-view`, deployment target iOS 26.5, Swift 5.0. No third-party dependencies.
@@ -30,9 +28,6 @@ SwiftLint is configured (`.swiftlint.yml`). Run `swiftlint lint` from the projec
 **Shared**
 - Prefer **small, focused changes** that match the request; avoid drive-by refactors or unrelated file edits.
 - **Comments orient the mental model, not the code**: Class and module headers answer "what is this and where does it fit in the system?" — 1–3 lines a distracted reader can parse at a glance without touching the implementation. Inline comments are for the non-obvious *why*: hidden constraints, subtle invariants, surprising behavior, gotchas. Never explain *what* the code does; well-named identifiers handle that. If removing the comment wouldn't confuse a future reader, don't write it.
-
-**Backend only**
-- **Comment method signatures**: Document argument and return types with `@param` / `@return` tags.
 
 ## Programming patterns
 

@@ -7,19 +7,10 @@
 
 import Foundation
 
-/// Builds the widget's one outbound request. Teams/sports/day are no longer client
-/// params — they're set from a browser against this device's paired configuration
-/// (see docs/widget-config-plan.md on the server). `/config/resolve` 302s to the
+/// Builds the widget's one outbound request. `/config/resolve` 302s to the
 /// real data URL; `URLSession` follows redirects transparently, so this is still a
 /// single round trip. Shared by the app and the widget extension so the one
 /// remaining query-param contract only lives in one place.
-///
-/// The val's own URL, not jade.beer (2026-08-29): jade.beer 404s on some routes
-/// (`/config/status/:deviceId`, `/device/token` — domain-side staleness, not a
-/// server bug) while val.run always reflects the val's live routes exactly.
-/// jade.beer stays reserved for the human-facing configurator link a helper
-/// opens in a browser (`/config/:id`), which isn't hardcoded here at all — this
-/// is only every machine call the app itself makes.
 enum GameDataURL {
     static let baseURL = URL(string: "https://plusjade--f0eeffb89a9311f19bb61607ee4eb77e.web.val.run/")!
 

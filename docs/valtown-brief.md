@@ -1,6 +1,6 @@
 # Clark View ↔ Val Town orientation
 
-Read this before inspecting or changing the Val Town backend. It is a local map of the parts of `plusjade/sports-today` that matter to this repository, captured on 2026-08-29, so routine iOS work should not require rediscovering the remote project through repeated MCP calls.
+Read this before inspecting or changing the Val Town backend. It is a local map of the parts of `plusjade/sports-today` that matter to this repository, updated on 2026-09-01, so routine iOS work should not require rediscovering the remote project through repeated MCP calls.
 
 ## One-minute mental model
 
@@ -8,7 +8,7 @@ Clark View is a widget-first iOS product. The containing app is intentionally sm
 
 `plusjade/sports-today` is the product brain. It stores device-to-configuration associations, fetches sports data, chooses the next relevant slate, creates the display-ready JSON contract, hosts the browser configurator, and sends best-effort silent pushes when a configuration changes.
 
-Several Swift comments refer to `docs/widget-config-plan.md` or other planning notes that live with the backend work and are not present in this repository. This brief is the local orientation source; inspect a named remote module only when the task needs implementation detail beyond what is cached here.
+This brief is the local orientation source; inspect a named remote module only when the task needs implementation detail beyond what is cached here.
 
 ```text
 Helper's browser ── /config/* ──> Val Town SQLite
@@ -63,11 +63,13 @@ The iOS machine calls intentionally use the `val.run` endpoint. As of this snaps
 
 ## Server-side map
 
-The remote val has one HTTP file plus `lib/` and `render/` modules:
+The remote val has one stable HTTP entrypoint plus namespaced transport, domain, and rendering modules:
 
 | Remote path | Responsibility |
 | --- | --- |
-| `main.ts` | Hono routing and edge orchestration. Preserve this file's identity. |
+| `main.ts` | Stable Hono assembly point. Preserve this file's identity; route implementations live under `http/`. |
+| `http/routes/*.ts` | Hono route groups for the root/data endpoint, browser configuration, and device APIs. |
+| `http/handlers/games.ts` | Shared sports query pipeline for widget JSON, PNG diagnostics, and config previews. |
 | `lib/catalog.ts` | Known sports, teams, and channel tables. |
 | `lib/params.ts`, `lib/games.ts`, `lib/dates.ts`, `lib/teams.ts`, `lib/channels.ts` | Pure request validation, slate selection, date handling, and display enrichment. |
 | `lib/config.ts` | Pure translation from stored preferences plus live device facts into the redirected JSON URL. |
@@ -76,7 +78,7 @@ The remote val has one HTTP file plus `lib/` and `render/` modules:
 | `lib/push.ts` | Best-effort APNs silent push delivery. |
 | `render/json.ts` | The native widget's schema-versioned response. |
 | `render/configHtml.ts` | The helper-facing browser configurator. |
-| Other `render/*` files | HTML/PNG rendering retained by the general sports endpoint; not the native widget's rendering path. |
+| Other `render/*` files | PNG rendering and its pure layout helpers; not the native widget's rendering path. |
 
 Prefer changing pure helpers and their tests over adding policy directly to an I/O module. Keep `main.ts` as route wiring and edge behavior.
 
@@ -84,14 +86,16 @@ Prefer changing pure helpers and their tests over adding policy directly to an I
 
 | Method and route | Caller | Contract / caution |
 | --- | --- | --- |
-| `GET /` | Browser, diagnostics, render verification | Stateless sports endpoint. `format=json` is the widget contract; HTML is the default and PNG is also supported. Repeated `sports[]` and `teams[]` parameters are validated without turning drift into a fatal widget error. |
+| `GET /` | Browser, widget redirect target, diagnostics | Plain requests render a centered nav to `/config` and `/devices`. Explicit `format=json` remains the widget contract and `format=png` remains available for diagnostics. Repeated `sports[]` and `teams[]` parameters are validated without turning drift into a fatal widget error. |
 | `GET /config/resolve` | Widget | Accepts `device`, `d=<pixelWidth>x<pixelHeight>`, and `tz=<seconds east of GMT>`. Looks up the device and returns an uncached 302 to `/?format=json&w=&h=&...`. The widget's `URLSession` follows it. |
 | `POST /pair` | Containing app | JSON `{code, device}`. Returns `{ok: true, configId}` (200), an unknown code as `{ok: false}` (404), or an expired code as `{ok: false, message: "expired"}` (422). Codes are six characters, reusable until their 30-minute expiry. Re-pairing replaces the binding. |
 | `POST /device/token` | Containing app | JSON `{device, token}`. Upserts the APNs token independently of pairing. |
 | `GET /config/status/:deviceId` | Containing app diagnostics | Always returns 200 for a syntactically valid request; an unknown device is `{deviceId, paired: false}`. |
+| `GET /devices` | Helper's browser | Read-only index of every `device_configs` association. Existing referenced configs link to `/config/:id`; orphaned config ids remain unlinked. Intentionally absent from the current navigation. |
 | `GET /config/new` | Helper's browser | Blank team/sport picker. |
 | `POST /config/new` | Helper's browser | Creates a configuration and redirects to its capability URL. |
 | `GET/POST /config/:id` | Helper's browser | Reads or updates configuration. The unguessable URL is the capability; do not expose real ids in logs or docs. Saving also attempts silent pushes. |
+| `GET/POST /config/:id/pair` | Helper's browser | GET offers code-based pairing plus existing devices not already linked to this config. POST reassigns the selected existing `device_configs` row to this config while preserving its name. |
 | `POST /config/:id/code` | Helper's browser | Creates a pairing code. This mutates live SQLite state. |
 | `POST /config/:id/devices/:deviceId` | Helper's browser | Renames a paired device for the helper's reference. |
 

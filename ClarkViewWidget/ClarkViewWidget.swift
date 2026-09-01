@@ -116,9 +116,6 @@ struct GamesEntry: TimelineEntry {
     let payload: WidgetPayload
 }
 
-// Plain TimelineProvider, not AppIntentTimelineProvider: the receiver has nothing to
-// configure locally anymore (teams/sports move server-side, set from a browser), so
-// there's no Edit Widget sheet to back — see docs/widget-config-plan.md.
 struct Provider: TimelineProvider {
     func placeholder(in context: Context) -> GamesEntry {
         GamesEntry(date: .now, payload: .empty)
@@ -568,6 +565,29 @@ private struct RefreshButton: View {
     }
 }
 
+/// Presentation for a payload with no items; its copy stays injectable so the server can own it later.
+private struct MissingItemsView: View {
+    let message: String
+
+    var body: some View {
+        ZStack(alignment: .bottomLeading) {
+            VStack(spacing: 6) {
+                Image(systemName: "sportscourt")
+                    .font(.largeTitle)
+
+                Text(message)
+                    .font(.caption)
+                    .multilineTextAlignment(.center)
+            }
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            RefreshButton()
+                .padding(6)
+        }
+    }
+}
+
 /// Base backdrop for the widget: the tint color when the large layout has secondary items to
 /// distinguish from primary, plain black otherwise (small, medium, empty state, a large with
 /// just one item). This is deliberately *not* the dual-tone split itself — it's just the
@@ -605,22 +625,7 @@ struct ClarkViewWidgetEntryView: View {
     var body: some View {
         Group {
             if entry.payload.items.isEmpty {
-                // `/config/resolve` never errors — an unpaired device still gets an
-                // all-sports default (see docs/widget-config-plan.md) — so an empty
-                // payload alone doesn't mean "not paired." `isPaired` is a local,
-                // display-only cache: it only changes which copy renders here, never
-                // whether the fetch above happens.
-                VStack(spacing: 6) {
-                    Image(systemName: DeviceIdentity.isPaired ? "sportscourt" : "person.badge.plus")
-                        .font(.largeTitle)
-                        .foregroundStyle(.secondary)
-                    if !DeviceIdentity.isPaired {
-                        Text("Open the app to finish setup")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-                }
+                MissingItemsView(message: "Nothing here right now 🫨")
             } else if family == .systemSmall, let item = entry.payload.items.first {
                 ItemHeroCard(item: item)
                     .padding(14)
