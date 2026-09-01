@@ -144,7 +144,7 @@ struct Provider: TimelineProvider {
 }
 
 /// An item's matchup title ("<team1> @ <team2>") — no score, no live clock. `lineLimit` defaults
-/// to a single line; the list row raises it so long matchups wrap instead of hitting the rail.
+/// to a single line; the primary card raises it so long matchups can wrap.
 private struct ItemLineView: View {
     let text: String
     let font: Font
@@ -241,17 +241,12 @@ private func mutedWeight(_ weight: Font.Weight, tier: ItemTier) -> Font.Weight {
     }
 }
 
-/// Trailing time display: a hour digit with minute/period stacked beside it, mirroring a
-/// scoreboard clock. Falls back to `caption` (e.g. "LIVE"/"END") when the game isn't in the
-/// not-yet-started state.
+/// Trailing time display: a scoreboard-style clock for the primary item and an inline clock
+/// for secondary items. Falls back to `caption` (e.g. "LIVE"/"END") when the game isn't in
+/// the not-yet-started state.
 ///
-/// `.block` (the primary item) and `.compact` (`SecondaryItemRow`) are the same layout at two
-/// sizes, not two designs — `SecondaryItemRow` tried spelling the time out as running text
-/// ("10:00 PM") instead, but that ate the width `mainText` needs most and lost the
-/// glanceable scoreboard shape. `.compact`'s sizes are still pulled from existing TextStyles
-/// used elsewhere in this file (`.title3`/`.caption`), not shrunk further — a smaller stacked
-/// block should still read as clearly as everything else on the row, not become the one
-/// illegible element in exchange for a few points of width.
+/// `.block` gives the primary item its scoreboard-style stack. `.compact` keeps the secondary
+/// item's hour, minute, and period on one baseline to preserve vertical room for its content.
 private struct TimeBlockView: View {
     enum Style {
         case block
@@ -283,27 +278,39 @@ private struct TimeBlockView: View {
             // lineLimit + minimumScaleFactor are a safety net, not the primary fit mechanism —
             // ItemBlockView.timeBlockWidth is sized to fit a 2-digit hour ("10"/"11"/"12") at
             // the default text size without shrinking; this only catches larger Dynamic Type.
-            HStack(alignment: .lastTextBaseline, spacing: 2) {
-                Text(parts.hour)
-                    .font(.system(sizes.hour, design: .monospaced, weight: mutedWeight(.black, tier: tier)))
-                if let period = parts.period {
-                    VStack(alignment: .leading, spacing: -2) {
-                        Text(parts.minute)
-                        Text(period)
+            Group {
+                switch style {
+                case .block:
+                    HStack(alignment: .lastTextBaseline, spacing: 2) {
+                        Text(parts.hour)
+                            .font(.system(sizes.hour, design: .monospaced, weight: mutedWeight(.black, tier: tier)))
+                        if let period = parts.period {
+                            VStack(alignment: .leading, spacing: -2) {
+                                Text(parts.minute)
+                                Text(period)
+                            }
+                            .font(.system(sizes.minute, design: .monospaced, weight: mutedWeight(.black, tier: tier)))
+                        } else {
+                            Text(":\(parts.minute)")
+                                .font(.system(sizes.hour, design: .monospaced, weight: mutedWeight(.black, tier: tier)))
+                        }
+                    }
+                case .compact:
+                    HStack(alignment: .lastTextBaseline, spacing: 2) {
+                        Text(parts.hour)
+                        Text(":\(parts.minute)")
+                        if let period = parts.period {
+                            Text(period)
+                        }
                     }
                     .font(.system(sizes.minute, design: .monospaced, weight: mutedWeight(.black, tier: tier)))
-                } else {
-                    Text(":\(parts.minute)")
-                        .font(.system(sizes.hour, design: .monospaced, weight: mutedWeight(.black, tier: tier)))
                 }
             }
             .lineLimit(1)
             .minimumScaleFactor(0.7)
             .foregroundStyle(tier == .primary ? .white : .white.opacity(0.7))
-            // The hour, minute, and period above are three separate Text views so the hour
-            // digit can be sized independently — but that means VoiceOver would otherwise
-            // read them as three separate stops ("4" … "45" … "PM"). Collapse them into one
-            // element with a properly formatted label ("4:45 PM") instead.
+            // The hour, minute, and period use separate Text views for their visual layouts,
+            // so collapse them into one VoiceOver element with a properly formatted label.
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(item.timestamp.formatted(date: .omitted, time: .shortened))
         }
@@ -349,6 +356,52 @@ private struct AutoFitStack<Content: View>: View {
                             Color.clear.preference(key: StackSizeKey.self, value: measured.size)
                         })
                 )
+        }
+        .onPreferenceChange(StackSizeKey.self) { naturalSize = $0 }
+    }
+}
+
+/// Applies one scale to both sections, then lets the space between them expand so their outer
+/// edges stay pinned to the available frame. At the height-constrained scale, `minimumSpacing`
+/// is the only gap; any extra height at the width-constrained scale becomes section spacing.
+private struct AutoFitSplitStack<Top: View, Bottom: View>: View {
+    let minimumSpacing: CGFloat
+    @ViewBuilder let top: () -> Top
+    @ViewBuilder let bottom: () -> Bottom
+
+    @State private var naturalSize = StackSizeKey.defaultValue
+
+    var body: some View {
+        GeometryReader { proxy in
+            let widthScale = proxy.size.width / max(naturalSize.width, 1)
+            let heightScale = proxy.size.height / max(naturalSize.height, 1)
+            let scale = min(widthScale, heightScale)
+            let layoutWidth = proxy.size.width / max(scale, 0.001)
+            let layoutHeight = proxy.size.height / max(scale, 0.001)
+
+            VStack(alignment: .leading, spacing: 0) {
+                top()
+                    .fixedSize()
+
+                Spacer(minLength: minimumSpacing)
+
+                bottom()
+                    .fixedSize()
+            }
+            .frame(width: layoutWidth, height: layoutHeight, alignment: .topLeading)
+            .scaleEffect(scale, anchor: .topLeading)
+            .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
+            .background(
+                VStack(alignment: .leading, spacing: minimumSpacing) {
+                    top()
+                    bottom()
+                }
+                .fixedSize()
+                .opacity(0)
+                .background(GeometryReader { measured in
+                    Color.clear.preference(key: StackSizeKey.self, value: measured.size)
+                })
+            )
         }
         .onPreferenceChange(StackSizeKey.self) { naturalSize = $0 }
     }
@@ -486,8 +539,9 @@ private struct SecondaryItemRow: View {
             }
             .frame(width: rowWidth, alignment: .trailing)
 
-            ItemLineView(text: item.mainText, font: .system(.body, design: .default, weight: .semibold), lineLimit: 2)
+            ItemLineView(text: item.mainText, font: .system(.body, design: .default, weight: .semibold))
                 .multilineTextAlignment(.trailing)
+                .truncationMode(.tail)
                 .foregroundStyle(.white.opacity(0.85))
                 .frame(width: rowWidth, alignment: .trailing)
                 .fixedSize(horizontal: false, vertical: true)
@@ -578,88 +632,51 @@ struct ClarkViewWidgetEntryView: View {
                     let rowWidth = family == .systemMedium
                         ? proxy.size.width - padding * 2
                         : ItemBlockView.defaultRowWidth
-                    // The refresh button lives in this ZStack, not inside the padded VStack
-                    // below: AutoFitStack scales its content to fill exactly the padded area
+                    // The refresh button lives in this ZStack, not inside the padded split layout
+                    // below: AutoFitSplitStack scales its content to fill exactly the padded area
                     // (min(widthScale, heightScale)), so a fully-packed large widget can reach
                     // every padded edge. Overlaying outside that padding puts the button in
                     // space that's guaranteed empty by construction, instead of risking it
                     // sitting on top of a game's broadcast line.
                     let secondaryItems = visibleItems.dropFirst()
                     ZStack(alignment: .bottomLeading) {
-                        VStack(alignment: .leading, spacing: 10) {
-                            // Two top-level groups, not a flat row list: the primary card (with its
-                            // own trailing gutter baked into its padding below, not shared VStack
-                            // spacing) and the "THEN"-divider-plus-secondary-rows as one combined
-                            // block. AutoFitStack's own spacing is 0 — every gap that matters is
-                            // owned by the specific view that needs it, which is what lets the
-                            // primary card's own `.background` (below) bleed through exactly that
-                            // gutter without having to measure where it actually lands.
-                            AutoFitStack(spacing: 0) {
-                                if let primary = visibleItems.first {
-                                    ItemBlockView(item: primary, rowWidth: rowWidth)
-                                        // Baking the gutter in here (rather than as AutoFitStack
-                                        // spacing) makes it part of primary's own layout box, so the
-                                        // black `.background` below — sized to match its content by
-                                        // default — covers the gutter too, without measuring it.
-                                        .padding(.bottom, secondaryItems.isEmpty ? 0 : 18)
-                                        .background {
-                                            if !secondaryItems.isEmpty {
-                                                // Negative padding bleeds this past its own content's
-                                                // bounds toward the widget's true top/side edges. Not
-                                                // exactly `-padding`: this sits *inside* AutoFitStack's
-                                                // scaleEffect, while the outer `padding` is applied
-                                                // outside it — if content is tall enough to force
-                                                // scale-down, an exact `-padding` bleed would fall short
-                                                // by that same factor and leave a sliver of the wrong
-                                                // tone at the edge. Overshooting is harmless (clipped by
-                                                // the widget's own corner radius); undershooting isn't,
-                                                // so this bleeds several times further than should ever
-                                                // be needed rather than tracking the scale precisely.
-                                                Color.black
-                                                    .padding(.top, -padding * 4)
-                                                    .padding(.horizontal, -padding * 4)
-                                            }
+                        // The primary and secondary sections share one scale, but flexible space
+                        // between them absorbs unused height: primary stays at the top content edge
+                        // while the secondary collection stays at the bottom content edge.
+                        AutoFitSplitStack(minimumSpacing: secondaryItems.isEmpty ? 0 : 18) {
+                            if let primary = visibleItems.first {
+                                ItemBlockView(item: primary, rowWidth: rowWidth)
+                                    .background {
+                                        if !secondaryItems.isEmpty {
+                                            // Negative padding bleeds this past its own content's
+                                            // bounds toward the widget's true top/side edges. This
+                                            // sits inside AutoFitSplitStack's scaleEffect, so it
+                                            // deliberately overshoots rather than risking a sliver
+                                            // of the secondary tone at a scaled edge.
+                                            Color.black
+                                                .padding(.top, -padding * 4)
+                                                .padding(.horizontal, -padding * 4)
                                         }
-                                }
+                                    }
+                            }
+                        } bottom: {
+                            if !secondaryItems.isEmpty {
+                                VStack(alignment: .trailing, spacing: 10) {
+                                    Rectangle()
+                                        .fill(Color.white.opacity(0.4))
+                                        .frame(width: rowWidth * 0.75, height: 0.5)
 
-                                if !secondaryItems.isEmpty {
-                                    // The divider and the secondary rows are one combined group here
-                                    // (spacing: 0 between them), not two separate AutoFitStack
-                                    // children — that's what keeps this group's own gap from the
-                                    // primary card above at the full 20pt while the divider sits flush
-                                    // against the rows beneath it. No padding needed there: "THEN" is
-                                    // left-justified and the rows are right-justified, so the two
-                                    // never visually touch even at zero vertical gap — and collapsing
-                                    // it hands that space back to AutoFitStack's scale-to-fit, so
-                                    // everything renders larger.
-                                    VStack(alignment: .trailing, spacing: 10) {
-                                        // The primary/secondary boundary is a section change, not just
-                                        // another row separator: a bolder hairline plus a "THEN" label
-                                        // so the split reads as "what's next" vs. "everything else".
-                                        // Tuned to WCAG minimums, not just a visual guess: 0.4 opacity
-                                        // is this hairline's ~3:1 non-text-contrast floor, and 0.55 is
-                                        // the label's ~4.5:1 text-contrast floor at this size.
-                                        VStack(alignment: .trailing, spacing: 5) {
-                                            Rectangle()
-                                                .fill(Color.white.opacity(0.4))
-                                                .frame(height: 0.5)
-                                        }
-                                        .frame(width: (rowWidth * 0.75), alignment: .trailing)
-
-                                        // No separator between rows here (unlike the old flat list) —
-                                        // condensed spacing alone is enough to read as a list once each
-                                        // row is this compact, and a hairline per row fought the
-                                        // "queue, not a card" read `SecondaryItemRow` is going for.
-                                        VStack(alignment: .trailing, spacing: 6) {
-                                            ForEach(Array(secondaryItems), id: \.id) { item in
-                                                SecondaryItemRow(item: item, rowWidth: rowWidth)
-                                            }
+                                    // Condensed spacing is enough to read as a list; another
+                                    // separator per row would compete with the section boundary.
+                                    VStack(alignment: .trailing, spacing: 6) {
+                                        ForEach(Array(secondaryItems), id: \.id) { item in
+                                            SecondaryItemRow(item: item, rowWidth: rowWidth)
                                         }
                                     }
                                 }
                             }
-                            .foregroundStyle(.white)
                         }
+                        .foregroundStyle(.white)
                         .padding(padding)
 
                         RefreshButton()
