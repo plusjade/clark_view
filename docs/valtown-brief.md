@@ -1,6 +1,6 @@
 # Clark View ↔ Val Town orientation
 
-Read this before inspecting or changing the Val Town backend. It is a local map of the parts of `plusjade/sports-today` that matter to this repository, updated on 2026-09-01, so routine iOS work should not require rediscovering the remote project through repeated MCP calls.
+Read this before inspecting or changing the Val Town backend. It is a local map of the parts of `plusjade/sports-today` that matter to this repository, updated on 2026-09-02, so routine iOS work should not require rediscovering the remote project through repeated MCP calls.
 
 ## One-minute mental model
 
@@ -75,6 +75,8 @@ The remote val has one stable HTTP entrypoint plus namespaced transport, domain,
 | `lib/config.ts` | Pure translation from stored preferences plus live device facts into the redirected JSON URL. |
 | `lib/configStore.ts` | Val-scoped SQLite for configs, 30-minute pairing codes, device bindings/names, and APNs tokens. |
 | `lib/sleeper.ts` | Outbound Sleeper data access. |
+| `lib/sourceCache.ts` | Generic `source_cache` SQLite table (source, date_key, payload, fetched_at) for source payloads this val can't fetch live at request time — see the FIBA section below. |
+| `lib/fiba.ts` | FIBA's read-side seam: `fibaGamesForDate(dateKey)` reads `sourceCache` instead of the network (shaped like `sleeper.ts`'s `fetchScores`) and `mapEventToGame` reconciles ESPN's raw shape into `Game`. `listFutureFibaDateKeys` backs the source's own (uncapped) date window. |
 | `lib/push.ts` | Best-effort APNs silent push delivery. |
 | `render/json.ts` | The native widget's schema-versioned response. |
 | `render/configHtml.ts` | The helper-facing browser configurator. |
@@ -98,6 +100,7 @@ Prefer changing pure helpers and their tests over adding policy directly to an I
 | `GET/POST /config/:id/pair` | Helper's browser | GET offers code-based pairing plus existing devices not already linked to this config. POST reassigns the selected existing `device_configs` row to this config while preserving its name. |
 | `POST /config/:id/code` | Helper's browser | Creates a pairing code. This mutates live SQLite state. |
 | `POST /config/:id/devices/:deviceId` | Helper's browser | Renames a paired device for the helper's reference. |
+| `POST /ingest/:source/:dateKey` | External ingest process only — never the widget, app, or configurator | Bearer-gated (`INGEST_TOKEN` env var, value not recorded here) write into `source_cache`. Body is stored verbatim as JSON. See the FIBA section below for why this exists. |
 
 Current fallback behavior matters: an unknown or unpaired device is resolved with the legacy `fever` + `sparks` team configuration. An older comment in the widget still describes an all-sports fallback; treat the deployed server behavior above as current until a deliberate cross-project change reconciles both sides.
 
@@ -131,6 +134,18 @@ Contract rules:
 - Preserve or add fields compatibly. Removing or repurposing a field requires a schema-version bump and coordinated server, Swift model, preview fixture, and decoding changes.
 
 `render/json.ts` returns `cache-control: public, max-age=60` and `x-effective-*` headers describing the resolved mode, sports, teams, rejected values, UTC offset, and resolved date. Use those headers for drift diagnosis instead of expanding the Swift body contract.
+
+## FIBA women's basketball — live, second source wired into the widget pipeline
+
+Sleeper's `/scores` has no FIBA competitions. Phased deliberately: Phase 1 validated a source and shape; Phase 2 (this section) is the reconciliation service that normalizes it into `Game` and wires it into the real request path. `catalog.ts`'s `SPORTS`, `games.ts`'s pipeline, and `render/json.ts` are all touched now — this is live, not a spike.
+
+- **Source**: ESPN's unofficial `site.api.espn.com/apis/site/v2/sports/basketball/fiba/scoreboard`. Currently the FIBA Women's Basketball World Cup 2026 (Berlin, Sep 4-14). This ESPN league (id 53, name literally "FIBA World Cup") is a single flagship-tournament bucket ESPN re-points per cycle, not a durable "women's basketball" feed — it returned zero events for the Aug 2024 Olympics window, and there's real risk it repoints to the *Men's* World Cup in 2027. Re-validate before trusting it for any window beyond the current one.
+- **Why this val doesn't fetch it live**: `site.api.espn.com` returns `403 Forbidden` (Akamai edge rule against Val Town's shared egress IPs, confirmed ESPN-wide not FIBA-specific, not fixable with headers) from this val's own runtime — repro in `tools/fiba-source-check.ts`. Worked around with an ingest/serve split: `lib/sourceCache.ts`'s `source_cache` table is seeded by `POST /ingest/:source/:dateKey` (bearer-gated by `INGEST_TOKEN`) from an unblocked network — an agent session's `curl`, or a script run locally — and `lib/fiba.ts` reads from it instead of calling out live.
+- **Reconciliation** (`lib/fiba.ts`'s `mapEventToGame`): translates ESPN's raw event shape into this project's existing `Game` type — targeting the flat/string variant (`away_team`/`home_team` as plain code strings, scores as flat `metadata` fields) that `games.ts`'s `teamCode`/`teamScore` already read for nfl, so `enrichGames`/`filterByTeams`/`groupBySport`/`pickNextSlate` needed **zero changes**. ESPN's `status.type.state` (`pre`/`in`/`post`) is exact and maps directly into `render/json.ts`'s `STATUS_MAP`, unlike Sleeper's noisier vocabulary. Every field is treated as a progressive enhancement, not a guarantee — a missing team code, score, or broadcast degrades to the same "TBD"/blank the pipeline already shows for an incomplete Sleeper game (verified live: ESPN's `TNT`/`truTV` broadcasts aren't in `catalog.ts`'s channel dictionaries and fall through cleanly to the existing "regional" fallback instead of breaking; `HBO Max` got an explicit `STREAMING_CHANNELS` entry since it's confirmed and recurring).
+- **Date window**: `http/handlers/games.ts`'s `fetchGamesByDate` routes each requested sport to its source via `catalog.ts`'s new `SPORT_SOURCE` map, and gives each source its own window instead of one shared constant. Sleeper keeps `windowDatesFor`'s fixed few-day scan (justified by its one-request-per-date cost). `fiba` uses `lib/sourceCache.ts`'s `listFutureDateKeys` — every date `source_cache` actually has from today forward, uncapped, since a local table scan has no per-date cost to bound. The two window's dates are unioned before `pickNextSlate` runs, which needed no changes since it already just walks whatever `dates`/`gamesByDate` arrays it's handed. This is deliberate: the old 3-day cap was a Sleeper-specific constraint that had leaked into shared date logic, not a real limit on how far out "next" should look.
+- **Verified live against the deployed endpoint** (2026-09-02, server "today" resolved to 2026-09-01 in the default Pacific client offset): `?teams[]=united-states` correctly surfaced the USA-China group game on **2026-09-04** — a date outside Sleeper's own `[09-01, 09-02, 09-03]` window, proving the union actually reaches past it rather than coincidentally landing inside it. `?sports[]=fiba&day=today` returned all 8 real Sep-4 games, correctly sorted, with real team names and per-game channels. Mixed requests (`teams[]=fever&teams[]=united-states`, one empty source + one populated) and `format=png` both still work. No regression on existing wnba-only requests.
+- **Team slugs**: full country names (`united-states`, `puerto-rico`, `south-korea`, `turkey` — not ESPN's `Türkiye` — etc.), not ESPN's 3-letter codes, because `teamLabel` derives the display string from the slug via `titleCase`, which has no acronym handling (`usa` → "Usa"). 16 teams, the current group stage; see `catalog.ts`'s `TEAMS` for the full list.
+- **Still open**: knockout-round dates (Sep 8-14) were ingested empty since ESPN hadn't published that schedule yet as of 2026-09-02 — re-ingest closer to those dates. Nothing re-ingests `source_cache` automatically; live/final status accuracy for fiba depends entirely on how recently someone re-ran the ingest loop. That's an accepted trade per this phase's own scope: presence (a game is on the slate at all) is the source's real contract, not intraday freshness.
 
 ## MCP quick start: bounded workflow
 
