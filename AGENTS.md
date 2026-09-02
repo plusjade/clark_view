@@ -29,6 +29,17 @@ SwiftLint is configured (`.swiftlint.yml`). Run `swiftlint lint` from the projec
 - Prefer **small, focused changes** that match the request; avoid drive-by refactors or unrelated file edits.
 - **Comments orient the mental model, not the code**: Class and module headers answer "what is this and where does it fit in the system?" — 1–3 lines a distracted reader can parse at a glance without touching the implementation. Inline comments are for the non-obvious *why*: hidden constraints, subtle invariants, surprising behavior, gotchas. Never explain *what* the code does; well-named identifiers handle that. If removing the comment wouldn't confuse a future reader, don't write it.
 
+### Browser UI (Val Town)
+
+- Match the existing configurator's intentionally minimal visual language. Start with semantic HTML and the browser's native rendering; add CSS only when it improves hierarchy, scanning, responsive layout, or accessibility.
+- Treat `render/configHtml.ts`'s shared `pageShell` and page styles as the browser application's source of truth. Reuse them instead of creating parallel typography, color, width, table, form, or timestamp rules; preserve the established system font stack and existing color and weight choices.
+- Prefer headings, paragraphs, navigation, tables, lists, definition lists, fieldsets, and native form controls. The document structure should explain the interface without decorative containers.
+- Avoid dashboard chrome by default: no card grids, pills or badges, shadows, gradients, oversized headings, uppercase micro-labels, decorative backgrounds, or rounded shells around ordinary content.
+- Use whitespace and a small number of subtle rules to separate sections. A border should communicate table structure, grouping, or focus—not merely decorate a box.
+- React is an implementation detail, not a visual style. Do not add Tailwind, Twind, a component library, or client-side JavaScript solely because a view uses React; follow the established server-rendered UI first.
+- Follow the existing navigation hierarchy. Index pages stand alone without a global navigation bar; resource show/edit pages use the small back breadcrumb, and only config-scoped subpages use the config tab navigation. Do not introduce new global navigation as part of a feature view.
+- Keep operational pages compact and data-dense. Show stable labels and identifiers plainly, preserve meaningful document order, and make empty/error states ordinary prose rather than special panels.
+
 ## Programming patterns
 
 ### A. Shared programming hygiene (all code)

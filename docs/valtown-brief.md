@@ -76,6 +76,7 @@ The remote val has one stable HTTP entrypoint plus namespaced transport, domain,
 | `lib/params.ts`, `lib/games.ts`, `lib/dates.ts`, `lib/teams.ts`, `lib/channels.ts` | Pure request validation, slate selection, date handling, and display enrichment. |
 | `lib/config.ts` | Pure feed selection and translation from stored preferences plus live device facts into the redirected JSON URL. |
 | `lib/configStore.ts` | Val-scoped SQLite for configs, 30-minute pairing codes, device bindings/names, and APNs tokens. |
+| `lib/deviceStore.ts` | Read-only projections of the device-centric `devices`, `device_sources`, and `sources` tables for the browser explorer. Deliberately omits bunch membership. |
 | `lib/messageStore.ts` | Val-scoped SQLite for config-owned messages, including same-day range reads for the widget feed. |
 | `lib/sleeper.ts` | Outbound Sleeper data access. |
 | `lib/sourceCache.ts` | Generic `source_cache` SQLite table (source, date_key, payload, fetched_at) for source payloads this val can't fetch live at request time — see the FIBA section below. |
@@ -83,7 +84,8 @@ The remote val has one stable HTTP entrypoint plus namespaced transport, domain,
 | `lib/push.ts` | Best-effort APNs silent push delivery. |
 | `render/json.ts` | The native widget's schema-versioned response. |
 | `render/messageJson.ts` | Maps stored messages into the same schema-versioned widget item contract. |
-| `render/configHtml.ts` | The helper-facing browser configurator. |
+| `render/configHtml.ts` | The helper-facing browser configurator and shared browser `pageShell`, which owns the application's typography, colors, tables, forms, breadcrumbs, and timestamp localization. |
+| `render/deviceHtml.tsx` | React-rendered device index and show bodies composed through the shared config `pageShell`, including recursively expanded source settings. |
 | Other `render/*` files | PNG rendering and its pure layout helpers; not the native widget's rendering path. |
 
 Prefer changing pure helpers and their tests over adding policy directly to an I/O module. Keep `main.ts` as route wiring and edge behavior.
@@ -98,7 +100,8 @@ Prefer changing pure helpers and their tests over adding policy directly to an I
 | `POST /pair` | Containing app | JSON `{code, device}`. Returns `{ok: true, configId}` (200), an unknown code as `{ok: false}` (404), or an expired code as `{ok: false, message: "expired"}` (422). Codes are six characters, reusable until their 30-minute expiry. Re-pairing replaces the binding. |
 | `POST /device/token` | Containing app | JSON `{device, token}`. Upserts the APNs token independently of pairing. |
 | `GET /config/status/:deviceId` | Containing app diagnostics | Always returns 200 for a syntactically valid request; an unknown device is `{deviceId, paired: false}`. |
-| `GET /devices` | Helper's browser | Read-only index of every `device_configs` association. Existing referenced configs link to `/config/:id`; orphaned config ids remain unlinked. Intentionally absent from the current navigation. |
+| `GET /devices` | Helper's browser | Read-only index of every row in the device-centric `devices` table, with install id, source count, and a link to the internal integer-id show route. Bunch membership is intentionally absent. |
+| `GET /devices/:id` | Helper's browser | Read-only device detail using the internal integer id. Lists `device_sources` in deterministic `(priority ASC, id ASC)` order, joins each source definition, and expands settings into human-readable fields. Bunch membership is intentionally absent. |
 | `GET /config/new` | Helper's browser | Blank team/sport picker. |
 | `POST /config/new` | Helper's browser | Creates a configuration and redirects to its capability URL. |
 | `GET/POST /config/:id` | Helper's browser | Reads or updates configuration. The unguessable URL is the capability; do not expose real ids in logs or docs. Saving also attempts silent pushes. |
