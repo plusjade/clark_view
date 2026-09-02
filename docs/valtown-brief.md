@@ -1,6 +1,6 @@
 # Clark View ↔ Val Town orientation
 
-Read this before inspecting or changing the Val Town backend. It is a local map of the parts of `plusjade/sports-today` that matter to this repository, updated on 2026-09-01, so routine iOS work should not require rediscovering the remote project through repeated MCP calls.
+Read this before inspecting or changing the Val Town backend. It is a local map of the parts of `plusjade/sports-today` that matter to this repository, updated on 2026-09-02, so routine iOS work should not require rediscovering the remote project through repeated MCP calls.
 
 ## One-minute mental model
 
@@ -75,6 +75,8 @@ The remote val has one stable HTTP entrypoint plus namespaced transport, domain,
 | `lib/config.ts` | Pure translation from stored preferences plus live device facts into the redirected JSON URL. |
 | `lib/configStore.ts` | Val-scoped SQLite for configs, 30-minute pairing codes, device bindings/names, and APNs tokens. |
 | `lib/sleeper.ts` | Outbound Sleeper data access. |
+| `lib/sourceCache.ts` | Generic `source_cache` SQLite table (source, date_key, payload, fetched_at) for source payloads this val can't fetch live at request time — see the FIBA section below. |
+| `lib/fiba.ts` | FIBA's read-side seam: `fetchCachedFibaScoreboard(dateKey)`, shaped like `sleeper.ts`'s `fetchScores` but reading `sourceCache` instead of the network. Returns ESPN's raw scoreboard shape, unmapped to `Game`. |
 | `lib/push.ts` | Best-effort APNs silent push delivery. |
 | `render/json.ts` | The native widget's schema-versioned response. |
 | `render/configHtml.ts` | The helper-facing browser configurator. |
@@ -98,6 +100,7 @@ Prefer changing pure helpers and their tests over adding policy directly to an I
 | `GET/POST /config/:id/pair` | Helper's browser | GET offers code-based pairing plus existing devices not already linked to this config. POST reassigns the selected existing `device_configs` row to this config while preserving its name. |
 | `POST /config/:id/code` | Helper's browser | Creates a pairing code. This mutates live SQLite state. |
 | `POST /config/:id/devices/:deviceId` | Helper's browser | Renames a paired device for the helper's reference. |
+| `POST /ingest/:source/:dateKey` | External ingest process only — never the widget, app, or configurator | Bearer-gated (`INGEST_TOKEN` env var, value not recorded here) write into `source_cache`. Body is stored verbatim as JSON. See the FIBA section below for why this exists. |
 
 Current fallback behavior matters: an unknown or unpaired device is resolved with the legacy `fever` + `sparks` team configuration. An older comment in the widget still describes an all-sports fallback; treat the deployed server behavior above as current until a deliberate cross-project change reconciles both sides.
 
@@ -131,6 +134,16 @@ Contract rules:
 - Preserve or add fields compatibly. Removing or repurposing a field requires a schema-version bump and coordinated server, Swift model, preview fixture, and decoding changes.
 
 `render/json.ts` returns `cache-control: public, max-age=60` and `x-effective-*` headers describing the resolved mode, sports, teams, rejected values, UTC offset, and resolved date. Use those headers for drift diagnosis instead of expanding the Swift body contract.
+
+## FIBA women's basketball — Phase 1 status (source validation, not yet wired to the widget)
+
+Sleeper's `/scores` has no FIBA competitions. This is a live investigation into a second source, phased deliberately: validate a reliable source and shape first; only then build the reconciliation service that normalizes it into `Game`. **Nothing below feeds the widget yet** — `catalog.ts`'s `SPORTS` list, `games.ts`'s pipeline, and the JSON contract are all untouched by this work.
+
+- **Source**: ESPN's unofficial `site.api.espn.com/apis/site/v2/sports/basketball/fiba/scoreboard`. Free, keyless, same shape family as every other `site.api.espn.com/.../scoreboard` integration. Currently the FIBA Women's Basketball World Cup 2026 (Berlin, Sep 4-14) — confirmed via each event's `notes[].headline`. This ESPN league (id 53, name literally "FIBA World Cup") is a single flagship-tournament bucket ESPN re-points per cycle, not a durable "women's basketball" feed: it returned zero events for the Aug 2024 Olympics window, and there is real risk it repoints to the *Men's* World Cup in 2027. Re-validate before trusting it for any window beyond the current one.
+- **The blocker this repo needs to remember**: `site.api.espn.com` returns `403 Forbidden` (Akamai edge rule, `server: AkamaiGHost`) when fetched from this val's own Deno runtime — reproduced for both the FIBA and NBA scoreboards, so it's ESPN-wide against Val Town's shared egress IPs, not FIBA-specific. Confirmed *not* a general egress problem (Sleeper's `/scores` and `www.espn.com`'s plain HTML both return `200` from the same runtime) and not fixable with request headers (tried a browser User-Agent; no change). Repro lives in `tools/fiba-source-check.ts` — re-run it before assuming this is fixed.
+- **The workaround**: ingest/serve split. `lib/sourceCache.ts` holds a generic `source_cache` table (source, date_key, raw payload, fetched_at). `POST /ingest/:source/:dateKey` (bearer-gated by `INGEST_TOKEN`) writes into it from *outside* Val Town's blocked egress — an agent session's `curl`, or a script run from any other network. `lib/fiba.ts`'s `fetchCachedFibaScoreboard(dateKey)` is the widget-pipeline-facing read side, shaped like `sleeper.ts`'s `fetchScores` but reading the cache instead of calling out live.
+- **Seeded so far**: 2026-09-04 through 2026-09-14, raw ESPN payloads, via `tools/fiba-source-check.ts`'s curl loop from outside Val Town. Group-stage games landed on Sep 4-7 (24 games); later dates returned empty scoreboards as of this writing (2026-09-02) — ESPN hadn't published the knockout-round schedule yet. Re-ingest closer to those dates.
+- **Deliberately not done yet**: mapping ESPN's raw shape (country/team objects, `status.type.state`, `broadcasts[]`) into this project's `Game`/`EnrichedGame` type, adding `fiba` to `catalog.ts`'s `SPORTS`, or any change to `games.ts`/the widget JSON contract. That's the reconciliation-service phase, gated on this validation holding up through the live tournament window.
 
 ## MCP quick start: bounded workflow
 
