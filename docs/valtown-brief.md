@@ -15,7 +15,8 @@ Helper's browser ── /config/* ──> Val Town SQLite
                                       │
 iOS app ── /pair, /device/token ──────┤
                                       │
-Widget ── /config/resolve ── 302 ──> /?format=json ──> WidgetPayload v2
+Widget ── /config/resolve ── 302 ──┬──> /?format=json ──> WidgetPayload v2
+                                   └──> /messages ──────> WidgetPayload v2
                                       │
                                       ├── Sleeper sports data
                                       └── APNs silent refreshes
@@ -70,15 +71,18 @@ The remote val has one stable HTTP entrypoint plus namespaced transport, domain,
 | `main.ts` | Stable Hono assembly point. Preserve this file's identity; route implementations live under `http/`. |
 | `http/routes/*.ts` | Hono route groups for the root/data endpoint, browser configuration, and device APIs. |
 | `http/handlers/games.ts` | Shared sports query pipeline for widget JSON, PNG diagnostics, and config previews. |
+| `http/handlers/messages.ts` | Shared config-scoped message pipeline for widget JSON and config previews. |
 | `lib/catalog.ts` | Known sports, teams, and channel tables. |
 | `lib/params.ts`, `lib/games.ts`, `lib/dates.ts`, `lib/teams.ts`, `lib/channels.ts` | Pure request validation, slate selection, date handling, and display enrichment. |
-| `lib/config.ts` | Pure translation from stored preferences plus live device facts into the redirected JSON URL. |
+| `lib/config.ts` | Pure feed selection and translation from stored preferences plus live device facts into the redirected JSON URL. |
 | `lib/configStore.ts` | Val-scoped SQLite for configs, 30-minute pairing codes, device bindings/names, and APNs tokens. |
+| `lib/messageStore.ts` | Val-scoped SQLite for config-owned messages, including same-day range reads for the widget feed. |
 | `lib/sleeper.ts` | Outbound Sleeper data access. |
 | `lib/sourceCache.ts` | Generic `source_cache` SQLite table (source, date_key, payload, fetched_at) for source payloads this val can't fetch live at request time — see the FIBA section below. |
 | `lib/fiba.ts` | FIBA's read-side seam: `fibaGamesForDate(dateKey)` reads `sourceCache` instead of the network (shaped like `sleeper.ts`'s `fetchScores`) and `mapEventToGame` reconciles ESPN's raw shape into `Game`. `listFutureFibaDateKeys` backs the source's own (uncapped) date window. |
 | `lib/push.ts` | Best-effort APNs silent push delivery. |
 | `render/json.ts` | The native widget's schema-versioned response. |
+| `render/messageJson.ts` | Maps stored messages into the same schema-versioned widget item contract. |
 | `render/configHtml.ts` | The helper-facing browser configurator. |
 | Other `render/*` files | PNG rendering and its pure layout helpers; not the native widget's rendering path. |
 
@@ -89,7 +93,8 @@ Prefer changing pure helpers and their tests over adding policy directly to an I
 | Method and route | Caller | Contract / caution |
 | --- | --- | --- |
 | `GET /` | Browser, widget redirect target, diagnostics | Plain requests render a centered nav to `/config` and `/devices`. Explicit `format=json` remains the widget contract and `format=png` remains available for diagnostics. Repeated `sports[]` and `teams[]` parameters are validated without turning drift into a fatal widget error. |
-| `GET /config/resolve` | Widget | Accepts `device`, `d=<pixelWidth>x<pixelHeight>`, and `tz=<seconds east of GMT>`. Looks up the device and returns an uncached 302 to `/?format=json&w=&h=&...`. The widget's `URLSession` follows it. |
+| `GET /messages` | Widget | Requires `config_id` and accepts `tz=<seconds east of GMT>`. Returns schema-version-2 widget JSON containing only messages whose ISO timestamp falls on the current calendar day at that fixed offset. |
+| `GET /config/resolve` | Widget | Accepts `device`, `d=<pixelWidth>x<pixelHeight>`, and `tz=<seconds east of GMT>`. Looks up the device and returns an uncached 302 to the feed selected by `configs.personalization.dataFeed`: `/?format=json&w=&h=&...` for games or `/messages?config_id=&tz=` for messages. The widget's `URLSession` follows it. Missing or unknown feed values default to games. |
 | `POST /pair` | Containing app | JSON `{code, device}`. Returns `{ok: true, configId}` (200), an unknown code as `{ok: false}` (404), or an expired code as `{ok: false, message: "expired"}` (422). Codes are six characters, reusable until their 30-minute expiry. Re-pairing replaces the binding. |
 | `POST /device/token` | Containing app | JSON `{device, token}`. Upserts the APNs token independently of pairing. |
 | `GET /config/status/:deviceId` | Containing app diagnostics | Always returns 200 for a syntactically valid request; an unknown device is `{deviceId, paired: false}`. |
@@ -97,6 +102,8 @@ Prefer changing pure helpers and their tests over adding policy directly to an I
 | `GET /config/new` | Helper's browser | Blank team/sport picker. |
 | `POST /config/new` | Helper's browser | Creates a configuration and redirects to its capability URL. |
 | `GET/POST /config/:id` | Helper's browser | Reads or updates configuration. The unguessable URL is the capability; do not expose real ids in logs or docs. Saving also attempts silent pushes. |
+| `GET/POST /config/:id/personalization` | Helper's browser | Reads or updates presentation settings and the proof-of-concept `games`/`messages` whole-feed switch. Existing JSON without `dataFeed` remains games-backed. |
+| `GET/POST /config/:id/messages` | Helper's browser | Lists a config's messages and adds one through a local-datetime HTML form. Browser time is normalized to an ISO UTC timestamp before submission. |
 | `GET/POST /config/:id/pair` | Helper's browser | GET offers code-based pairing plus existing devices not already linked to this config. POST reassigns the selected existing `device_configs` row to this config while preserving its name. |
 | `POST /config/:id/code` | Helper's browser | Creates a pairing code. This mutates live SQLite state. |
 | `POST /config/:id/devices/:deviceId` | Helper's browser | Renames a paired device for the helper's reference. |
@@ -134,6 +141,8 @@ Contract rules:
 - Preserve or add fields compatibly. Removing or repurposing a field requires a schema-version bump and coordinated server, Swift model, preview fixture, and decoding changes.
 
 `render/json.ts` returns `cache-control: public, max-age=60` and `x-effective-*` headers describing the resolved mode, sports, teams, rejected values, UTC offset, and resolved date. Use those headers for drift diagnosis instead of expanding the Swift body contract.
+
+`render/messageJson.ts` uses that same body contract and cache policy. Stored `main`, `sub`, and ISO `timestamp` values become `mainText`, `subText`, and Unix seconds; message items use `caption: null` and `emphasized: false`. The `messages` table uses SQLite `rowid` for widget item ids and carries `config_id TEXT NOT NULL REFERENCES configs(id)` plus an index on `(config_id, timestamp)`. For this proof of concept, `configs.personalization.dataFeed` is an exclusive `games`/`messages` switch; a later phase is expected to replace it with a union of sources.
 
 ## FIBA women's basketball — live, second source wired into the widget pipeline
 
