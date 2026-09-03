@@ -8,8 +8,8 @@
 import Foundation
 
 /// Stable per-install identity, shared between the app and widget extension via an
-/// App Group so both processes resolve the same server-side configuration. Never
-/// shown to the person using the device — it's only what `/pair` binds and what
+/// App Group so both processes resolve the same server-side sources. Never shown
+/// to the person using the device — it's only what `/pair` registers and what
 /// `/config/resolve` looks up.
 enum DeviceIdentity {
     private static let appGroupID = "group.plusjade.clark-view"

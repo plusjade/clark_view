@@ -99,7 +99,7 @@ private struct DiagnosticsView: View {
             if let status {
                 row("Device ID", status.deviceId)
                 row("Device Name", status.name ?? "—")
-                row("Config ID", status.configId ?? "—")
+                row("Source", status.activeSource ?? "—")
                 row("Sports", displayList(status.sports))
                 row("Teams", displayList(status.teams))
             } else if !isLoading {

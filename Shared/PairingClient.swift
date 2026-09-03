@@ -7,18 +7,21 @@
 
 import Foundation
 
-/// The one network write the app makes: redeeming a helper-issued code against
-/// this install's device id (`POST /pair`).
+private struct PairResponse: Decodable {
+    let succeeded: Bool
+
+    private enum CodingKeys: String, CodingKey {
+        case succeeded = "ok"
+    }
+}
+
+/// The one network write the app makes: redeeming a bunch-issued code to register
+/// this install as a device (`POST /pair`).
 enum PairingClient {
     enum Outcome {
-        case paired(configID: String)
+        case paired
         case invalidOrExpiredCode
         case networkError
-    }
-
-    private struct PairResponse: Decodable {
-        let ok: Bool
-        let configId: String?
     }
 
     static func pair(code: String, device: String) async -> Outcome {
@@ -33,11 +36,12 @@ enum PairingClient {
         }
         guard httpResponse.statusCode == 200,
               let decoded = try? JSONDecoder().decode(PairResponse.self, from: data),
-              decoded.ok, let configID = decoded.configId else {
+              decoded.succeeded else {
             // 404: no such code. 422: code exists but has expired — the server
             // distinguishes them server-side, but the app shows the same copy either way.
-            return (httpResponse.statusCode == 404 || httpResponse.statusCode == 422) ? .invalidOrExpiredCode : .networkError
+            let invalidCode = httpResponse.statusCode == 404 || httpResponse.statusCode == 422
+            return invalidCode ? .invalidOrExpiredCode : .networkError
         }
-        return .paired(configID: configID)
+        return .paired
     }
 }

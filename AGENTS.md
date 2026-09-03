@@ -32,7 +32,8 @@ SwiftLint is configured (`.swiftlint.yml`). Run `swiftlint lint` from the projec
 ### Browser UI (Val Town)
 
 - Match the existing configurator's intentionally minimal visual language. Start with semantic HTML and the browser's native rendering; add CSS only when it improves hierarchy, scanning, responsive layout, or accessibility.
-- Treat `render/configHtml.ts`'s shared `pageShell` and page styles as the browser application's source of truth. Reuse them instead of creating parallel typography, color, width, table, form, or timestamp rules; preserve the established system font stack and existing color and weight choices.
+- Treat `render/pageShell.ts` and its page styles as the browser application's source of truth. Reuse them instead of creating parallel typography, color, width, table, form, or timestamp rules; preserve the established system font stack and existing color and weight choices.
+- Put refinements to shared semantic elements such as headings, paragraphs, code, details, and definition lists in `pageShell`'s page styles so every browser route inherits the same hierarchy. Keep view-specific CSS for genuinely specialized structures only.
 - Prefer headings, paragraphs, navigation, tables, lists, definition lists, fieldsets, and native form controls. The document structure should explain the interface without decorative containers.
 - Avoid dashboard chrome by default: no card grids, pills or badges, shadows, gradients, oversized headings, uppercase micro-labels, decorative backgrounds, or rounded shells around ordinary content.
 - Use whitespace and a small number of subtle rules to separate sections. A border should communicate table structure, grouping, or focus—not merely decorate a box.

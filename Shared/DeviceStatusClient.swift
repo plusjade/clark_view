@@ -7,15 +7,15 @@
 
 import Foundation
 
-/// Prototype-level diagnostics: this device's stored pairing status, straight from
-/// `/config/status/:deviceId`. Not part of the receiver's real data path (that's
+/// Prototype-level diagnostics read this device's stored registration and primary
+/// source straight from `/config/status/:deviceId`. Not part of the receiver's real data path (that's
 /// `GameDataURL.resolveURL`) — purely for the paired screen to show what the server
 /// actually has on file.
 enum DeviceStatusClient {
     struct DeviceStatus: Decodable {
         let deviceId: String
         let paired: Bool
-        let configId: String?
+        let activeSource: String?
         let name: String?
         let sports: [String]?
         let teams: [String]?
