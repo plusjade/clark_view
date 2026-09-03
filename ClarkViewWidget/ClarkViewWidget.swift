@@ -77,6 +77,14 @@ private enum GameDataService {
         return Data("""
         {
           "schemaVersion": 2,
+          "presentation": {
+            "version": 1,
+            "template": "standard-v1",
+            "fullColor": {
+              "primarySurface": "#14213D",
+              "secondarySurface": "#261447"
+            }
+          },
           "items": [
             {
               "id": "1", "mainText": "Fever @ Wings",
@@ -163,6 +171,12 @@ private func displayCaption(for item: WidgetItem) -> (text: String, color: Color
         return (item.timestamp.formatted(date: .omitted, time: .shortened), .white.opacity(0.6))
     }
     return (caption, item.emphasized ? .red : .white.opacity(0.55))
+}
+
+private extension Color {
+    init(srgb color: WidgetSRGBColor) {
+        self.init(.sRGB, red: color.red, green: color.green, blue: color.blue, opacity: 1)
+    }
 }
 
 /// "TODAY" gets a rich yellow + heavy weight to draw the eye; every other eyebrow value (e.g.
@@ -270,6 +284,7 @@ private struct TimeBlockView: View {
                 // their own — that's already the tier's entire contrast budget. `mutedWeight`
                 // still carries the tier distinction via weight.
                 .foregroundStyle(item.emphasized ? Color.red : Color.white.opacity(0.55))
+                .widgetAccentable(item.emphasized)
         } else {
             let parts = timeParts(for: item.timestamp)
             // lineLimit + minimumScaleFactor are a safety net, not the primary fit mechanism —
@@ -423,6 +438,7 @@ private struct ItemHeroCard: View {
                 .font(.system(.caption2, design: .rounded, weight: eyebrowStyle.weight))
                 .tracking(1.5)
                 .foregroundStyle(eyebrowStyle.color)
+                .widgetAccentable(eyebrow == "TODAY")
 
             AutoFitStack(spacing: 4) {
                 ItemLineView(text: item.mainText, font: heroFont)
@@ -436,6 +452,7 @@ private struct ItemHeroCard: View {
             Text(caption.text)
                 .font(.system(.subheadline, design: .rounded, weight: .semibold))
                 .foregroundStyle(caption.color)
+                .widgetAccentable(item.emphasized)
         }
         .foregroundStyle(.white)
     }
@@ -485,6 +502,7 @@ private struct ItemBlockView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
                     .foregroundStyle(eyebrowStyle.color)
+                    .widgetAccentable(eyebrow == "TODAY")
 
                 TimeBlockView(item: item)
             }
@@ -531,6 +549,7 @@ private struct SecondaryItemRow: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
                     .foregroundStyle(eyebrowStyle.color.opacity(0.8))
+                    .widgetAccentable(eyebrow == "TODAY")
 
                 TimeBlockView(item: item, tier: .secondary, style: .compact)
             }
@@ -588,31 +607,27 @@ private struct MissingItemsView: View {
     }
 }
 
-/// Base backdrop for the widget: the tint color when the large layout has secondary items to
-/// distinguish from primary, plain black otherwise (small, medium, empty state, a large with
-/// just one item). This is deliberately *not* the dual-tone split itself — it's just the
-/// secondary tone shown everywhere by default. The primary card carves out its own opaque black
-/// region on top of this (see the `.background` attached to `ItemBlockView` below), so the two
-/// tones never need to agree on a shared boundary computed twice in two different places.
-///
-/// The secondary rows render on top of this tint rather than pure black, which nudges their
-/// contrast down slightly from the WCAG floor they were tuned against (roughly a 19% cut, e.g.
-/// the "END"-style caption text goes from ~6.3:1 to ~5.1:1) — still clear of the 4.5:1 AA
-/// minimum, just with less headroom than before. Worth a look if this tone gets any darker.
+/// The template's removable full-color backdrop. WidgetKit replaces this container when the
+/// system uses an accented or vibrant presentation, so server colors remain scoped to the
+/// rendering mode named by the payload contract.
 private struct WidgetBackground: View {
-    var hasSecondaryItems: Bool
-
-    //static let secondaryTone = Color(red: 0.11, green: 0.11, blue: 0.12)
-    static let secondaryTone = Color(red: 0, green: 0, blue: 0) // black
+    let palette: WidgetPresentation.FullColorPalette
+    let hasSecondaryItems: Bool
 
     var body: some View {
-        hasSecondaryItems ? Self.secondaryTone : .black
+        Color(srgb: hasSecondaryItems ? palette.secondarySurface : palette.primarySurface)
     }
 }
 
-struct ClarkViewWidgetEntryView: View {
+/// The shipping layout template across every supported system family. Alternate server-selected
+/// templates join the switch in `ClarkViewWidgetEntryView`; family and rendering-mode choices
+/// remain native concerns inside each template.
+private struct StandardWidgetTemplate: View {
     @Environment(\.widgetFamily) private var family
-    var entry: Provider.Entry
+    @Environment(\.widgetRenderingMode) private var renderingMode
+
+    let entry: Provider.Entry
+    let presentation: WidgetPresentation
 
     private var visibleItems: [WidgetItem] {
         family == .systemMedium ? Array(entry.payload.items.prefix(1)) : Array(entry.payload.items.prefix(3))
@@ -652,13 +667,13 @@ struct ClarkViewWidgetEntryView: View {
                             if let primary = visibleItems.first {
                                 ItemBlockView(item: primary, rowWidth: rowWidth)
                                     .background {
-                                        if !secondaryItems.isEmpty {
+                                        if !secondaryItems.isEmpty && renderingMode == .fullColor {
                                             // Negative padding bleeds this past its own content's
                                             // bounds toward the widget's true top/side edges. This
                                             // sits inside AutoFitSplitStack's scaleEffect, so it
                                             // deliberately overshoots rather than risking a sliver
                                             // of the secondary tone at a scaled edge.
-                                            Color.black
+                                            Color(srgb: presentation.fullColor.primarySurface)
                                                 .padding(.top, -padding * 4)
                                                 .padding(.horizontal, -padding * 4)
                                         }
@@ -691,7 +706,22 @@ struct ClarkViewWidgetEntryView: View {
             }
         }
         .containerBackground(for: .widget) {
-            WidgetBackground(hasSecondaryItems: hasSecondaryItems)
+            WidgetBackground(
+                palette: presentation.fullColor,
+                hasSecondaryItems: hasSecondaryItems
+            )
+        }
+    }
+}
+
+struct ClarkViewWidgetEntryView: View {
+    let entry: Provider.Entry
+
+    var body: some View {
+        let presentation = WidgetPresentation(payload: entry.payload.presentation)
+        switch presentation.template {
+        case .standardV1:
+            StandardWidgetTemplate(entry: entry, presentation: presentation)
         }
     }
 }

@@ -55,6 +55,7 @@ The iOS machine calls intentionally use the `val.run` endpoint. As of this snaps
 | `Shared/GameDataURL.swift` | Owns the single backend base URL and builds `/config/resolve?device=&d=<pixels>&tz=<seconds>`. |
 | `ClarkViewWidget/ClarkViewWidget.swift` | Fetches the resolved JSON, decodes it, and renders small/medium/large widgets. Medium shows one item; large shows up to three. Its timeline normally refreshes hourly. |
 | `Shared/WidgetPayload.swift` | Mirrors JSON schema version 2. This is a display contract, not a raw sports-data model. |
+| `Shared/WidgetPresentation.swift` | Loss-tolerant client contract for the optional presentation envelope. Resolves supported template ids and opaque sRGB full-color surfaces, falling back to the current black `standard-v1` control. |
 | `Shared/DeviceIdentity.swift` | Creates the per-install UUID and shares it with the widget through the App Group. Local `isPaired` affects copy only; server state remains authoritative. |
 | `Shared/PairingClient.swift` | Sends `POST /pair` with `{code, device}`. |
 | `Shared/PushTokenClient.swift` | Sends `POST /device/token` with `{device, token}` whenever APNs registers or rotates the token. |
@@ -150,6 +151,28 @@ The response is `schemaVersion: 2` with server-ordered `items`. `render/json.ts`
   ]
 }
 ```
+
+The deployed server currently omits presentation settings. The iOS decoder also accepts this
+additive envelope in preparation for the server rollout:
+
+```json
+{
+  "presentation": {
+    "version": 1,
+    "template": "standard-v1",
+    "fullColor": {
+      "primarySurface": "#000000",
+      "secondarySurface": "#111113"
+    }
+  }
+}
+```
+
+One template id represents its complete small/medium/large family; the server does not choose a
+template by widget dimensions. Surface values are opaque six-digit sRGB and apply only in
+WidgetKit's full-color rendering mode. Missing presentation, unsupported versions or templates,
+and invalid individual colors fall back to the black `standard-v1` control without discarding
+valid items. Accented and vibrant rendering remain system-owned native presentations.
 
 Contract rules:
 

@@ -15,13 +15,35 @@ import Foundation
 /// `timestamp` is the one deliberate exception to "server owns display text" — it stays raw
 /// data so the client can format it for the device's locale/24-hour preference, which the
 /// server can't do precisely on the client's behalf.
-struct WidgetPayload: Codable {
+struct WidgetPayload: Decodable {
     let schemaVersion: Int
+    /// Optional server-selected presentation. Older responses omit this field; malformed
+    /// presentation data is discarded independently so valid feed items still render.
+    let presentation: WidgetPresentationPayload?
     /// Display order — the client renders these in array order with no client-side sort.
     let items: [WidgetItem]
+
+    init(schemaVersion: Int, presentation: WidgetPresentationPayload? = nil, items: [WidgetItem]) {
+        self.schemaVersion = schemaVersion
+        self.presentation = presentation
+        self.items = items
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion
+        case presentation
+        case items
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        presentation = try? container.decode(WidgetPresentationPayload.self, forKey: .presentation)
+        items = try container.decode([WidgetItem].self, forKey: .items)
+    }
 }
 
-struct WidgetItem: Codable, Identifiable {
+struct WidgetItem: Decodable, Identifiable {
     let id: String
     /// The matchup title, pre-combined by the server as "<team1> @ <team2>". Rendered large/bold
     /// (see `ItemHeroCard`/`ItemBlockView` in ClarkViewWidget.swift) — can wrap to 2 lines.
