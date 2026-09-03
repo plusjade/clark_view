@@ -1,6 +1,6 @@
 # Clark View ↔ Val Town orientation
 
-Read this before inspecting or changing the Val Town backend. It is a local map of the parts of `plusjade/sports-today` that matter to this repository, updated on 2026-09-02, so routine iOS work should not require rediscovering the remote project through repeated MCP calls.
+Read this before inspecting or changing the Val Town backend. It is a local map of the parts of `plusjade/sports-today` that matter to this repository, updated on 2026-09-03, so routine iOS work should not require rediscovering the remote project through repeated MCP calls.
 
 ## One-minute mental model
 
@@ -15,8 +15,10 @@ Helper's browser ── /bunches, /devices, /sources ──> Val Town SQLite
                                       │
 iOS app ── /pair, /device/token ──────┤
                                       │
-Widget ── /config/resolve ── 302 ──┬──> /?format=json ──> WidgetPayload v2
-                                   └──> /messages ──────> WidgetPayload v2
+Widget ── /config/resolve ──> ordered device feed ──┬──> Games handler
+                                                    └──> Messages handler
+                                                              │
+                                                              └──> WidgetPayload v2
                                       │
                                       ├── Sleeper sports data
                                       └── APNs silent refreshes
@@ -51,7 +53,7 @@ The iOS machine calls intentionally use the `val.run` endpoint. As of this snaps
 | File | Role in the boundary |
 | --- | --- |
 | `Shared/GameDataURL.swift` | Owns the single backend base URL and builds `/config/resolve?device=&d=<pixels>&tz=<seconds>`. |
-| `ClarkViewWidget/ClarkViewWidget.swift` | Fetches the resolved JSON, follows the same-origin 302 through `URLSession`, decodes it, and renders small/medium/large widgets. Medium shows one item; large shows up to three. Its timeline normally refreshes hourly. |
+| `ClarkViewWidget/ClarkViewWidget.swift` | Fetches the resolved JSON, decodes it, and renders small/medium/large widgets. Medium shows one item; large shows up to three. Its timeline normally refreshes hourly. |
 | `Shared/WidgetPayload.swift` | Mirrors JSON schema version 2. This is a display contract, not a raw sports-data model. |
 | `Shared/DeviceIdentity.swift` | Creates the per-install UUID and shares it with the widget through the App Group. Local `isPaired` affects copy only; server state remains authoritative. |
 | `Shared/PairingClient.swift` | Sends `POST /pair` with `{code, device}`. |
@@ -72,11 +74,12 @@ The remote val has one stable HTTP entrypoint plus namespaced transport, domain,
 | `http/routes/*.ts` | Hono route groups for the root/data endpoint, stable widget compatibility URLs, and browser administration APIs. |
 | `http/handlers/games.ts` | Shared sports query pipeline for widget JSON, PNG diagnostics, and config previews. |
 | `http/handlers/messages.ts` | Shared Messages-source pipeline for widget JSON and config previews. |
+| `http/handlers/deviceFeed.ts` | Stateful device-feed composition. Runs every ordered source assignment concurrently through the existing stateless handlers, then concatenates their schema-v2 items in assignment priority order. |
 | `lib/catalog.ts` | Known sports, teams, and channel tables. |
 | `lib/params.ts`, `lib/games.ts`, `lib/dates.ts`, `lib/teams.ts`, `lib/channels.ts` | Pure request validation, slate selection, date handling, and display enrichment. |
-| `lib/resolver.ts` | Pure translation from a selected source's settings into the existing games/messages redirect parameters. |
+| `lib/resolver.ts` | Pure translation from one source assignment's settings into the existing stateless games/messages request parameters. |
 | `lib/deviceStore.ts` | Device-centric projections and writes for device names and `device_sources` assignments. Device views deliberately omit bunch membership; assignment writes validate ownership and rely on SQLite's JSON, priority, foreign-key, and uniqueness constraints. |
-| `lib/deviceSourceStore.ts` | Widget-facing read seam that resolves an install id to its first source by `(priority ASC, device_sources.id ASC)`. |
+| `lib/deviceSourceStore.ts` | Widget-facing read seam that resolves an install id to all its sources by `(priority ASC, device_sources.id ASC)`. |
 | `lib/deviceTokenStore.ts` | APNs token persistence and device/source token projections keyed by `devices.install_id`. Token uploads may precede device registration. |
 | `lib/sourceStore.ts` | Read-only projections of source definitions, JSON settings schemas, and their device assignments for the browser explorer. |
 | `lib/bunchStore.ts` | Bunch administration, reusable 30-minute bunch codes, and new-model device registration. A valid code is the only write path that creates or moves a device into a bunch. |
@@ -100,20 +103,20 @@ Prefer changing pure helpers and their tests over adding policy directly to an I
 | Method and route | Caller | Contract / caution |
 | --- | --- | --- |
 | `GET /` | Browser, widget redirect target, diagnostics | Plain requests render a centered nav to `/bunches`, `/devices`, and `/sources`. Explicit `format=json` remains the widget contract and `format=png` remains available for diagnostics. Repeated `sports[]` and `teams[]` parameters are validated without turning drift into a fatal widget error. |
-| `GET /messages` | Widget | Accepts `tz=<seconds east of GMT>` and returns schema-version-2 widget JSON containing every message whose ISO timestamp falls on the current calendar day at that fixed offset. It has no config or device parameter; `/config/resolve` gates access by selecting the Messages source for the requesting device. |
-| `GET /config/resolve` | Widget | Stable compatibility URL over the device model. Accepts `device`, `d=<pixelWidth>x<pixelHeight>`, and `tz=<seconds east of GMT>`, looks up `devices.install_id`, selects one `device_sources` row by `(priority ASC, id ASC)`, and translates its source kind/settings into the unchanged games or messages redirect. Messages redirects carry only `tz`; source attachment is their gate. Multiple stored sources are deliberately not unioned yet. An unknown device, or a registered device without a source, gets the starter-team default. The widget's `URLSession` follows the uncached 302. |
+| `GET /messages` | Widget/source diagnostics | Accepts `tz=<seconds east of GMT>` and returns schema-version-2 widget JSON containing every message whose ISO timestamp falls on the current calendar day at that fixed offset. It has no config or device parameter; `/config/resolve` includes it only when the requesting device has the Messages source attached. |
+| `GET /config/resolve` | Widget | Stable compatibility URL over the device model. Accepts `device`, `d=<pixelWidth>x<pixelHeight>`, and `tz=<seconds east of GMT>`, looks up `devices.install_id`, and loads every `device_sources` row by `(priority ASC, id ASC)`. It executes each source concurrently through the same handlers used by the stateless endpoints, concatenates each source's already-ordered `items` in assignment order, and returns the combined schema-v2 JSON directly with `cache-control: no-store`. An unknown device, or a registered device without a source, gets the starter-team default. `x-effective-source-count` and `x-effective-sources` expose composition diagnostics without changing the body contract. |
 | `POST /pair` | Containing app | Stable compatibility URL over bunch enrollment. JSON `{code, device}` redeems a `bunch_codes` row, registers or moves `devices.install_id`, and returns `{ok: true, deviceId}` (200). An unknown code is `{ok: false}` (404); an expired code is `{ok: false, message: "expired"}` (422). Codes are six characters and reusable until their 30-minute expiry. The app intentionally requires only `ok`, because the internal integer id is not part of its data path. |
 | `POST /devices/register` | Browser/new-model API | JSON `{code, device, name?}`. Performs the same bunch registration as `/pair`, with an optional device name. Unknown and expired codes use the same 404/422 split. |
 | `POST /device/token` | Containing app | JSON `{device, token}`. Upserts the APNs token independently of pairing. |
 | `GET /config/status/:deviceId` | Containing app diagnostics | Stable compatibility URL over the device model. Always returns 200 for a syntactically valid request; an unknown install is `{deviceId, paired: false}`. A registered install returns `paired`, its device name, `activeSource`, and the primary Games source's sports/teams (empty arrays for Messages or no source). No config id is exposed. |
-| `GET /devices/resolve` | New-model alias | Accepts the same `device`, `d`, and `tz` parameters and applies the same first-assignment ordering as `/config/resolve`. The iOS widget remains on the stable config-named URL until route renaming is coordinated. |
+| `GET /devices/resolve` | New-model alias | Accepts the same `device`, `d`, and `tz` parameters and returns the same ordered, combined response as `/config/resolve`. The iOS widget remains on the stable config-named URL until route renaming is coordinated. |
 | `GET /devices/status/:installId` | New-model diagnostics | Returns registration state, device name, active source, and ordered source settings without exposing bunch membership. The iOS app remains on the stable config-named URL until route renaming is coordinated. |
 | `GET /devices` | Helper's browser | Index of every new-model device, with install id, source count, and a link to the internal integer-id show route. Bunch membership remains intentionally absent. |
 | `GET/POST /devices/:id` | Helper's browser | Device detail and direct name edit. Lists assignments in deterministic `(priority ASC, id ASC)` order and expands settings. |
 | `GET /devices/:id/sources/new`, `POST /devices/:id/sources` | Helper's browser | Two-step source attachment: choose one singleton source not already attached, then set its positive integer priority and source-specific settings. Games accepts catalog-filtered sports/teams plus `intradayFilter`; Messages stores `{}`. |
 | `GET/POST /devices/:id/sources/:assignmentId` | Helper's browser | Reads or edits one assignment owned by the device. This is the device-centric replacement for config Settings plus Personalization; feed choice is assignment presence/order rather than `dataFeed`. Saving sends a best-effort silent push only to that device. |
 | `POST /devices/:id/sources/:assignmentId/delete` | Helper's browser | Removes only the device/source edge, leaving the singleton source and source-owned data intact. |
-| `GET /devices/:id/preview` | Helper's browser | Runs the same games/messages handler selected by the device's first ordered assignment and renders both item rows and raw schema-v2 JSON. |
+| `GET /devices/:id/preview` | Helper's browser | Runs the same concurrent, ordered composition as the device resolver and renders both item rows and raw schema-v2 JSON. A device without assignments previews the same starter-team fallback used by the resolver. |
 | `GET /sources` | Helper's browser | Read-only index of singleton source definitions with schema-field and attached-device counts. |
 | `GET /sources/:id` | Helper's browser | Read-only source detail using the internal integer id. Expands the available JSON Schema, shows source timestamps, and lists attached devices with priorities and human-readable assignment settings. |
 | `GET/POST /sources/:id/messages` | Helper's browser | Source-owned replacement for the transitional config Messages page. It is available only for the singleton Messages source, lists/adds the shared feed, normalizes browser-local time to UTC ISO, and refreshes every attached device best-effort. |
@@ -159,7 +162,9 @@ Contract rules:
 
 `render/json.ts` returns `cache-control: public, max-age=60` and `x-effective-*` headers describing the resolved mode, sports, teams, rejected values, UTC offset, and resolved date. Use those headers for drift diagnosis instead of expanding the Swift body contract.
 
-`render/messageJson.ts` uses that same body contract and cache policy. Stored `main`, `sub`, and ISO `timestamp` values become `mainText`, `subText`, and Unix seconds; message items use `caption: null` and `emphasized: false`. The `messages` table has only `main`, `sub`, and `timestamp`; SQLite `rowid` remains the stable widget item id, and `messages_timestamp` supports same-day range reads. Messages are shared by every device attached to the singleton Messages source, whose schema and assignments have no settings. Devices without that source cannot select the feed through the resolver. No source schema or assignment retains `legacyConfigId`; Games assignments contain only the live `sports`, `teams`, and `intradayFilter` values. A later phase is expected to union multiple sources.
+`render/messageJson.ts` uses that same body contract and cache policy. Stored `main`, `sub`, and ISO `timestamp` values become `mainText`, `subText`, and Unix seconds; message items use `caption: null` and `emphasized: false`. The `messages` table has only `main`, `sub`, and `timestamp`; SQLite `rowid` remains the stable widget item id, and `messages_timestamp` supports same-day range reads. Messages are shared by every device attached to the singleton Messages source, whose schema and assignments have no settings. Devices without that source do not include messages in their combined feed. No source schema or assignment retains `legacyConfigId`; Games assignments contain only the live `sports`, `teams`, and `intradayFilter` values.
+
+The device feed is a source-ordered concatenation, not a global timestamp sort: assignment priority determines the source blocks, equal priorities use assignment id as the deterministic tie-breaker, and each source retains its own internal item ordering. `Promise.all` makes source execution concurrent without changing result order. A source failure currently fails the whole composition; partial-feed degradation has not been introduced.
 
 ## FIBA women's basketball — live, second source wired into the widget pipeline
 
@@ -198,7 +203,7 @@ If this document, `Shared/GameDataURL.swift`, and one root `list_files` result a
 
 1. Make one representative `val_town_fetch_val_endpoint` GET against `main.ts`, with the pathname/search needed for the changed route. The tool resolves the endpoint; do not paste a hand-built URL.
 2. For widget-contract changes, fetch `/?format=json` with a narrow known-team query and confirm status, content type, schema version, seconds-based timestamps, and `x-effective-*` headers.
-3. For resolve changes, test `/config/resolve` with a non-sensitive fixture device id and remember the tool follows same-origin redirects. Check both the final JSON and the endpoint's redirect behavior when the change concerns caching or query translation.
+3. For resolve changes, test `/config/resolve` with a non-sensitive fixture device id. Confirm the direct response status, schema-v2 JSON, source diagnostics, and ordering; the resolver no longer redirects.
 4. Call `val_town_list_files` once after deployment only when the change touched `main.ts` or endpoint identity must be certified. Confirm the file id and endpoint above did not change.
 5. Use `val_town_get_traces` or `val_town_get_logs` only after a failed or surprising response. Filter to the known `main.ts` file id/trace instead of polling the whole project.
 
