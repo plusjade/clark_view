@@ -96,7 +96,7 @@ struct WidgetSRGBColor: Equatable {
     let green: Double
     let blue: Double
 
-    init?(hex: String) {
+    nonisolated init?(hex: String) {
         guard hex.count == 7,
               hex.first == "#",
               let value = UInt32(hex.dropFirst(), radix: 16) else {

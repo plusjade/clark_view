@@ -101,6 +101,7 @@ struct SystemWidgetTemplate: View {
                 .padding(family == .systemLarge ? 0 : 6)
             }
         }
+        .tint(Color("AccentColor"))
         .containerBackground(for: .widget) {
             colorScheme == .dark ? Color.black : Color.white
         }
@@ -220,7 +221,7 @@ private struct SystemFocusableItemView: View {
                     SystemWidgetPalette.cardShape
                         .strokeBorder(
                             SystemWidgetPalette.compactBorder,
-                            style: StrokeStyle(lineWidth: 1, dash: [5, 7])
+                            style: StrokeStyle(lineWidth: 1, dash: [2, 8])
                         )
                         .opacity(isPrimary ? 0 : 1)
                 }
