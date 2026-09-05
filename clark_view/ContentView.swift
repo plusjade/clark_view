@@ -100,7 +100,6 @@ private struct DiagnosticsView: View {
                 row("Device ID", status.deviceId)
                 row("Device Name", status.name ?? "—")
                 row("Source", status.activeSource ?? "—")
-                row("Sports", displayList(status.sports))
                 row("Teams", displayList(status.teams))
             } else if !isLoading {
                 Text("Couldn't load status")
@@ -113,8 +112,11 @@ private struct DiagnosticsView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// An empty team list means an empty feed, not every game. "(all)" was
+    /// correct only while the server still had a whole-league fallback; that
+    /// went away with the `sports[]` parameter on 2026-09-05.
     private func displayList(_ values: [String]?) -> String {
-        guard let values, !values.isEmpty else { return "(all)" }
+        guard let values, !values.isEmpty else { return "(none)" }
         return values.joined(separator: ", ")
     }
 
