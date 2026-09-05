@@ -17,6 +17,7 @@ struct RefreshWidgetIntent: AppIntent {
     static var title: LocalizedStringResource = "Refresh"
 
     func perform() async throws -> some IntentResult {
+        WidgetFocusStore.requireNetworkRefresh()
         WidgetCenter.shared.reloadTimelines(ofKind: WidgetKind.main)
         return .result()
     }

@@ -183,7 +183,16 @@ uses only `primarySurface`; `secondarySurface` does not affect this template. In
 Swift derives a solid black-or-white content foreground from the primary surface's relative
 luminance; other rendering modes retain WidgetKit's system-managed foreground. Its shared
 date/time treatment keeps the localized time on one conventional line (`TODAY · 8:10 PM`), with
-a prominent primary style and a smaller secondary style.
+a prominent primary style and a smaller secondary style. The large system-v1 view renders the
+first two server-ordered items. Its local interactive focus can promote the secondary item without
+changing the payload, server order, or either item's position. The focused item grows in place while
+the other item adopts the compact presentation. The first item remains leading-aligned and the second
+remains trailing-aligned regardless of focus. `StaticConfiguration` means that focus is shared by
+widget instances on the device. Focus-triggered timeline entries reuse the last successfully decoded
+payload from App Group storage so the interaction does not wait on the endpoint; scheduled and
+explicit refreshes continue to request current server data. Secondary detail remains in the SwiftUI
+view tree while an animatable layout collapses its intrinsic height and opacity, keeping it synchronized
+with the rest of the focus transition without measured or fixed dimensions.
 
 Contract rules:
 

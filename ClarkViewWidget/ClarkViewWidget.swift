@@ -11,7 +11,14 @@ import SwiftUI
 import UIKit
 
 private enum GameDataService {
+    private static let cachedPayloadKey = "latestWidgetPayload"
+    private static let defaults = UserDefaults(suiteName: DeviceIdentity.appGroupID) ?? .standard
+
     static func fetchPayload(context: Provider.Context) async -> WidgetPayload {
+        if WidgetFocusStore.shouldReuseCachedPayload, let cachedPayload {
+            return cachedPayload
+        }
+
         let scale = UITraitCollection.current.displayScale
         let pixelWidth = Int((context.displaySize.width * scale).rounded())
         let pixelHeight = Int((context.displaySize.height * scale).rounded())
@@ -29,10 +36,19 @@ private enum GameDataService {
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
                 return .empty
             }
-            return try JSONDecoder.widgetPayload.decode(WidgetPayload.self, from: data)
+            let payload = try JSONDecoder.widgetPayload.decode(WidgetPayload.self, from: data)
+            defaults.set(data, forKey: cachedPayloadKey)
+            return payload
         } catch {
             return .empty
         }
+    }
+
+    private static var cachedPayload: WidgetPayload? {
+        guard let data = defaults.data(forKey: cachedPayloadKey) else {
+            return nil
+        }
+        return try? JSONDecoder.widgetPayload.decode(WidgetPayload.self, from: data)
     }
 
     /// #Preview-only fixtures now that the live provider calls `fetchPayload` directly — keeps
@@ -137,6 +153,13 @@ private extension JSONDecoder {
 struct GamesEntry: TimelineEntry {
     let date: Date
     let payload: WidgetPayload
+    let focusedItemID: String?
+
+    init(date: Date, payload: WidgetPayload, focusedItemID: String? = nil) {
+        self.date = date
+        self.payload = payload
+        self.focusedItemID = focusedItemID
+    }
 }
 
 struct Provider: TimelineProvider {
@@ -147,14 +170,22 @@ struct Provider: TimelineProvider {
     func getSnapshot(in context: Context, completion: @escaping (GamesEntry) -> Void) {
         Task {
             let payload = await GameDataService.fetchPayload(context: context)
-            completion(GamesEntry(date: .now, payload: payload))
+            completion(GamesEntry(
+                date: .now,
+                payload: payload,
+                focusedItemID: WidgetFocusStore.focusedItemID
+            ))
         }
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<GamesEntry>) -> Void) {
         Task {
             let payload = await GameDataService.fetchPayload(context: context)
-            let entry = GamesEntry(date: .now, payload: payload)
+            let entry = GamesEntry(
+                date: .now,
+                payload: payload,
+                focusedItemID: WidgetFocusStore.focusedItemID
+            )
             // Data doesn't change fast enough to justify burning the refresh budget more often
             // than this; retune if games start/finish mid-refresh-window.
             let nextRefresh = Calendar.current.date(byAdding: .minute, value: 60, to: .now)
