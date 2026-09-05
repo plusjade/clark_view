@@ -14,14 +14,18 @@ struct FocusWidgetItemIntent: AppIntent {
     @Parameter(title: "Item")
     var itemID: String
 
+    @Parameter(title: "Change Focus")
+    var changesFocus: Bool
+
     init() {}
 
-    init(itemID: String) {
+    init(itemID: String, changesFocus: Bool) {
         self.itemID = itemID
+        self.changesFocus = changesFocus
     }
 
     func perform() async throws -> some IntentResult {
-        WidgetFocusStore.focus(on: itemID)
+        WidgetFocusStore.handleTap(on: itemID, changesFocus: changesFocus)
         return .result()
     }
 }
@@ -50,10 +54,12 @@ enum WidgetFocusStore {
         }
     }
 
-    static func focus(on itemID: String) {
-        focusedItemID = itemID
+    static func handleTap(on itemID: String, changesFocus: Bool) {
+        if changesFocus {
+            focusedItemID = itemID
+        }
         // A focus interaction reloads the timeline immediately. This short window also covers
-        // multiple instances of the static widget without delaying ordinary server refreshes.
+        // captured taps and multiple static widget instances without delaying ordinary refreshes.
         defaults.set(Date.now.addingTimeInterval(15), forKey: cacheReuseDeadlineKey)
     }
 

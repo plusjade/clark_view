@@ -154,76 +154,83 @@ private struct SystemFocusableItemView: View {
     let actionForegroundColor: Color
 
     var body: some View {
-        SystemFocusItemLayout(primaryProgress: isPrimary ? 1 : 0) {
-            VStack(alignment: .leading, spacing: isPrimary ? 10 : 4) {
-                SystemDateTimeView(
-                    item: item,
-                    accentColor: timeAccentColor,
-                    style: isPrimary ? .primary : .secondary
-                )
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentTransition(.interpolate)
-
-                Text(item.mainText)
-                    .font(.system(
-                        isPrimary ? .largeTitle : .body,
-                        design: .default,
-                        weight: isPrimary ? .regular : .semibold
-                    ))
-                    .lineLimit(isPrimary ? 2 : 1)
-                    .multilineTextAlignment(.leading)
-                    .truncationMode(.tail)
-                    .foregroundStyle(contentColor)
+        Button(intent: FocusWidgetItemIntent(itemID: item.id, changesFocus: !isPrimary)) {
+            SystemFocusItemLayout(primaryProgress: isPrimary ? 1 : 0) {
+                VStack(alignment: .leading, spacing: isPrimary ? 10 : 4) {
+                    SystemDateTimeView(
+                        item: item,
+                        accentColor: timeAccentColor,
+                        style: isPrimary ? .primary : .secondary
+                    )
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
                     .contentTransition(.interpolate)
-            }
 
-            SystemRoleDetailLayout(primaryProgress: isPrimary ? 1 : 0) {
-                Text(item.subText)
-                    .font(.system(.title3, design: .default, weight: .regular))
-                    .foregroundStyle(contentColor)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .opacity(isPrimary ? 1 : 0)
-
-                Button(intent: FocusWidgetItemIntent(itemID: item.id)) {
-                    Image(systemName: "plus.magnifyingglass")
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(actionForegroundColor)
-                        .frame(width: 56, height: 56)
-                        .background(timeAccentColor, in: Circle())
-                        .contentShape(Rectangle())
+                    Text(item.mainText)
+                        .font(.system(
+                            isPrimary ? .largeTitle : .body,
+                            design: .default,
+                            weight: isPrimary ? .regular : .semibold
+                        ))
+                        .lineLimit(isPrimary ? 2 : 1)
+                        .multilineTextAlignment(.leading)
+                        .truncationMode(.tail)
+                        .foregroundStyle(contentColor)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .contentTransition(.interpolate)
                 }
-                .frame(maxWidth: .infinity, minHeight: 56)
-                .buttonStyle(SystemFocusButtonStyle(reduceMotion: reduceMotion))
-                .allowsHitTesting(!isPrimary)
-                .accessibilityLabel("Show \(item.mainText) larger")
-                .accessibilityHidden(isPrimary)
-                .opacity(isPrimary ? 0 : 1)
+
+                SystemRoleDetailLayout(primaryProgress: isPrimary ? 1 : 0) {
+                    Text(item.subText)
+                        .font(.system(.title3, design: .default, weight: .regular))
+                        .foregroundStyle(contentColor)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .opacity(isPrimary ? 1 : 0)
+
+                    Image(systemName: "plus.magnifyingglass")
+                        .font(.title.weight(.bold))
+                        .foregroundStyle(actionForegroundColor)
+                        .frame(width: 50, height: 50)
+                        .background(contentColor.opacity(0.70), in: Circle())
+                        .frame(maxWidth: .infinity, minHeight: 50, alignment: .trailing)
+                        .opacity(isPrimary ? 0 : 1)
+                }
+                .clipped()
             }
-            .clipped()
+            .padding(isPrimary ? 20 : 14)
+            .frame(
+                maxWidth: .infinity,
+                maxHeight: isPrimary ? .infinity : nil,
+                alignment: .topLeading
+            )
+            .background {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(isPrimary ? contentColor.opacity(0.08) : .clear)
+            }
+            .overlay {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .strokeBorder(contentColor.opacity(0.18), lineWidth: 1)
+                        .opacity(isPrimary ? 1 : 0)
+
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .strokeBorder(
+                            contentColor.opacity(0.45),
+                            style: StrokeStyle(lineWidth: 1, dash: [5, 7])
+                        )
+                        .opacity(isPrimary ? 0 : 1)
+                }
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         }
-        .padding(isPrimary ? 20 : 14)
-        .frame(
-            maxWidth: .infinity,
-            maxHeight: isPrimary ? .infinity : nil,
-            alignment: .topLeading
+        .buttonStyle(SystemFocusButtonStyle(reduceMotion: reduceMotion))
+        .accessibilityLabel(
+            isPrimary ? "\(item.mainText), focused item" : "Show \(item.mainText) larger"
         )
-        .background {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(isPrimary ? contentColor.opacity(0.08) : .clear)
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(
-                    contentColor.opacity(0.45),
-                    style: StrokeStyle(lineWidth: 1.5, dash: [5, 3])
-                )
-                .opacity(isPrimary ? 0 : 1)
-        }
+        .accessibilityHint(isPrimary ? "Already shown larger" : "Shows this item larger")
         .id(item.id)
     }
 }
@@ -234,7 +241,7 @@ private struct SystemFocusButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .opacity(configuration.isPressed ? 0.72 : 1)
-            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.99 : 1)
             .animation(
                 reduceMotion ? nil : .easeOut(duration: 0.12),
                 value: configuration.isPressed

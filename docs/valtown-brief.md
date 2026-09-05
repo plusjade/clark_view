@@ -187,16 +187,16 @@ a prominent primary style and a smaller secondary style. The large system-v1 vie
 first two server-ordered items. Its local interactive focus can promote the secondary item without
 changing the payload, server order, or either item's position. The focused item grows in place while
 the other item adopts the compact presentation. Both items remain leading-aligned regardless of focus;
-the focused item uses a contrasting filled surface while the compact item uses an outlined surface
-and roughly 70/30 content-and-action row. `StaticConfiguration` means
+the focused item uses a contrasting filled surface and subtle solid keyline while the compact item
+uses a dashed outline and roughly 70/30 content-and-action row. `StaticConfiguration` means
 that focus is shared by widget instances on the device. Focus-triggered timeline entries reuse the
 last successfully decoded payload from App Group storage so the interaction does not wait on the
 endpoint; scheduled and explicit refreshes continue to request current server data. Secondary detail
 remains in the SwiftUI view tree while an animatable layout collapses its intrinsic height and opacity,
 keeping it synchronized
 with the rest of the focus transition without measured or fixed dimensions. The compact item exposes
-a circular system-symbol `Show Larger` button in the trailing action column; the focused item is
-noninteractive.
+a circular system-symbol `Show Larger` cue in the trailing action column. Each full card is a button:
+the compact card changes focus, while the focused card captures the tap without changing presentation.
 Custom motion is disabled when the system Reduce Motion preference is active.
 
 Contract rules:
