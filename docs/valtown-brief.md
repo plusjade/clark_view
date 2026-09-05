@@ -1,6 +1,6 @@
 # Clark View ↔ Val Town orientation
 
-Read this before inspecting or changing the Val Town backend. It is a local map of the parts of `plusjade/sports-today` that matter to this repository, updated on 2026-09-03, so routine iOS work should not require rediscovering the remote project through repeated MCP calls.
+Read this before inspecting or changing the Val Town backend. It is a local map of the parts of `plusjade/sports-today` that matter to this repository, updated on 2026-09-04, so routine iOS work should not require rediscovering the remote project through repeated MCP calls.
 
 ## One-minute mental model
 
@@ -53,9 +53,9 @@ The iOS machine calls intentionally use the `val.run` endpoint. As of this snaps
 | File | Role in the boundary |
 | --- | --- |
 | `Shared/GameDataURL.swift` | Owns the single backend base URL and builds `/config/resolve?device=&d=<pixels>&tz=<seconds>`. |
-| `ClarkViewWidget/ClarkViewWidget.swift` | Fetches the resolved JSON, decodes it, and renders small/medium/large widgets. Medium shows one item; large shows up to three. Its timeline normally refreshes hourly. |
+| `ClarkViewWidget/ClarkViewWidget.swift` | Fetches the resolved JSON, decodes it, dispatches the selected template, and renders small/medium/large widgets. Medium shows one item; large shows up to three. Its timeline normally refreshes hourly. |
 | `Shared/WidgetPayload.swift` | Mirrors JSON schema version 2. This is a display contract, not a raw sports-data model. |
-| `Shared/WidgetPresentation.swift` | Loss-tolerant client contract for the optional presentation envelope. Resolves supported template ids and opaque sRGB full-color surfaces, falling back to the current black `standard-v1` control. |
+| `Shared/WidgetPresentation.swift` | Loss-tolerant client contract for the optional presentation envelope. Resolves `standard-v1` and `system-v1` plus opaque sRGB full-color surfaces, falling back to the black `standard-v1` control. |
 | `Shared/DeviceIdentity.swift` | Creates the per-install UUID and shares it with the widget through the App Group. Local `isPaired` affects copy only; server state remains authoritative. |
 | `Shared/PairingClient.swift` | Sends `POST /pair` with `{code, device}`. |
 | `Shared/PushTokenClient.swift` | Sends `POST /device/token` with `{device, token}` whenever APNs registers or rotates the token. |
@@ -75,12 +75,13 @@ The remote val has one stable HTTP entrypoint plus namespaced transport, domain,
 | `http/routes/*.ts` | Hono route groups for the root/data endpoint, stable widget compatibility URLs, and browser administration APIs. |
 | `http/handlers/games.ts` | Shared sports query pipeline for widget JSON, PNG diagnostics, and config previews. |
 | `http/handlers/messages.ts` | Shared Messages-source pipeline for widget JSON and config previews. |
-| `http/handlers/deviceFeed.ts` | Stateful device-feed composition. Runs every ordered source assignment concurrently through the existing stateless handlers, then concatenates their schema-v2 items in assignment priority order. |
+| `http/handlers/deviceFeed.ts` | Stateful device-feed composition. Runs every ordered source assignment concurrently through the existing stateless handlers, concatenates their schema-v2 items in assignment priority order, and attaches the device-owned presentation envelope. |
 | `lib/catalog.ts` | Known sports, teams, and channel tables. |
 | `lib/params.ts`, `lib/games.ts`, `lib/dates.ts`, `lib/teams.ts`, `lib/channels.ts` | Pure request validation, slate selection, date handling, and display enrichment. |
 | `lib/resolver.ts` | Pure translation from one source assignment's settings into the existing stateless games/messages request parameters. |
-| `lib/deviceStore.ts` | Device-centric projections and writes for device names and `device_sources` assignments. Device views deliberately omit bunch membership; assignment writes validate ownership and rely on SQLite's JSON, priority, foreign-key, and uniqueness constraints. |
-| `lib/deviceSourceStore.ts` | Widget-facing read seam that resolves an install id to all its sources by `(priority ASC, device_sources.id ASC)`. |
+| `lib/deviceStore.ts` | Device-centric projections and writes for names, presentation, and `device_sources` assignments. Device views deliberately omit bunch membership; assignment writes validate ownership and rely on SQLite's JSON, priority, foreign-key, and uniqueness constraints. |
+| `lib/deviceSourceStore.ts` | Widget-facing read seam that resolves an install id to its presentation and all sources by `(priority ASC, device_sources.id ASC)`. |
+| `lib/presentation.ts` | Versioned widget-presentation types, control/initial values, loss-tolerant stored JSON parsing, and browser-form validation. |
 | `lib/deviceTokenStore.ts` | APNs token persistence and device/source token projections keyed by `devices.install_id`. Token uploads may precede device registration. |
 | `lib/sourceStore.ts` | Read-only projections of source definitions, JSON settings schemas, and their device assignments for the browser explorer. |
 | `lib/bunchStore.ts` | Bunch administration, reusable 30-minute bunch codes, and new-model device registration. A valid code is the only write path that creates or moves a device into a bunch. |
@@ -92,7 +93,7 @@ The remote val has one stable HTTP entrypoint plus namespaced transport, domain,
 | `render/json.ts` | The native widget's schema-versioned response. |
 | `render/messageJson.ts` | Maps stored messages into the same schema-versioned widget item contract. |
 | `render/pageShell.ts` | Shared browser shell owning typography, colors, resource tables/navigation, forms, breadcrumbs, and timestamp localization. |
-| `render/deviceHtml.tsx` | React-rendered device index, source-assignment forms, and resolver-backed preview composed through the shared config `pageShell`. |
+| `render/deviceHtml.tsx` | React-rendered device index, source-assignment and presentation forms, and resolver-backed preview composed through the shared config `pageShell`. |
 | `render/sourceHtml.tsx` | React-rendered source index/show and source-owned Messages form composed through `pageShell`, including human-readable JSON Schema fields and linked device assignments. |
 | `render/bunchHtml.tsx` | React-rendered bunch index/detail and pairing-code pages. Bunches appear only in enrollment/access administration, not device feed rendering. |
 | Other `render/*` files | PNG rendering and its pure layout helpers; not the native widget's rendering path. |
@@ -105,7 +106,7 @@ Prefer changing pure helpers and their tests over adding policy directly to an I
 | --- | --- | --- |
 | `GET /` | Browser, widget redirect target, diagnostics | Plain requests render a centered nav to `/bunches`, `/devices`, and `/sources`. Explicit `format=json` remains the widget contract and `format=png` remains available for diagnostics. Repeated `sports[]` and `teams[]` parameters are validated without turning drift into a fatal widget error. |
 | `GET /messages` | Widget/source diagnostics | Accepts `tz=<seconds east of GMT>` and returns schema-version-2 widget JSON containing every message whose ISO timestamp falls on the current calendar day at that fixed offset. It has no config or device parameter; `/config/resolve` includes it only when the requesting device has the Messages source attached. |
-| `GET /config/resolve` | Widget | Stable compatibility URL over the device model. Accepts `device`, `d=<pixelWidth>x<pixelHeight>`, and `tz=<seconds east of GMT>`, looks up `devices.install_id`, and loads every `device_sources` row by `(priority ASC, id ASC)`. It executes each source concurrently through the same handlers used by the stateless endpoints, concatenates each source's already-ordered `items` in assignment order, and returns the combined schema-v2 JSON directly with `cache-control: no-store`. An unknown device, or a registered device without a source, gets the starter-team default. `x-effective-source-count` and `x-effective-sources` expose composition diagnostics without changing the body contract. |
+| `GET /config/resolve` | Widget | Stable compatibility URL over the device model. Accepts `device`, legacy no-op `d=<pixelWidth>x<pixelHeight>`, and `tz=<seconds east of GMT>`, looks up `devices.install_id`, and loads the device presentation plus every `device_sources` row by `(priority ASC, id ASC)`. It executes each source concurrently through the same handlers used by the stateless endpoints, concatenates each source's already-ordered `items` in assignment order, attaches `presentation`, and returns the combined schema-v2 JSON directly with `cache-control: no-store`. An unknown device, or a registered device without a source, gets the starter-team default; an unknown device gets the black control presentation. `x-effective-source-count` and `x-effective-sources` expose composition diagnostics without changing the body contract. |
 | `POST /pair` | Containing app | Stable compatibility URL over bunch enrollment. JSON `{code, device}` redeems a `bunch_codes` row, registers or moves `devices.install_id`, and returns `{ok: true, deviceId}` (200). An unknown code is `{ok: false}` (404); an expired code is `{ok: false, message: "expired"}` (422). Codes are six characters and reusable until their 30-minute expiry. The app intentionally requires only `ok`, because the internal integer id is not part of its data path. |
 | `POST /devices/register` | Browser/new-model API | JSON `{code, device, name?}`. Performs the same bunch registration as `/pair`, with an optional device name. Unknown and expired codes use the same 404/422 split. |
 | `POST /device/token` | Containing app | JSON `{device, token}`. Upserts the APNs token independently of pairing. |
@@ -114,6 +115,7 @@ Prefer changing pure helpers and their tests over adding policy directly to an I
 | `GET /devices/status/:installId` | New-model diagnostics | Returns registration state, device name, active source, and ordered source settings without exposing bunch membership. The iOS app remains on the stable config-named URL until route renaming is coordinated. |
 | `GET /devices` | Helper's browser | Index of every new-model device, with install id, source count, and a link to the internal integer-id show route. Bunch membership remains intentionally absent. |
 | `GET/POST /devices/:id` | Helper's browser | Device detail and direct name edit. Lists assignments in deterministic `(priority ASC, id ASC)` order and expands settings. |
+| `GET/POST /devices/:id/presentation` | Helper's browser | Reads or edits the device-owned template and opaque full-color surface values. The editor offers `standard-v1` and `system-v1`; saving validates the versioned domain shape, updates the device row, and sends a best-effort silent push to that device. |
 | `GET /devices/:id/sources/new`, `POST /devices/:id/sources` | Helper's browser | Two-step source attachment: choose one singleton source not already attached, then set its positive integer priority and source-specific settings. Games accepts catalog-filtered sports/teams plus `intradayFilter`; Messages stores `{}`. |
 | `GET/POST /devices/:id/sources/:assignmentId` | Helper's browser | Reads or edits one assignment owned by the device. This is the device-centric replacement for config Settings plus Personalization; feed choice is assignment presence/order rather than `dataFeed`. Saving sends a best-effort silent push only to that device. |
 | `POST /devices/:id/sources/:assignmentId/delete` | Helper's browser | Removes only the device/source edge, leaving the singleton source and source-owned data intact. |
@@ -130,7 +132,7 @@ Only `/config/resolve` and `/config/status/:deviceId` remain under the config-na
 
 Current fallback behavior matters: an unknown or unpaired device is resolved with the `fever` + `sparks` + `dodgers` starter-team configuration. An older comment in the widget still describes an all-sports fallback; treat the deployed server behavior above as current until a deliberate cross-project change reconciles both sides.
 
-The retired `configs`, `device_configs`, and `pairing_codes` tables were dropped after the device cutover. Canonical enrollment and rendering state now lives in `bunches`, `bunch_codes`, `devices`, `sources`, and `device_sources`; `device_tokens`, `messages`, and `source_cache` retain their focused supporting roles.
+The retired `configs`, `device_configs`, and `pairing_codes` tables were dropped after the device cutover. Canonical enrollment and rendering state now lives in `bunches`, `bunch_codes`, `devices`, `sources`, and `device_sources`; `devices.presentation` is validated JSON with a non-null initial value. `device_tokens`, `messages`, and `source_cache` retain their focused supporting roles.
 
 ## Widget JSON contract
 
@@ -148,31 +150,40 @@ The response is `schemaVersion: 2` with server-ordered `items`. `render/json.ts`
       "emphasized": false,
       "timestamp": 1788044400
     }
-  ]
-}
-```
-
-The deployed server currently omits presentation settings. The iOS decoder also accepts this
-additive envelope in preparation for the server rollout:
-
-```json
-{
+  ],
   "presentation": {
     "version": 1,
     "template": "standard-v1",
     "fullColor": {
-      "primarySurface": "#000000",
-      "secondarySurface": "#111113"
+      "primarySurface": "#14213D",
+      "secondarySurface": "#261447"
     }
   }
 }
 ```
+
+Device resolver responses now always include the additive `presentation` envelope. Paired devices
+source it from `devices.presentation`; existing and newly paired devices start with the visible
+navy/purple values above. An unknown device receives the black control palette. Stateless source
+responses (`/?format=json` and `/messages`) remain content-only because they have no device context.
 
 One template id represents its complete small/medium/large family; the server does not choose a
 template by widget dimensions. Surface values are opaque six-digit sRGB and apply only in
 WidgetKit's full-color rendering mode. Missing presentation, unsupported versions or templates,
 and invalid individual colors fall back to the black `standard-v1` control without discarding
 valid items. Accented and vibrant rendering remain system-owned native presentations.
+
+`standard-v1` is the original accessibility-focused family: it intentionally uses measured
+scaling and tuned fixed geometry to maximize type for older people and people with low vision.
+`system-v1` mirrors that family's established layout and positioning, but leaves semantic
+SwiftUI text styles at their system-resolved sizes instead of measuring and scaling the rendered
+stack. It retains tuned spacing and the standard refresh control while allowing each family to
+use its available content width without manually magnifying its type. Unlike `standard-v1`, it
+uses only `primarySurface`; `secondarySurface` does not affect this template. In full-color mode,
+Swift derives a solid black-or-white content foreground from the primary surface's relative
+luminance; other rendering modes retain WidgetKit's system-managed foreground. Its shared
+date/time treatment keeps the localized time on one conventional line (`TODAY · 8:10 PM`), with
+a prominent primary style and a smaller secondary style.
 
 Contract rules:
 

@@ -51,6 +51,17 @@ private enum GameDataService {
         (try? JSONDecoder.widgetPayload.decode(WidgetPayload.self, from: mockJSON(primaryCaption: nil, primaryEmphasized: false))) ?? .empty
     }
 
+    static var mockSystemPayload: WidgetPayload {
+        (try? JSONDecoder.widgetPayload.decode(
+            WidgetPayload.self,
+            from: mockJSON(
+                primaryCaption: nil,
+                primaryEmphasized: false,
+                template: "system-v1"
+            )
+        )) ?? .empty
+    }
+
     /// Timestamps are relative to `.now` (not hardcoded epoch values) so the fixture always
     /// exercises all three `dayLabel` states — today/tomorrow/future — regardless of when the
     /// preview is opened. "Deterministic" (see `mockPayload` above) means offline, not
@@ -65,7 +76,11 @@ private enum GameDataService {
     /// 2-digit 12-hour values (10pm, 12 noon) rather than reusing the 7pm base directly: a
     /// single-digit-only fixture is exactly how TimeBlockView's 2-digit hour clipping shipped
     /// unnoticed.
-    private static func mockJSON(primaryCaption: String?, primaryEmphasized: Bool) -> Data {
+    private static func mockJSON(
+        primaryCaption: String?,
+        primaryEmphasized: Bool,
+        template: String = "standard-v1"
+    ) -> Data {
         let calendar = Calendar.current
         let primaryTS = Int(Date.now.addingTimeInterval(2 * 3600).timeIntervalSince1970)
         let base = calendar.date(bySettingHour: 19, minute: 0, second: 0, of: .now) ?? .now
@@ -79,7 +94,7 @@ private enum GameDataService {
           "schemaVersion": 2,
           "presentation": {
             "version": 1,
-            "template": "standard-v1",
+            "template": "\(template)",
             "fullColor": {
               "primarySurface": "#14213D",
               "secondarySurface": "#261447"
@@ -173,7 +188,7 @@ private func displayCaption(for item: WidgetItem) -> (text: String, color: Color
     return (caption, item.emphasized ? .red : .white.opacity(0.55))
 }
 
-private extension Color {
+extension Color {
     init(srgb color: WidgetSRGBColor) {
         self.init(.sRGB, red: color.red, green: color.green, blue: color.blue, opacity: 1)
     }
@@ -193,7 +208,7 @@ private func eyebrowStyle(for eyebrow: String) -> (color: Color, weight: Font.We
 /// `minimumScaleFactor`, which is an accessibility regression (shrinks the one word that
 /// most needs to stay legible) rather than a real fix. Shortening the string lets it render
 /// at full size; autosizing stays on as a safety net, not the primary mechanism.
-private func dayLabel(for date: Date) -> String {
+func dayLabel(for date: Date) -> String {
     let calendar = Calendar.autoupdatingCurrent
     if calendar.isDateInToday(date) { return "TODAY" }
     if calendar.isDateInTomorrow(date) { return "TMRW" }
@@ -610,7 +625,7 @@ private struct MissingItemsView: View {
 /// The template's removable full-color backdrop. WidgetKit replaces this container when the
 /// system uses an accented or vibrant presentation, so server colors remain scoped to the
 /// rendering mode named by the payload contract.
-private struct WidgetBackground: View {
+struct WidgetBackground: View {
     let palette: WidgetPresentation.FullColorPalette
     let hasSecondaryItems: Bool
 
@@ -722,6 +737,8 @@ struct ClarkViewWidgetEntryView: View {
         switch presentation.template {
         case .standardV1:
             StandardWidgetTemplate(entry: entry, presentation: presentation)
+        case .systemV1:
+            SystemWidgetTemplate(entry: entry, presentation: presentation)
         }
     }
 }
@@ -757,4 +774,22 @@ struct ClarkViewWidget: Widget {
     ClarkViewWidget()
 } timeline: {
     GamesEntry(date: .now, payload: GameDataService.mockPayloadUpcoming)
+}
+
+#Preview("System", as: .systemSmall) {
+    ClarkViewWidget()
+} timeline: {
+    GamesEntry(date: .now, payload: GameDataService.mockSystemPayload)
+}
+
+#Preview("System", as: .systemMedium) {
+    ClarkViewWidget()
+} timeline: {
+    GamesEntry(date: .now, payload: GameDataService.mockSystemPayload)
+}
+
+#Preview("System", as: .systemLarge) {
+    ClarkViewWidget()
+} timeline: {
+    GamesEntry(date: .now, payload: GameDataService.mockSystemPayload)
 }

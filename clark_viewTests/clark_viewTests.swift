@@ -37,6 +37,21 @@ struct clark_viewTests {
         #expect(presentation.fullColor.secondarySurface == WidgetSRGBColor(hex: "#261447"))
     }
 
+    @Test func systemTemplateIsSelectable() throws {
+        let payload = try decodePayload(presentation: """
+        {
+          "version": 1,
+          "template": "system-v1",
+          "fullColor": {
+            "primarySurface": "#14213D",
+            "secondarySurface": "#261447"
+          }
+        }
+        """)
+
+        #expect(WidgetPresentation(payload: payload.presentation).template == .systemV1)
+    }
+
     @Test func malformedPresentationFieldsDegradeIndependently() throws {
         let payload = try decodePayload(presentation: """
         {
@@ -95,6 +110,12 @@ struct clark_viewTests {
         """)
 
         #expect(WidgetPresentation(payload: payload.presentation) == .control)
+    }
+
+    @Test func foregroundToneContrastsWithPrimarySurface() {
+        #expect(WidgetSRGBColor(hex: "#000000")?.contrastingForegroundTone == .light)
+        #expect(WidgetSRGBColor(hex: "#14213D")?.contrastingForegroundTone == .light)
+        #expect(WidgetSRGBColor(hex: "#FFFFFF")?.contrastingForegroundTone == .dark)
     }
 
     private func decodePayload(presentation: String? = nil) throws -> WidgetPayload {
