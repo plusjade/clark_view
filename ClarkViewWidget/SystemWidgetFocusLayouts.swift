@@ -5,12 +5,13 @@
 
 import SwiftUI
 
-/// Moves the role detail between a compact action column and the focused item's full-width footer.
+/// Reflows one stable set of item views between compact and focused card arrangements.
 struct SystemFocusItemLayout: Layout {
     var primaryProgress: CGFloat
 
     private let compactContentRatio: CGFloat = 0.7
     private let columnSpacing: CGFloat = 12
+    private let compactSpacing: CGFloat = 4
     private let primarySpacing: CGFloat = 10
 
     var animatableData: CGFloat {
@@ -23,12 +24,21 @@ struct SystemFocusItemLayout: Layout {
         subviews: Subviews,
         cache: inout Void
     ) -> CGSize {
-        guard subviews.count == 2 else { return .zero }
+        guard subviews.count == 4 else { return .zero }
 
         let width = proposal.width ?? idealWidth(for: subviews)
         let metrics = metrics(for: width, subviews: subviews)
-        let compactHeight = max(metrics.contentSize.height, metrics.detailSize.height)
-        let primaryHeight = metrics.contentSize.height + primarySpacing + metrics.detailSize.height
+        let compactContentHeight = metrics.timeSize.height
+            + compactSpacing
+            + metrics.mainTextSize.height
+        let compactHeight = max(compactContentHeight, metrics.actionSize.height)
+        let naturalPrimaryHeight = metrics.mainTextSize.height
+            + primarySpacing
+            + metrics.subTextSize.height
+            + primarySpacing
+            + metrics.timeSize.height
+        let proposedHeight = proposal.height.flatMap { $0.isFinite ? $0 : nil }
+        let primaryHeight = max(naturalPrimaryHeight, proposedHeight ?? naturalPrimaryHeight)
 
         return CGSize(
             width: width,
@@ -42,32 +52,53 @@ struct SystemFocusItemLayout: Layout {
         subviews: Subviews,
         cache: inout Void
     ) {
-        guard subviews.count == 2 else { return }
+        guard subviews.count == 4 else { return }
 
         let metrics = metrics(for: bounds.width, subviews: subviews)
-        let compactHeight = max(metrics.contentSize.height, metrics.detailSize.height)
-        let contentY = interpolate(
-            from: (compactHeight - metrics.contentSize.height) / 2,
+        let compactContentHeight = metrics.timeSize.height
+            + compactSpacing
+            + metrics.mainTextSize.height
+        let compactHeight = max(compactContentHeight, metrics.actionSize.height)
+        let compactContentY = (compactHeight - compactContentHeight) / 2
+
+        let timeY = interpolate(
+            from: compactContentY + metrics.mainTextSize.height + compactSpacing,
+            to: bounds.height - metrics.timeSize.height
+        )
+        let mainTextY = interpolate(
+            from: compactContentY,
             to: 0
         )
-        let detailX = interpolate(
+        let subTextX = interpolate(
             from: metrics.compactContentWidth + columnSpacing,
             to: 0
         )
-        let detailY = interpolate(
-            from: (compactHeight - metrics.detailSize.height) / 2,
-            to: metrics.contentSize.height + primarySpacing
+        let subTextY = interpolate(
+            from: (compactHeight - metrics.subTextSize.height) / 2,
+            to: metrics.mainTextSize.height + primarySpacing
         )
+        let actionX = metrics.compactContentWidth + columnSpacing
+        let actionY = (compactHeight - metrics.actionSize.height) / 2
 
         subviews[0].place(
-            at: CGPoint(x: bounds.minX, y: bounds.minY + contentY),
+            at: CGPoint(x: bounds.minX, y: bounds.minY + timeY),
             anchor: .topLeading,
             proposal: ProposedViewSize(width: metrics.contentWidth, height: nil)
         )
         subviews[1].place(
-            at: CGPoint(x: bounds.minX + detailX, y: bounds.minY + detailY),
+            at: CGPoint(x: bounds.minX, y: bounds.minY + mainTextY),
+            anchor: .topLeading,
+            proposal: ProposedViewSize(width: metrics.contentWidth, height: nil)
+        )
+        subviews[2].place(
+            at: CGPoint(x: bounds.minX + subTextX, y: bounds.minY + subTextY),
             anchor: .topLeading,
             proposal: ProposedViewSize(width: metrics.detailWidth, height: nil)
+        )
+        subviews[3].place(
+            at: CGPoint(x: bounds.minX + actionX, y: bounds.minY + actionY),
+            anchor: .topLeading,
+            proposal: ProposedViewSize(width: metrics.compactDetailWidth, height: nil)
         )
     }
 
@@ -77,19 +108,28 @@ struct SystemFocusItemLayout: Layout {
         let compactDetailWidth = compactAvailableWidth - compactContentWidth
         let contentWidth = interpolate(from: compactContentWidth, to: width)
         let detailWidth = interpolate(from: compactDetailWidth, to: width)
-        let contentSize = subviews[0].sizeThatFits(
+        let timeSize = subviews[0].sizeThatFits(
             ProposedViewSize(width: contentWidth, height: nil)
         )
-        let detailSize = subviews[1].sizeThatFits(
+        let mainTextSize = subviews[1].sizeThatFits(
+            ProposedViewSize(width: contentWidth, height: nil)
+        )
+        let subTextSize = subviews[2].sizeThatFits(
             ProposedViewSize(width: detailWidth, height: nil)
+        )
+        let actionSize = subviews[3].sizeThatFits(
+            ProposedViewSize(width: compactDetailWidth, height: nil)
         )
 
         return Metrics(
             compactContentWidth: compactContentWidth,
+            compactDetailWidth: compactDetailWidth,
             contentWidth: contentWidth,
             detailWidth: detailWidth,
-            contentSize: contentSize,
-            detailSize: detailSize
+            timeSize: timeSize,
+            mainTextSize: mainTextSize,
+            subTextSize: subTextSize,
+            actionSize: actionSize
         )
     }
 
@@ -105,47 +145,12 @@ struct SystemFocusItemLayout: Layout {
 
     private struct Metrics {
         let compactContentWidth: CGFloat
+        let compactDetailWidth: CGFloat
         let contentWidth: CGFloat
         let detailWidth: CGFloat
-        let contentSize: CGSize
-        let detailSize: CGSize
-    }
-}
-
-/// Crossfades role-specific detail while its intrinsic height follows the focus animation.
-struct SystemRoleDetailLayout: Layout {
-    var primaryProgress: CGFloat
-
-    var animatableData: CGFloat {
-        get { primaryProgress }
-        set { primaryProgress = newValue }
-    }
-
-    func sizeThatFits(
-        proposal: ProposedViewSize,
-        subviews: Subviews,
-        cache: inout Void
-    ) -> CGSize {
-        guard subviews.count == 2 else { return .zero }
-        let contentProposal = ProposedViewSize(width: proposal.width, height: nil)
-        let primarySize = subviews[0].sizeThatFits(contentProposal)
-        let secondarySize = subviews[1].sizeThatFits(contentProposal)
-        return CGSize(
-            width: proposal.width ?? max(primarySize.width, secondarySize.width),
-            height: secondarySize.height
-                + ((primarySize.height - secondarySize.height) * primaryProgress)
-        )
-    }
-
-    func placeSubviews(
-        in bounds: CGRect,
-        proposal: ProposedViewSize,
-        subviews: Subviews,
-        cache: inout Void
-    ) {
-        let contentProposal = ProposedViewSize(width: bounds.width, height: nil)
-        for subview in subviews {
-            subview.place(at: bounds.origin, anchor: .topLeading, proposal: contentProposal)
-        }
+        let timeSize: CGSize
+        let mainTextSize: CGSize
+        let subTextSize: CGSize
+        let actionSize: CGSize
     }
 }

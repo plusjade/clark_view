@@ -156,49 +156,44 @@ private struct SystemFocusableItemView: View {
     var body: some View {
         Button(intent: FocusWidgetItemIntent(itemID: item.id, changesFocus: !isPrimary)) {
             SystemFocusItemLayout(primaryProgress: isPrimary ? 1 : 0) {
-                VStack(alignment: .leading, spacing: isPrimary ? 10 : 4) {
-                    SystemDateTimeView(
-                        item: item,
-                        accentColor: timeAccentColor,
-                        style: isPrimary ? .primary : .secondary
-                    )
+                SystemDateTimeView(
+                    item: item,
+                    accentColor: timeAccentColor,
+                    style: isPrimary ? .primary : .secondary
+                )
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentTransition(.interpolate)
+
+                Text(item.mainText)
+                    .font(.system(
+                        isPrimary ? .largeTitle : .title3,
+                        design: .default,
+                        weight: isPrimary ? .regular : .semibold
+                    ))
+                    .lineLimit(isPrimary ? 2 : 1)
+                    .multilineTextAlignment(.leading)
+                    .truncationMode(.tail)
+                    .foregroundStyle(contentColor)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
                     .contentTransition(.interpolate)
 
-                    Text(item.mainText)
-                        .font(.system(
-                            isPrimary ? .largeTitle : .body,
-                            design: .default,
-                            weight: isPrimary ? .regular : .semibold
-                        ))
-                        .lineLimit(isPrimary ? 2 : 1)
-                        .multilineTextAlignment(.leading)
-                        .truncationMode(.tail)
-                        .foregroundStyle(contentColor)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .contentTransition(.interpolate)
-                }
+                Text(item.subText)
+                    .font(.system(.title3, design: .default, weight: .regular))
+                    .foregroundStyle(contentColor)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .opacity(isPrimary ? 1 : 0)
 
-                SystemRoleDetailLayout(primaryProgress: isPrimary ? 1 : 0) {
-                    Text(item.subText)
-                        .font(.system(.title3, design: .default, weight: .regular))
-                        .foregroundStyle(contentColor)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .opacity(isPrimary ? 1 : 0)
-
-                    Image(systemName: "plus.magnifyingglass")
-                        .font(.title.weight(.bold))
-                        .foregroundStyle(actionForegroundColor)
-                        .frame(width: 50, height: 50)
-                        .background(contentColor.opacity(0.70), in: Circle())
-                        .frame(maxWidth: .infinity, minHeight: 50, alignment: .trailing)
-                        .opacity(isPrimary ? 0 : 1)
-                }
-                .clipped()
+                Image(systemName: "plus.magnifyingglass")
+                    .font(.title.weight(.bold))
+                    .foregroundStyle(actionForegroundColor)
+                    .frame(width: 50, height: 50)
+                    .background(contentColor.opacity(0.70), in: Circle())
+                    .frame(maxWidth: .infinity, minHeight: 50, alignment: .trailing)
+                    .opacity(isPrimary ? 0 : 1)
             }
             .padding(isPrimary ? 20 : 14)
             .frame(
@@ -207,16 +202,16 @@ private struct SystemFocusableItemView: View {
                 alignment: .topLeading
             )
             .background {
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(isPrimary ? contentColor.opacity(0.08) : .clear)
             }
             .overlay {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .strokeBorder(contentColor.opacity(0.18), lineWidth: 1)
                         .opacity(isPrimary ? 1 : 0)
 
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .strokeBorder(
                             contentColor.opacity(0.45),
                             style: StrokeStyle(lineWidth: 1, dash: [5, 7])
@@ -224,7 +219,7 @@ private struct SystemFocusableItemView: View {
                         .opacity(isPrimary ? 0 : 1)
                 }
             }
-            .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .buttonStyle(SystemFocusButtonStyle(reduceMotion: reduceMotion))
         .accessibilityLabel(
