@@ -17,7 +17,9 @@ enum DeviceStatusClient {
         let paired: Bool
         let activeSource: String?
         let name: String?
-        let sports: [String]?
+        // No `sports`: the server dropped it from this body on 2026-09-05
+        // along with the `sports[]` request parameter. Teams are the only
+        // selector now, so there is no second list to report.
         let teams: [String]?
     }
 
