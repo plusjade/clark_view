@@ -10,6 +10,7 @@ import WidgetKit
 /// The standard template's composition expressed without measured scaling. Semantic text
 /// styles stay at their system-resolved sizes while the established visual hierarchy remains.
 struct SystemWidgetTemplate: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.widgetFamily) private var family
     @Environment(\.widgetRenderingMode) private var renderingMode
 
@@ -43,6 +44,10 @@ struct SystemWidgetTemplate: View {
             : contentColor
     }
 
+    private var actionForegroundColor: Color {
+        Color(srgb: presentation.fullColor.primarySurface)
+    }
+
     var body: some View {
         Group {
             if entry.payload.items.isEmpty {
@@ -54,19 +59,16 @@ struct SystemWidgetTemplate: View {
                 let padding: CGFloat = 18
 
                 ZStack(alignment: .topTrailing) {
-                    VStack(alignment: .leading, spacing: 0) {
+                    VStack(alignment: .leading, spacing: 24) {
                         if family == .systemLarge {
-                            ForEach(Array(visibleItems.enumerated()), id: \.element.id) { index, item in
-                                if index > 0 {
-                                    Spacer(minLength: 24)
-                                }
-
-                                SystemFocusableItemButton(
+                            ForEach(visibleItems) { item in
+                                SystemFocusableItemView(
                                     item: item,
                                     isPrimary: item.id == focusedItemID,
-                                    justification: index == 0 ? .leading : .trailing,
+                                    reduceMotion: reduceMotion,
                                     contentColor: contentColor,
-                                    timeAccentColor: timeAccentColor
+                                    timeAccentColor: timeAccentColor,
+                                    actionForegroundColor: actionForegroundColor
                                 )
                             }
                         } else if let primary = visibleItems.first {
@@ -79,7 +81,10 @@ struct SystemWidgetTemplate: View {
                     }
                     .foregroundStyle(contentColor)
                     .padding(padding)
-                    .animation(.smooth(duration: 0.35), value: focusedItemID)
+                    .animation(
+                        reduceMotion ? nil : .smooth(duration: 0.35),
+                        value: focusedItemID
+                    )
 
                     SystemRefreshButton(contentColor: contentColor)
                 }
@@ -140,48 +145,23 @@ private struct SystemItemBlockView: View {
     }
 }
 
-private enum SystemItemJustification {
-    case leading
-    case trailing
-
-    var alignment: Alignment {
-        switch self {
-        case .leading: return .leading
-        case .trailing: return .trailing
-        }
-    }
-
-    var horizontalAlignment: HorizontalAlignment {
-        switch self {
-        case .leading: return .leading
-        case .trailing: return .trailing
-        }
-    }
-
-    var textAlignment: TextAlignment {
-        switch self {
-        case .leading: return .leading
-        case .trailing: return .trailing
-        }
-    }
-}
-
-private struct SystemFocusableItemButton: View {
+private struct SystemFocusableItemView: View {
     let item: WidgetItem
     let isPrimary: Bool
-    let justification: SystemItemJustification
+    let reduceMotion: Bool
     let contentColor: Color
     let timeAccentColor: Color
+    let actionForegroundColor: Color
 
     var body: some View {
-        Button(intent: FocusWidgetItemIntent(itemID: item.id)) {
-            VStack(alignment: justification.horizontalAlignment, spacing: isPrimary ? 10 : 4) {
+        SystemFocusItemLayout(primaryProgress: isPrimary ? 1 : 0) {
+            VStack(alignment: .leading, spacing: isPrimary ? 10 : 4) {
                 SystemDateTimeView(
                     item: item,
                     accentColor: timeAccentColor,
                     style: isPrimary ? .primary : .secondary
                 )
-                .frame(maxWidth: .infinity, alignment: justification.alignment)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .contentTransition(.interpolate)
 
                 Text(item.mainText)
@@ -191,73 +171,74 @@ private struct SystemFocusableItemButton: View {
                         weight: isPrimary ? .regular : .semibold
                     ))
                     .lineLimit(isPrimary ? 2 : 1)
-                    .multilineTextAlignment(justification.textAlignment)
+                    .multilineTextAlignment(.leading)
                     .truncationMode(.tail)
                     .foregroundStyle(contentColor)
-                    .frame(maxWidth: .infinity, alignment: justification.alignment)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
                     .contentTransition(.interpolate)
-
-                SystemCollapsibleLayout(progress: isPrimary ? 1 : 0) {
-                    Text(item.subText)
-                        .font(.system(.title3, design: .default, weight: .regular))
-                        .foregroundStyle(contentColor)
-                        .lineLimit(2)
-                        .multilineTextAlignment(justification.textAlignment)
-                        .frame(maxWidth: .infinity, alignment: justification.alignment)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .opacity(isPrimary ? 1 : 0)
-                }
-                .clipped()
             }
-            .frame(maxWidth: .infinity, minHeight: 44, alignment: justification.alignment)
-            .contentShape(Rectangle())
+
+            SystemRoleDetailLayout(primaryProgress: isPrimary ? 1 : 0) {
+                Text(item.subText)
+                    .font(.system(.title3, design: .default, weight: .regular))
+                    .foregroundStyle(contentColor)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .opacity(isPrimary ? 1 : 0)
+
+                Button(intent: FocusWidgetItemIntent(itemID: item.id)) {
+                    Image(systemName: "plus.magnifyingglass")
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(actionForegroundColor)
+                        .frame(width: 56, height: 56)
+                        .background(timeAccentColor, in: Circle())
+                        .contentShape(Rectangle())
+                }
+                .frame(maxWidth: .infinity, minHeight: 56)
+                .buttonStyle(SystemFocusButtonStyle(reduceMotion: reduceMotion))
+                .allowsHitTesting(!isPrimary)
+                .accessibilityLabel("Show \(item.mainText) larger")
+                .accessibilityHidden(isPrimary)
+                .opacity(isPrimary ? 0 : 1)
+            }
+            .clipped()
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(
-            isPrimary
-                ? "\(item.mainText), primary item"
-                : "Show \(item.mainText) as primary"
+        .padding(isPrimary ? 20 : 14)
+        .frame(
+            maxWidth: .infinity,
+            maxHeight: isPrimary ? .infinity : nil,
+            alignment: .topLeading
         )
+        .background {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(isPrimary ? contentColor.opacity(0.08) : .clear)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(
+                    contentColor.opacity(0.45),
+                    style: StrokeStyle(lineWidth: 1.5, dash: [5, 3])
+                )
+                .opacity(isPrimary ? 0 : 1)
+        }
         .id(item.id)
     }
 }
 
-/// Keeps optional detail in the view tree while its intrinsic height animates with focus.
-private struct SystemCollapsibleLayout: Layout {
-    var progress: CGFloat
+private struct SystemFocusButtonStyle: ButtonStyle {
+    let reduceMotion: Bool
 
-    var animatableData: CGFloat {
-        get { progress }
-        set { progress = newValue }
-    }
-
-    func sizeThatFits(
-        proposal: ProposedViewSize,
-        subviews: Subviews,
-        cache: inout Void
-    ) -> CGSize {
-        guard let subview = subviews.first else { return .zero }
-        let contentProposal = ProposedViewSize(width: proposal.width, height: nil)
-        let contentSize = subview.sizeThatFits(contentProposal)
-        return CGSize(
-            width: proposal.width ?? contentSize.width,
-            height: contentSize.height * progress
-        )
-    }
-
-    func placeSubviews(
-        in bounds: CGRect,
-        proposal: ProposedViewSize,
-        subviews: Subviews,
-        cache: inout Void
-    ) {
-        guard let subview = subviews.first else { return }
-        subview.place(
-            at: bounds.origin,
-            anchor: .topLeading,
-            proposal: ProposedViewSize(width: bounds.width, height: nil)
-        )
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.72 : 1)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1)
+            .animation(
+                reduceMotion ? nil : .easeOut(duration: 0.12),
+                value: configuration.isPressed
+            )
     }
 }
 
