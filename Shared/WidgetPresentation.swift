@@ -113,24 +113,4 @@ struct WidgetSRGBColor: Equatable {
         self.green = green
         self.blue = blue
     }
-
-    /// Black and white have equal contrast at roughly 0.179 relative luminance. Choosing the
-    /// opposite side of that boundary guarantees the stronger of the two foregrounds.
-    var contrastingForegroundTone: WidgetForegroundTone {
-        let luminance = 0.2126 * Self.linearized(red)
-            + 0.7152 * Self.linearized(green)
-            + 0.0722 * Self.linearized(blue)
-        return luminance > 0.179 ? .dark : .light
-    }
-
-    private static func linearized(_ component: Double) -> Double {
-        component <= 0.04045
-            ? component / 12.92
-            : pow((component + 0.055) / 1.055, 2.4)
-    }
-}
-
-enum WidgetForegroundTone: Equatable {
-    case light
-    case dark
 }

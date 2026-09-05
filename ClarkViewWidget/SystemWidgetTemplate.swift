@@ -12,7 +12,6 @@ import WidgetKit
 struct SystemWidgetTemplate: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.widgetFamily) private var family
-    @Environment(\.widgetRenderingMode) private var renderingMode
 
     let entry: Provider.Entry
     let presentation: WidgetPresentation
@@ -32,31 +31,21 @@ struct SystemWidgetTemplate: View {
             : defaultItemID
     }
 
-    private var contentColor: Color {
-        guard renderingMode == .fullColor else { return .primary }
-        return presentation.fullColor.primarySurface.contrastingForegroundTone.color
-    }
-
-    private var timeAccentColor: Color {
-        guard renderingMode == .fullColor else { return contentColor }
-        return presentation.fullColor.primarySurface.contrastingForegroundTone == .light
-            ? Color(red: 1.0, green: 0.78, blue: 0.0)
-            : contentColor
-    }
-
-    private var actionForegroundColor: Color {
-        Color(srgb: presentation.fullColor.primarySurface)
-    }
-
     var body: some View {
         Group {
             if entry.payload.items.isEmpty {
-                SystemMissingItemsView(message: "Nothing here right now 🫨", contentColor: contentColor)
+                SystemMissingItemsView(message: "Nothing here right now 🫨")
+                    .padding(12)
+                    .background(SystemWidgetPalette.focusedSurface, in: SystemWidgetPalette.cardShape)
+                    .padding(6)
             } else if family == .systemSmall, let item = entry.payload.items.first {
-                SystemHeroCard(item: item, contentColor: contentColor, timeAccentColor: timeAccentColor)
-                    .padding(14)
+                SystemHeroCard(item: item)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .padding(8)
+                    .background(SystemWidgetPalette.focusedSurface, in: SystemWidgetPalette.cardShape)
+                    .padding(6)
             } else {
-                let padding: CGFloat = 18
+                let padding: CGFloat = family == .systemLarge ? 18 : 12
 
                 ZStack(alignment: .topTrailing) {
                     VStack(alignment: .leading, spacing: 24) {
@@ -65,29 +54,29 @@ struct SystemWidgetTemplate: View {
                                 SystemFocusableItemView(
                                     item: item,
                                     isPrimary: item.id == focusedItemID,
-                                    reduceMotion: reduceMotion,
-                                    contentColor: contentColor,
-                                    timeAccentColor: timeAccentColor,
-                                    actionForegroundColor: actionForegroundColor
+                                    reduceMotion: reduceMotion
                                 )
                             }
                         } else if let primary = visibleItems.first {
-                            SystemItemBlockView(
-                                item: primary,
-                                contentColor: contentColor,
-                                timeAccentColor: timeAccentColor
-                            )
+                            SystemItemBlockView(item: primary)
                         }
                     }
-                    .foregroundStyle(contentColor)
+                    .foregroundStyle(SystemWidgetPalette.content)
                     .padding(padding)
                     .animation(
                         reduceMotion ? nil : .smooth(duration: 0.35),
                         value: focusedItemID
                     )
 
-                    SystemRefreshButton(contentColor: contentColor)
+                    SystemRefreshButton()
                 }
+                .background {
+                    if family != .systemLarge {
+                        SystemWidgetPalette.cardShape
+                            .fill(SystemWidgetPalette.focusedSurface)
+                    }
+                }
+                .padding(family == .systemLarge ? 0 : 6)
             }
         }
         .containerBackground(for: .widget) {
@@ -98,12 +87,10 @@ struct SystemWidgetTemplate: View {
 
 private struct SystemHeroCard: View {
     let item: WidgetItem
-    let contentColor: Color
-    let timeAccentColor: Color
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SystemDateTimeView(item: item, accentColor: timeAccentColor, style: .primary)
+            SystemDateTimeView(item: item, style: .primary)
 
             Text(item.mainText)
                 .font(.system(.largeTitle, design: .default, weight: .black))
@@ -111,21 +98,19 @@ private struct SystemHeroCard: View {
 
             Text(item.subText)
                 .font(.system(.subheadline, design: .default, weight: .medium))
-                .foregroundStyle(contentColor)
+                .foregroundStyle(SystemWidgetPalette.supportingContent)
                 .lineLimit(2)
         }
-        .foregroundStyle(contentColor)
+        .foregroundStyle(SystemWidgetPalette.content)
     }
 }
 
 private struct SystemItemBlockView: View {
     let item: WidgetItem
-    let contentColor: Color
-    let timeAccentColor: Color
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SystemDateTimeView(item: item, accentColor: timeAccentColor, style: .primary)
+            SystemDateTimeView(item: item, style: .primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             Text(item.mainText)
@@ -136,7 +121,7 @@ private struct SystemItemBlockView: View {
 
             Text(item.subText)
                 .font(.system(.title3, design: .default, weight: .regular))
-                .foregroundStyle(contentColor)
+                .foregroundStyle(SystemWidgetPalette.supportingContent)
                 .lineLimit(2)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
@@ -149,16 +134,12 @@ private struct SystemFocusableItemView: View {
     let item: WidgetItem
     let isPrimary: Bool
     let reduceMotion: Bool
-    let contentColor: Color
-    let timeAccentColor: Color
-    let actionForegroundColor: Color
 
     var body: some View {
         Button(intent: FocusWidgetItemIntent(itemID: item.id, changesFocus: !isPrimary)) {
             SystemFocusItemLayout(primaryProgress: isPrimary ? 1 : 0) {
                 SystemDateTimeView(
                     item: item,
-                    accentColor: timeAccentColor,
                     style: isPrimary ? .primary : .secondary
                 )
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -173,14 +154,14 @@ private struct SystemFocusableItemView: View {
                     .lineLimit(isPrimary ? 2 : 1)
                     .multilineTextAlignment(.leading)
                     .truncationMode(.tail)
-                    .foregroundStyle(contentColor)
+                    .foregroundStyle(SystemWidgetPalette.content)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
                     .contentTransition(.interpolate)
 
                 Text(item.subText)
                     .font(.system(.title3, design: .default, weight: .regular))
-                    .foregroundStyle(contentColor)
+                    .foregroundStyle(SystemWidgetPalette.supportingContent)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -189,9 +170,9 @@ private struct SystemFocusableItemView: View {
 
                 Image(systemName: "plus.magnifyingglass")
                     .font(.title.weight(.bold))
-                    .foregroundStyle(actionForegroundColor)
+                    .foregroundStyle(SystemWidgetPalette.accent)
                     .frame(width: 50, height: 50)
-                    .background(contentColor.opacity(0.70), in: Circle())
+                    .background(SystemWidgetPalette.actionSurface, in: Circle())
                     .frame(maxWidth: .infinity, minHeight: 50, alignment: .trailing)
                     .opacity(isPrimary ? 0 : 1)
             }
@@ -202,24 +183,28 @@ private struct SystemFocusableItemView: View {
                 alignment: .topLeading
             )
             .background {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(isPrimary ? contentColor.opacity(0.08) : .clear)
+                SystemWidgetPalette.cardShape
+                    .fill(
+                        isPrimary
+                            ? SystemWidgetPalette.focusedSurface
+                            : SystemWidgetPalette.compactSurface
+                    )
             }
             .overlay {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(contentColor.opacity(0.18), lineWidth: 1)
+                    SystemWidgetPalette.cardShape
+                        .strokeBorder(SystemWidgetPalette.border, lineWidth: 1)
                         .opacity(isPrimary ? 1 : 0)
 
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    SystemWidgetPalette.cardShape
                         .strokeBorder(
-                            contentColor.opacity(0.45),
+                            SystemWidgetPalette.compactBorder,
                             style: StrokeStyle(lineWidth: 1, dash: [5, 7])
                         )
                         .opacity(isPrimary ? 0 : 1)
                 }
             }
-            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .contentShape(SystemWidgetPalette.cardShape)
         }
         .buttonStyle(SystemFocusButtonStyle(reduceMotion: reduceMotion))
         .accessibilityLabel(
@@ -251,7 +236,6 @@ private struct SystemDateTimeView: View {
     }
 
     let item: WidgetItem
-    let accentColor: Color
     let style: Style
 
     private var label: String {
@@ -272,22 +256,25 @@ private struct SystemDateTimeView: View {
             .font(font)
             .monospacedDigit()
             .lineLimit(1)
-            .foregroundStyle(accentColor)
+            .foregroundStyle(SystemWidgetPalette.accent)
             .widgetAccentable()
     }
 }
 
 private struct SystemRefreshButton: View {
-    let contentColor: Color
-
     var body: some View {
         Button(intent: RefreshWidgetIntent()) {
             Label("Refresh", systemImage: "arrow.clockwise")
                 .labelStyle(.iconOnly)
                 .font(.body.weight(.medium))
-                .foregroundStyle(contentColor)
+                .foregroundStyle(SystemWidgetPalette.supportingContent)
                 .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
+                .background(SystemWidgetPalette.controlSurface, in: Circle())
+                .overlay {
+                    Circle()
+                        .strokeBorder(SystemWidgetPalette.border, lineWidth: 1)
+                }
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
     }
@@ -295,7 +282,6 @@ private struct SystemRefreshButton: View {
 
 private struct SystemMissingItemsView: View {
     let message: String
-    let contentColor: Color
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -307,19 +293,23 @@ private struct SystemMissingItemsView: View {
                     .font(.caption)
                     .multilineTextAlignment(.center)
             }
-            .foregroundStyle(contentColor)
+            .foregroundStyle(SystemWidgetPalette.content)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            SystemRefreshButton(contentColor: contentColor)
+            SystemRefreshButton()
         }
     }
 }
 
-private extension WidgetForegroundTone {
-    var color: Color {
-        switch self {
-        case .light: return .white
-        case .dark: return .black
-        }
-    }
+private enum SystemWidgetPalette {
+    static let content = Color.primary
+    static let supportingContent = Color.secondary
+    static let accent = Color.accentColor
+    static let focusedSurface = Color(uiColor: .systemBackground)
+    static let compactSurface = Color(uiColor: .secondarySystemBackground)
+    static let controlSurface = Color(uiColor: .tertiarySystemBackground)
+    static let actionSurface = Color(uiColor: .tertiarySystemFill)
+    static let border = Color(uiColor: .separator)
+    static let compactBorder = Color(uiColor: .tertiaryLabel)
+    static let cardShape = RoundedRectangle(cornerRadius: 12, style: .continuous)
 }

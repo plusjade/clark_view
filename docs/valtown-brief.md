@@ -179,9 +179,10 @@ scaling and tuned fixed geometry to maximize type for older people and people wi
 SwiftUI text styles at their system-resolved sizes instead of measuring and scaling the rendered
 stack. It retains tuned spacing and the standard refresh control while allowing each family to
 use its available content width without manually magnifying its type. Unlike `standard-v1`, it
-uses only `primarySurface`; `secondarySurface` does not affect this template. In full-color mode,
-Swift derives a solid black-or-white content foreground from the primary surface's relative
-luminance; other rendering modes retain WidgetKit's system-managed foreground. Its shared
+uses only `primarySurface`; `secondarySurface` does not affect this template. `primarySurface`
+colors only the removable WidgetKit container background. Card surfaces, controls, borders, text,
+and accents use Apple's semantic colors, so iOS owns their coordinated light, dark, accented, and
+vibrant appearances independently of the server value. Its shared
 date/time treatment keeps the localized time on one conventional line (`TODAY · 8:10 PM`), with
 a prominent primary style and a smaller secondary style. The large system-v1 view renders the
 first two server-ordered items. Its local interactive focus can promote the secondary item without

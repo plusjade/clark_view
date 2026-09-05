@@ -112,12 +112,6 @@ struct clark_viewTests {
         #expect(WidgetPresentation(payload: payload.presentation) == .control)
     }
 
-    @Test func foregroundToneContrastsWithPrimarySurface() {
-        #expect(WidgetSRGBColor(hex: "#000000")?.contrastingForegroundTone == .light)
-        #expect(WidgetSRGBColor(hex: "#14213D")?.contrastingForegroundTone == .light)
-        #expect(WidgetSRGBColor(hex: "#FFFFFF")?.contrastingForegroundTone == .dark)
-    }
-
     private func decodePayload(presentation: String? = nil) throws -> WidgetPayload {
         let presentationField = presentation.map { "\"presentation\": \($0)," } ?? ""
         let data = Data("""
