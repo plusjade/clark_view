@@ -178,11 +178,13 @@ scaling and tuned fixed geometry to maximize type for older people and people wi
 `system-v1` mirrors that family's established layout and positioning, but leaves semantic
 SwiftUI text styles at their system-resolved sizes instead of measuring and scaling the rendered
 stack. It retains tuned spacing and the standard refresh control while allowing each family to
-use its available content width without manually magnifying its type. Unlike `standard-v1`, it
-uses only `primarySurface`; `secondarySurface` does not affect this template. `primarySurface`
-colors only the removable WidgetKit container background. Card surfaces, controls, borders, text,
-and accents use Apple's semantic colors, so iOS owns their coordinated light, dark, accented, and
-vibrant appearances independently of the server value. Its shared
+use its available content width without manually magnifying its type. During native palette
+calibration, `system-v1` ignores both server-provided full-color surfaces. Its removable WidgetKit
+container background is white in Light Mode and black in Dark Mode; no separate light/dark server
+fields are decoded yet. Cards, controls, borders, text, and accents use Apple's semantic colors. In
+full-color mode, only the focused card uses regular material; the compact card is transparent so the
+root surface shows through directly. Reduce Transparency gives the focused card an opaque semantic
+surface, while non-full-color widget appearances remain WidgetKit-owned. Its shared
 date/time treatment keeps the localized time on one conventional line (`TODAY · 8:10 PM`), with
 a prominent primary style and a smaller secondary style. The large system-v1 view renders the
 first two server-ordered items. Its local interactive focus can promote the secondary item without

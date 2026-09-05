@@ -769,7 +769,7 @@ struct ClarkViewWidgetEntryView: View {
         case .standardV1:
             StandardWidgetTemplate(entry: entry, presentation: presentation)
         case .systemV1:
-            SystemWidgetTemplate(entry: entry, presentation: presentation)
+            SystemWidgetTemplate(entry: entry)
         }
     }
 }
