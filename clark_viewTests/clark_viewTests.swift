@@ -19,32 +19,32 @@ struct clark_viewTests {
         #expect(WidgetPresentation(payload: payload.presentation) == .control)
     }
 
-    @Test func validPresentationOverridesFullColorSurfaces() throws {
+    @Test func validPresentationOverridesRootSurfaces() throws {
         let payload = try decodePayload(presentation: """
         {
-          "version": 1,
+          "version": 2,
           "template": "standard-v1",
-          "fullColor": {
-            "primarySurface": "#14213D",
-            "secondarySurface": "#261447"
+          "rootSurface": {
+            "light": "#14213D",
+            "dark": "#261447"
           }
         }
         """)
         let presentation = WidgetPresentation(payload: payload.presentation)
 
         #expect(presentation.template == .standardV1)
-        #expect(presentation.fullColor.primarySurface == WidgetSRGBColor(hex: "#14213D"))
-        #expect(presentation.fullColor.secondarySurface == WidgetSRGBColor(hex: "#261447"))
+        #expect(presentation.rootSurface.light == WidgetSRGBColor(hex: "#14213D"))
+        #expect(presentation.rootSurface.dark == WidgetSRGBColor(hex: "#261447"))
     }
 
     @Test func systemTemplateIsSelectable() throws {
         let payload = try decodePayload(presentation: """
         {
-          "version": 1,
+          "version": 2,
           "template": "system-v1",
-          "fullColor": {
-            "primarySurface": "#14213D",
-            "secondarySurface": "#261447"
+          "rootSurface": {
+            "light": "#14213D",
+            "dark": "#261447"
           }
         }
         """)
@@ -55,11 +55,11 @@ struct clark_viewTests {
     @Test func malformedPresentationFieldsDegradeIndependently() throws {
         let payload = try decodePayload(presentation: """
         {
-          "version": 1,
+          "version": 2,
           "template": 42,
-          "fullColor": {
-            "primarySurface": "navy",
-            "secondarySurface": "#123456"
+          "rootSurface": {
+            "light": "navy",
+            "dark": "#123456"
           }
         }
         """)
@@ -67,8 +67,8 @@ struct clark_viewTests {
 
         #expect(payload.items.count == 1)
         #expect(presentation.template == .standardV1)
-        #expect(presentation.fullColor.primarySurface == .black)
-        #expect(presentation.fullColor.secondarySurface == WidgetSRGBColor(hex: "#123456"))
+        #expect(presentation.rootSurface.light == .black)
+        #expect(presentation.rootSurface.dark == WidgetSRGBColor(hex: "#123456"))
     }
 
     @Test func malformedPresentationEnvelopeDoesNotDiscardItems() throws {
@@ -82,34 +82,80 @@ struct clark_viewTests {
     @Test func unknownTemplateUsesStandardTemplateAndValidPalette() throws {
         let payload = try decodePayload(presentation: """
         {
-          "version": 1,
+          "version": 2,
           "template": "future-v2",
-          "fullColor": {
-            "primarySurface": "#14213D",
-            "secondarySurface": "#261447"
+          "rootSurface": {
+            "light": "#14213D",
+            "dark": "#261447"
           }
         }
         """)
         let presentation = WidgetPresentation(payload: payload.presentation)
 
         #expect(presentation.template == .standardV1)
-        #expect(presentation.fullColor.primarySurface == WidgetSRGBColor(hex: "#14213D"))
-        #expect(presentation.fullColor.secondarySurface == WidgetSRGBColor(hex: "#261447"))
+        #expect(presentation.rootSurface.light == WidgetSRGBColor(hex: "#14213D"))
+        #expect(presentation.rootSurface.dark == WidgetSRGBColor(hex: "#261447"))
     }
 
     @Test func unsupportedPresentationVersionUsesControlPresentation() throws {
         let payload = try decodePayload(presentation: """
         {
-          "version": 2,
+          "version": 3,
           "template": "standard-v1",
+          "rootSurface": {
+            "light": "#14213D",
+            "dark": "#261447"
+          }
+        }
+        """)
+
+        #expect(WidgetPresentation(payload: payload.presentation) == .control)
+    }
+
+    @Test func legacyFullColorPresentationUsesControlPresentation() throws {
+        let payload = try decodePayload(presentation: """
+        {
+          "version": 1,
+          "template": "system-v1",
           "fullColor": {
             "primarySurface": "#14213D",
             "secondarySurface": "#261447"
           }
         }
         """)
-
         #expect(WidgetPresentation(payload: payload.presentation) == .control)
+    }
+
+    @Test func widgetRefreshDiagnosticsDescribeLatestOutcome() {
+        let first = Date(timeIntervalSince1970: 100)
+        let second = Date(timeIntervalSince1970: 200)
+
+        let inProgress = WidgetRefreshDiagnosticSnapshot(
+            lastRequestedAt: first,
+            lastAttemptedAt: second,
+            lastSucceededAt: first,
+            lastFailedAt: nil,
+            lastError: nil
+        )
+        #expect(inProgress.resultDescription == "In progress")
+
+        let failure = WidgetRefreshDiagnosticSnapshot(
+            lastRequestedAt: first,
+            lastAttemptedAt: second,
+            lastSucceededAt: first,
+            lastFailedAt: second,
+            lastError: "Offline"
+        )
+        #expect(failure.resultDescription == "Failed: Offline")
+
+        let success = WidgetRefreshDiagnosticSnapshot(
+            lastRequestedAt: first,
+            lastAttemptedAt: second,
+            lastSucceededAt: second,
+            lastFailedAt: first,
+            lastError: nil
+        )
+        #expect(success.resultDescription == "Succeeded")
     }
 
     private func decodePayload(presentation: String? = nil) throws -> WidgetPayload {

@@ -17,6 +17,7 @@ struct SystemWidgetTemplate: View {
     @Environment(\.widgetRenderingMode) private var renderingMode
 
     let entry: Provider.Entry
+    let presentation: WidgetPresentation
 
     private var visibleItems: [WidgetItem] {
         family == .systemLarge
@@ -40,10 +41,7 @@ struct SystemWidgetTemplate: View {
     var body: some View {
         Group {
             if entry.payload.items.isEmpty {
-                SystemMissingItemsView(
-                    message: "Nothing here right now 🫨",
-                    usesTranslucency: usesTranslucentSurfaces
-                )
+                SystemMissingItemsView(message: "Nothing here right now 🫨")
                     .padding(12)
                     .background {
                         SystemWidgetCardSurface(
@@ -66,30 +64,26 @@ struct SystemWidgetTemplate: View {
             } else {
                 let padding: CGFloat = family == .systemLarge ? 18 : 12
 
-                ZStack(alignment: .topTrailing) {
-                    VStack(alignment: .leading, spacing: 24) {
-                        if family == .systemLarge {
-                            ForEach(visibleItems) { item in
-                                SystemFocusableItemView(
-                                    item: item,
-                                    isPrimary: item.id == focusedItemID,
-                                    reduceMotion: reduceMotion,
-                                    usesTranslucency: usesTranslucentSurfaces
-                                )
-                            }
-                        } else if let primary = visibleItems.first {
-                            SystemItemBlockView(item: primary)
+                VStack(alignment: .leading, spacing: 24) {
+                    if family == .systemLarge {
+                        ForEach(visibleItems) { item in
+                            SystemFocusableItemView(
+                                item: item,
+                                isPrimary: item.id == focusedItemID,
+                                reduceMotion: reduceMotion,
+                                usesTranslucency: usesTranslucentSurfaces
+                            )
                         }
+                    } else if let primary = visibleItems.first {
+                        SystemItemBlockView(item: primary)
                     }
-                    .foregroundStyle(.primary)
-                    .padding(padding)
-                    .animation(
-                        reduceMotion ? nil : .smooth(duration: 0.35),
-                        value: focusedItemID
-                    )
-
-                    SystemRefreshButton(usesTranslucency: usesTranslucentSurfaces)
                 }
+                .foregroundStyle(.primary)
+                .padding(padding)
+                .animation(
+                    reduceMotion ? nil : .smooth(duration: 0.35),
+                    value: focusedItemID
+                )
                 .background {
                     if family != .systemLarge {
                         SystemWidgetCardSurface(
@@ -103,7 +97,9 @@ struct SystemWidgetTemplate: View {
         }
         .tint(Color("AccentColor"))
         .containerBackground(for: .widget) {
-            colorScheme == .dark ? Color.black : Color.white
+            Color(srgb: colorScheme == .dark
+                ? presentation.rootSurface.dark
+                : presentation.rootSurface.light)
         }
     }
 }
@@ -221,7 +217,7 @@ private struct SystemFocusableItemView: View {
                     SystemWidgetPalette.cardShape
                         .strokeBorder(
                             SystemWidgetPalette.compactBorder,
-                            style: StrokeStyle(lineWidth: 1, dash: [2, 8])
+                            style: StrokeStyle(lineWidth: 1, dash: [1, 5])
                         )
                         .opacity(isPrimary ? 0 : 1)
                 }
@@ -283,54 +279,20 @@ private struct SystemDateTimeView: View {
     }
 }
 
-private struct SystemRefreshButton: View {
-    let usesTranslucency: Bool
-
-    var body: some View {
-        Button(intent: RefreshWidgetIntent()) {
-            Label("Refresh", systemImage: "arrow.clockwise")
-                .labelStyle(.iconOnly)
-                .font(.body.weight(.medium))
-                .foregroundStyle(.secondary)
-                .frame(width: 44, height: 44)
-                .background {
-                    if usesTranslucency {
-                        Circle()
-                            .fill(.regularMaterial)
-                    } else {
-                        Circle()
-                            .fill(SystemWidgetPalette.controlSurface)
-                    }
-                }
-                .overlay {
-                    Circle()
-                        .strokeBorder(SystemWidgetPalette.focusedBorder, lineWidth: 1)
-                }
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-    }
-}
-
 private struct SystemMissingItemsView: View {
     let message: String
-    let usesTranslucency: Bool
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            VStack(spacing: 6) {
-                Image(systemName: "sportscourt")
-                    .font(.largeTitle)
+        VStack(spacing: 6) {
+            Image(systemName: "sportscourt")
+                .font(.largeTitle)
 
-                Text(message)
-                    .font(.caption)
-                    .multilineTextAlignment(.center)
-            }
-            .foregroundStyle(.primary)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            SystemRefreshButton(usesTranslucency: usesTranslucency)
+            Text(message)
+                .font(.caption)
+                .multilineTextAlignment(.center)
         }
+        .foregroundStyle(.primary)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -355,7 +317,6 @@ private struct SystemWidgetCardSurface: View {
 
 private enum SystemWidgetPalette {
     static let focusedSurface = Color(uiColor: .secondarySystemBackground)
-    static let controlSurface = Color(uiColor: .tertiarySystemBackground)
     static let actionSurface = Color(uiColor: .tertiarySystemFill)
     static let focusedBorder = Color(uiColor: .separator)
     static let compactBorder = Color(uiColor: .secondaryLabel)

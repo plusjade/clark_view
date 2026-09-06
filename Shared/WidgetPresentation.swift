@@ -11,35 +11,35 @@ import Foundation
 struct WidgetPresentationPayload: Decodable {
     let version: Int?
     let template: String?
-    let fullColor: WidgetFullColorPayload?
+    let rootSurface: WidgetRootSurfacePayload?
 
     private enum CodingKeys: String, CodingKey {
         case version
         case template
-        case fullColor
+        case rootSurface
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         version = try? container.decode(Int.self, forKey: .version)
         template = try? container.decode(String.self, forKey: .template)
-        fullColor = try? container.decode(WidgetFullColorPayload.self, forKey: .fullColor)
+        rootSurface = try? container.decode(WidgetRootSurfacePayload.self, forKey: .rootSurface)
     }
 }
 
-struct WidgetFullColorPayload: Decodable {
-    let primarySurface: String?
-    let secondarySurface: String?
+struct WidgetRootSurfacePayload: Decodable {
+    let light: String?
+    let dark: String?
 
     private enum CodingKeys: String, CodingKey {
-        case primarySurface
-        case secondarySurface
+        case light
+        case dark
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        primarySurface = try? container.decode(String.self, forKey: .primarySurface)
-        secondarySurface = try? container.decode(String.self, forKey: .secondarySurface)
+        light = try? container.decode(String.self, forKey: .light)
+        dark = try? container.decode(String.self, forKey: .dark)
     }
 }
 
@@ -52,37 +52,41 @@ struct WidgetPresentation: Equatable {
         case systemV1 = "system-v1"
     }
 
-    struct FullColorPalette: Equatable {
-        let primarySurface: WidgetSRGBColor
-        let secondarySurface: WidgetSRGBColor
+    struct RootSurfacePalette: Equatable {
+        let light: WidgetSRGBColor
+        let dark: WidgetSRGBColor
     }
 
     static let control = WidgetPresentation(
         template: .standardV1,
-        fullColor: FullColorPalette(primarySurface: .black, secondarySurface: .black)
+        rootSurface: RootSurfacePalette(light: .black, dark: .black)
     )
 
+    private static let systemControlRootSurface = RootSurfacePalette(light: .white, dark: .black)
+
     let template: Template
-    let fullColor: FullColorPalette
+    let rootSurface: RootSurfacePalette
 
     init(payload: WidgetPresentationPayload?) {
-        guard let payload, payload.version == 1 else {
+        guard let payload, payload.version == 2 else {
             self = .control
             return
         }
 
-        template = payload.template.flatMap(Template.init(rawValue:)) ?? Self.control.template
-        fullColor = FullColorPalette(
-            primarySurface: payload.fullColor?.primarySurface.flatMap(WidgetSRGBColor.init(hex:))
-                ?? Self.control.fullColor.primarySurface,
-            secondarySurface: payload.fullColor?.secondarySurface.flatMap(WidgetSRGBColor.init(hex:))
-                ?? Self.control.fullColor.secondarySurface
+        let resolvedTemplate = payload.template.flatMap(Template.init(rawValue:)) ?? Self.control.template
+        let fallback = resolvedTemplate == .systemV1
+            ? Self.systemControlRootSurface
+            : Self.control.rootSurface
+        template = resolvedTemplate
+        rootSurface = RootSurfacePalette(
+            light: payload.rootSurface?.light.flatMap(WidgetSRGBColor.init(hex:)) ?? fallback.light,
+            dark: payload.rootSurface?.dark.flatMap(WidgetSRGBColor.init(hex:)) ?? fallback.dark
         )
     }
 
-    private init(template: Template, fullColor: FullColorPalette) {
+    private init(template: Template, rootSurface: RootSurfacePalette) {
         self.template = template
-        self.fullColor = fullColor
+        self.rootSurface = rootSurface
     }
 }
 
@@ -91,6 +95,7 @@ struct WidgetPresentation: Equatable {
 /// uncontrolled Home Screen background.
 struct WidgetSRGBColor: Equatable {
     static let black = WidgetSRGBColor(red: 0, green: 0, blue: 0)
+    static let white = WidgetSRGBColor(red: 1, green: 1, blue: 1)
 
     let red: Double
     let green: Double

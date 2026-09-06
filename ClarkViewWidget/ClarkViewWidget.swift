@@ -19,6 +19,7 @@ private enum GameDataService {
             return cachedPayload
         }
 
+        WidgetRefreshDiagnostics.recordAttempt()
         let scale = UITraitCollection.current.displayScale
         let pixelWidth = Int((context.displaySize.width * scale).rounded())
         let pixelHeight = Int((context.displaySize.height * scale).rounded())
@@ -33,13 +34,23 @@ private enum GameDataService {
         )
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            guard let httpResponse = response as? HTTPURLResponse else {
+                WidgetRefreshDiagnostics.recordFailure("Invalid server response")
+                return .empty
+            }
+            guard httpResponse.statusCode == 200 else {
+                WidgetRefreshDiagnostics.recordFailure("Server returned HTTP \(httpResponse.statusCode)")
                 return .empty
             }
             let payload = try JSONDecoder.widgetPayload.decode(WidgetPayload.self, from: data)
             defaults.set(data, forKey: cachedPayloadKey)
+            WidgetRefreshDiagnostics.recordSuccess()
             return payload
         } catch {
+            let message = error is DecodingError
+                ? "Invalid widget response"
+                : error.localizedDescription
+            WidgetRefreshDiagnostics.recordFailure(message)
             return .empty
         }
     }
@@ -109,11 +120,11 @@ private enum GameDataService {
         {
           "schemaVersion": 2,
           "presentation": {
-            "version": 1,
+            "version": 2,
             "template": "\(template)",
-            "fullColor": {
-              "primarySurface": "#14213D",
-              "secondarySurface": "#261447"
+            "rootSurface": {
+              "light": "#14213D",
+              "dark": "#261447"
             }
           },
           "items": [
@@ -653,15 +664,15 @@ private struct MissingItemsView: View {
     }
 }
 
-/// The template's removable full-color backdrop. WidgetKit replaces this container when the
-/// system uses an accented or vibrant presentation, so server colors remain scoped to the
-/// rendering mode named by the payload contract.
+/// The template's removable root surface. WidgetKit replaces this container when the system
+/// uses an accented or vibrant presentation, keeping the server color scoped to full color.
 struct WidgetBackground: View {
-    let palette: WidgetPresentation.FullColorPalette
-    let hasSecondaryItems: Bool
+    @Environment(\.colorScheme) private var colorScheme
+
+    let palette: WidgetPresentation.RootSurfacePalette
 
     var body: some View {
-        Color(srgb: hasSecondaryItems ? palette.secondarySurface : palette.primarySurface)
+        Color(srgb: colorScheme == .dark ? palette.dark : palette.light)
     }
 }
 
@@ -670,17 +681,12 @@ struct WidgetBackground: View {
 /// remain native concerns inside each template.
 private struct StandardWidgetTemplate: View {
     @Environment(\.widgetFamily) private var family
-    @Environment(\.widgetRenderingMode) private var renderingMode
 
     let entry: Provider.Entry
     let presentation: WidgetPresentation
 
     private var visibleItems: [WidgetItem] {
         family == .systemMedium ? Array(entry.payload.items.prefix(1)) : Array(entry.payload.items.prefix(3))
-    }
-
-    private var hasSecondaryItems: Bool {
-        family == .systemLarge && visibleItems.count > 1
     }
 
     var body: some View {
@@ -712,18 +718,6 @@ private struct StandardWidgetTemplate: View {
                         AutoFitSplitStack(minimumSpacing: secondaryItems.isEmpty ? 0 : 18) {
                             if let primary = visibleItems.first {
                                 ItemBlockView(item: primary, rowWidth: rowWidth)
-                                    .background {
-                                        if !secondaryItems.isEmpty && renderingMode == .fullColor {
-                                            // Negative padding bleeds this past its own content's
-                                            // bounds toward the widget's true top/side edges. This
-                                            // sits inside AutoFitSplitStack's scaleEffect, so it
-                                            // deliberately overshoots rather than risking a sliver
-                                            // of the secondary tone at a scaled edge.
-                                            Color(srgb: presentation.fullColor.primarySurface)
-                                                .padding(.top, -padding * 4)
-                                                .padding(.horizontal, -padding * 4)
-                                        }
-                                    }
                             }
                         } bottom: {
                             if !secondaryItems.isEmpty {
@@ -753,8 +747,7 @@ private struct StandardWidgetTemplate: View {
         }
         .containerBackground(for: .widget) {
             WidgetBackground(
-                palette: presentation.fullColor,
-                hasSecondaryItems: hasSecondaryItems
+                palette: presentation.rootSurface
             )
         }
     }
@@ -769,7 +762,7 @@ struct ClarkViewWidgetEntryView: View {
         case .standardV1:
             StandardWidgetTemplate(entry: entry, presentation: presentation)
         case .systemV1:
-            SystemWidgetTemplate(entry: entry)
+            SystemWidgetTemplate(entry: entry, presentation: presentation)
         }
     }
 }
@@ -785,6 +778,7 @@ struct ClarkViewWidget: Widget {
         .description("Shows upcoming games for your paired teams.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
         .contentMarginsDisabled()
+        .pushHandler(ClarkViewWidgetPushHandler.self)
     }
 }
 

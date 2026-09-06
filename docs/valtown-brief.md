@@ -4,16 +4,16 @@ Read this before inspecting or changing the Val Town backend. It is a local map 
 
 ## One-minute mental model
 
-Clark View is a widget-first iOS product. The containing app is intentionally small: it registers for push, enrolls an install as a device with a bunch code, exposes prototype diagnostics, and can request a widget reload. The widget is the primary user experience.
+Clark View is a widget-first iOS product. The containing app is intentionally small: it enrolls an install as a device with a bunch code, exposes prototype diagnostics, and can request a widget reload. The widget is the primary user experience and registers its own WidgetKit push token.
 
-`plusjade/sports-today` is the product brain. It stores device-to-source assignments, fetches sports data, chooses the next relevant slate, creates the display-ready JSON contract, hosts the browser administration views, and sends best-effort silent pushes when a device source changes.
+`plusjade/sports-today` is the product brain. It stores device-to-source assignments, fetches sports data, chooses the next relevant slate, creates the display-ready JSON contract, hosts the browser administration views, and sends best-effort WidgetKit pushes when a device source changes.
 
 This brief is the local orientation source; inspect a named remote module only when the task needs implementation detail beyond what is cached here.
 
 ```text
 Helper's browser ── /bunches, /devices, /sources ──> Val Town SQLite
                                       │
-iOS app ── /pair, /device/token ──────┤
+iOS app ── /pair ─────────────────────┤
                                       │
 Widget ── /config/resolve ──> ordered device feed ──┬──> Games handler
                                                     └──> Messages handler
@@ -21,7 +21,7 @@ Widget ── /config/resolve ──> ordered device feed ──┬──> Games
                                                               └──> WidgetPayload v2
                                       │
                                       ├── Sleeper sports data
-                                      └── APNs silent refreshes
+                                      └── WidgetKit push refreshes
 ```
 
 Keep the boundary simple:
@@ -55,13 +55,14 @@ The iOS machine calls intentionally use the `val.run` endpoint. As of this snaps
 | `Shared/GameDataURL.swift` | Owns the single backend base URL and builds `/config/resolve?device=&d=<pixels>&tz=<seconds>`. |
 | `ClarkViewWidget/ClarkViewWidget.swift` | Fetches the resolved JSON, decodes it, dispatches the selected template, and renders small/medium/large widgets. Medium shows one item; large shows up to three. Its timeline normally refreshes hourly. |
 | `Shared/WidgetPayload.swift` | Mirrors JSON schema version 2. This is a display contract, not a raw sports-data model. |
-| `Shared/WidgetPresentation.swift` | Loss-tolerant client contract for the optional presentation envelope. Resolves `standard-v1` and `system-v1` plus opaque sRGB full-color surfaces, falling back to the black `standard-v1` control. |
+| `Shared/WidgetPresentation.swift` | Loss-tolerant client contract for the optional presentation envelope. Resolves `standard-v1` and `system-v1` plus opaque sRGB Light/Dark Mode root surfaces, falling back to the black `standard-v1` control. |
 | `Shared/DeviceIdentity.swift` | Creates the per-install UUID and shares it with the widget through the App Group. Local `isPaired` affects copy only; server state remains authoritative. |
 | `Shared/PairingClient.swift` | Sends `POST /pair` with `{code, device}`. |
-| `Shared/PushTokenClient.swift` | Sends `POST /device/token` with `{device, token}` whenever APNs registers or rotates the token. |
+| `Shared/PushTokenClient.swift` | Mirrors WidgetKit's native push-token lifecycle through `POST /device/token` with `{device, token, kind: "widget", environment, active}`. Debug builds register sandbox tokens and distribution builds register production tokens. |
 | `Shared/DeviceStatusClient.swift` | Reads `GET /config/status/:deviceId` for diagnostics; it is not the widget data path. |
-| `clark_view/AppDelegate.swift` | Registers for silent push and asks WidgetKit to reload when one arrives. |
-| `clark_view/ContentView.swift` and `PairingView.swift` | Keep the containing app limited to pairing, status, and manual reload. Team/sport selection stays in the browser configurator. |
+| `Shared/WidgetRefreshDiagnostics.swift` | Shares last manual request, network attempt, success, and error metadata from the widget to the containing app through the App Group. |
+| `ClarkViewWidget/ClarkViewWidgetPushHandler.swift` | Registers the native WidgetKit push token and removes its server registration when no widget instance remains. |
+| `clark_view/ContentView.swift` and `PairingView.swift` | Keep the containing app limited to pairing, server status, widget-refresh diagnostics, and manual reload. Team/sport selection stays in the browser configurator. |
 
 `RefreshWidgetIntent` and the app's refresh buttons only ask WidgetKit for a new timeline. They do not bypass WidgetKit's scheduling guarantees or call a separate refresh endpoint.
 
@@ -82,14 +83,14 @@ The remote val has one stable HTTP entrypoint plus namespaced transport, domain,
 | `lib/deviceStore.ts` | Device-centric projections and writes for names, presentation, and `device_sources` assignments. Device views deliberately omit bunch membership; assignment writes validate ownership and rely on SQLite's JSON, priority, foreign-key, and uniqueness constraints. |
 | `lib/deviceSourceStore.ts` | Widget-facing read seam that resolves an install id to its presentation and all sources by `(priority ASC, device_sources.id ASC)`. |
 | `lib/presentation.ts` | Versioned widget-presentation types, control/initial values, loss-tolerant stored JSON parsing, and browser-form validation. |
-| `lib/deviceTokenStore.ts` | APNs token persistence and device/source token projections keyed by `devices.install_id`. Token uploads may precede device registration. |
+| `lib/deviceTokenStore.ts` | App-background and native-widget APNs token persistence keyed by `devices.install_id`. Native tokens are preferred while old beta builds retain a fallback. Token uploads may precede device registration. |
 | `lib/sourceStore.ts` | Read-only projections of source definitions, JSON settings schemas, and their device assignments for the browser explorer. |
 | `lib/bunchStore.ts` | Bunch administration, reusable 30-minute bunch codes, and new-model device registration. A valid code is the only write path that creates or moves a device into a bunch. |
 | `lib/messageStore.ts` | Val-scoped SQLite for the shared Messages feed, including same-day range reads and timestamp-indexed ordering. |
 | `lib/sleeper.ts` | Outbound Sleeper data access. |
 | `lib/sourceCache.ts` | Generic `source_cache` SQLite table (source, date_key, payload, fetched_at) for source payloads this val can't fetch live at request time — see the FIBA section below. |
 | `lib/fiba.ts` | FIBA's read-side seam: `fibaGamesForDate(dateKey)` reads `sourceCache` instead of the network (shaped like `sleeper.ts`'s `fetchScores`) and `mapEventToGame` reconciles ESPN's raw shape into `Game`. `listFutureFibaDateKeys` backs the source's own (uncapped) date window. |
-| `lib/push.ts` | Best-effort APNs silent push delivery to one device or every device attached to a selected source. |
+| `lib/push.ts` | Best-effort APNs delivery, preferring native WidgetKit pushes while retaining app-background tokens as an old-beta fallback. |
 | `render/json.ts` | The native widget's schema-versioned response. |
 | `render/messageJson.ts` | Maps stored messages into the same schema-versioned widget item contract. |
 | `render/pageShell.ts` | Shared browser shell owning typography, colors, resource tables/navigation, forms, breadcrumbs, and timestamp localization. |
@@ -109,13 +110,13 @@ Prefer changing pure helpers and their tests over adding policy directly to an I
 | `GET /config/resolve` | Widget | Stable compatibility URL over the device model. Accepts `device`, legacy no-op `d=<pixelWidth>x<pixelHeight>`, and `tz=<seconds east of GMT>`, looks up `devices.install_id`, and loads the device presentation plus every `device_sources` row by `(priority ASC, id ASC)`. It executes each source concurrently through the same handlers used by the stateless endpoints, concatenates each source's already-ordered `items` in assignment order, attaches `presentation`, and returns the combined schema-v2 JSON directly with `cache-control: no-store`. An unknown device, or a registered device without a source, gets the starter-team default; an unknown device gets the black control presentation. `x-effective-source-count` and `x-effective-sources` expose composition diagnostics without changing the body contract. |
 | `POST /pair` | Containing app | Stable compatibility URL over bunch enrollment. JSON `{code, device}` redeems a `bunch_codes` row, registers or moves `devices.install_id`, and returns `{ok: true, deviceId}` (200). An unknown code is `{ok: false}` (404); an expired code is `{ok: false, message: "expired"}` (422). Codes are six characters and reusable until their 30-minute expiry. The app intentionally requires only `ok`, because the internal integer id is not part of its data path. |
 | `POST /devices/register` | Browser/new-model API | JSON `{code, device, name?}`. Performs the same bunch registration as `/pair`, with an optional device name. Unknown and expired codes use the same 404/422 split. |
-| `POST /device/token` | Containing app | JSON `{device, token}`. Upserts the APNs token independently of pairing. |
+| `POST /device/token` | Widget push handler; legacy containing apps | Native JSON is `{device, token, kind: "widget", environment: "sandbox" | "production", active}`. `active: false` removes the widget token after the last instance disappears. Missing `kind`, `environment`, and `active` remain compatible with old beta builds uploading a sandbox app-background token. Tokens are stored independently of pairing; delivery prefers a widget token and otherwise falls back to the legacy app token. |
 | `GET /config/status/:deviceId` | Containing app diagnostics | Stable compatibility URL over the device model. Always returns 200 for a syntactically valid request; an unknown install is `{deviceId, paired: false}`. A registered install returns `paired`, its device name, `activeSource`, and the primary Games source's sports/teams (empty arrays for Messages or no source). No config id is exposed. |
 | `GET /devices/resolve` | New-model alias | Accepts the same `device`, `d`, and `tz` parameters and returns the same ordered, combined response as `/config/resolve`. The iOS widget remains on the stable config-named URL until route renaming is coordinated. |
 | `GET /devices/status/:installId` | New-model diagnostics | Returns registration state, device name, active source, and ordered source settings without exposing bunch membership. The iOS app remains on the stable config-named URL until route renaming is coordinated. |
 | `GET /devices` | Helper's browser | Index of every new-model device, with install id, source count, and a link to the internal integer-id show route. Bunch membership remains intentionally absent. |
 | `GET/POST /devices/:id` | Helper's browser | Device detail and direct name edit. Lists assignments in deterministic `(priority ASC, id ASC)` order and expands settings. |
-| `GET/POST /devices/:id/presentation` | Helper's browser | Reads or edits the device-owned template and opaque full-color surface values. The editor offers `standard-v1` and `system-v1`; saving validates the versioned domain shape, updates the device row, and sends a best-effort silent push to that device. |
+| `GET/POST /devices/:id/presentation` | Helper's browser | Reads or edits the device-owned template and opaque Light/Dark Mode root surface values. The editor offers `standard-v1` and `system-v1`; saving validates the versioned domain shape, updates the device row, and sends a best-effort silent push to that device. |
 | `GET /devices/:id/sources/new`, `POST /devices/:id/sources` | Helper's browser | Two-step source attachment: choose one singleton source not already attached, then set its positive integer priority and source-specific settings. Games accepts catalog-filtered sports/teams plus `intradayFilter`; Messages stores `{}`. |
 | `GET/POST /devices/:id/sources/:assignmentId` | Helper's browser | Reads or edits one assignment owned by the device. This is the device-centric replacement for config Settings plus Personalization; feed choice is assignment presence/order rather than `dataFeed`. Saving sends a best-effort silent push only to that device. |
 | `POST /devices/:id/sources/:assignmentId/delete` | Helper's browser | Removes only the device/source edge, leaving the singleton source and source-owned data intact. |
@@ -152,11 +153,11 @@ The response is `schemaVersion: 2` with server-ordered `items`. `render/json.ts`
     }
   ],
   "presentation": {
-    "version": 1,
+    "version": 2,
     "template": "standard-v1",
-    "fullColor": {
-      "primarySurface": "#14213D",
-      "secondarySurface": "#261447"
+    "rootSurface": {
+      "light": "#14213D",
+      "dark": "#261447"
     }
   }
 }
@@ -168,23 +169,23 @@ navy/purple values above. An unknown device receives the black control palette. 
 responses (`/?format=json` and `/messages`) remain content-only because they have no device context.
 
 One template id represents its complete small/medium/large family; the server does not choose a
-template by widget dimensions. Surface values are opaque six-digit sRGB and apply only in
-WidgetKit's full-color rendering mode. Missing presentation, unsupported versions or templates,
-and invalid individual colors fall back to the black `standard-v1` control without discarding
-valid items. Accented and vibrant rendering remain system-owned native presentations.
+template by widget dimensions. Root surface values are opaque six-digit sRGB colors selected by
+the device's Light or Dark Mode. Missing presentation and unsupported versions fall back to the
+black `standard-v1` control without discarding valid items. For `system-v1`, a missing or invalid
+individual Light/Dark Mode value falls back independently to white/black. Accented and vibrant
+rendering remain system-owned native presentations.
 
 `standard-v1` is the original accessibility-focused family: it intentionally uses measured
 scaling and tuned fixed geometry to maximize type for older people and people with low vision.
 `system-v1` mirrors that family's established layout and positioning, but leaves semantic
 SwiftUI text styles at their system-resolved sizes instead of measuring and scaling the rendered
-stack. It retains tuned spacing and the standard refresh control while allowing each family to
-use its available content width without manually magnifying its type. During native palette
-calibration, `system-v1` ignores both server-provided full-color surfaces. Its removable WidgetKit
-container background is white in Light Mode and black in Dark Mode; no separate light/dark server
-fields are decoded yet. Cards, controls, borders, text, and accents use Apple's semantic colors. In
-full-color mode, only the focused card uses regular material; the compact card is transparent so the
-root surface shows through directly. Reduce Transparency gives the focused card an opaque semantic
-surface, while non-full-color widget appearances remain WidgetKit-owned. Its shared
+stack. It retains tuned spacing while allowing each family to
+use its available content width without manually magnifying its type. Its removable WidgetKit
+container selects the server-provided root surface matching Light or Dark Mode. Cards, controls,
+borders, text, and accents use Apple's semantic colors. In full-color mode, only the focused card
+uses regular material; the compact card is transparent so the root surface shows through directly.
+Reduce Transparency gives the focused card an opaque semantic surface, while non-full-color widget
+appearances remain WidgetKit-owned. Its shared
 date/time treatment keeps the localized time on one conventional line (`TODAY · 8:10 PM`), with
 a prominent primary style and a smaller secondary style. The large system-v1 view renders the
 first two server-ordered items. Its local interactive focus can promote the secondary item without
@@ -201,6 +202,20 @@ with the rest of the focus transition without measured or fixed dimensions. The 
 a circular system-symbol `Show Larger` cue in the trailing action column. Each full card is a button:
 the compact card changes focus, while the focused card captures the tap without changing presentation.
 Custom motion is disabled when the system Reduce Motion preference is active.
+
+`system-v1` intentionally has no refresh affordance: its cards own the complete widget interaction
+surface. Manual beta refresh lives in the containing app, where diagnostics show the last request,
+network attempt, successful fetch, and failure result. `standard-v1` retains its older on-widget
+refresh control for now.
+
+`ClarkViewWidget` registers `.pushHandler(ClarkViewWidgetPushHandler.self)` and carries the Push
+Notifications entitlement on the widget extension rather than the containing app. The server sends
+native refreshes with `apns-push-type: widgets`, the widget-extension topic suffix
+`.push-type.widgets`, and `{ "aps": { "content-changed": true } }`. WidgetKit push delivery remains
+opportunistic, so the hourly timeline is still load-bearing. Each token records whether it belongs to
+Apple's sandbox or production host, allowing Xcode and TestFlight builds to coexist. Val Town requires
+`APNS_KEY_ID`, `APNS_TEAM_ID`, and `APNS_AUTH_KEY`. `APNS_APP_TOPIC` and `APNS_WIDGET_TOPIC` are
+optional overrides of the known bundle-derived topics.
 
 Contract rules:
 
