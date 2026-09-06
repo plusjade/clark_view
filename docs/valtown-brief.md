@@ -78,13 +78,16 @@ The production boundary spans two vals. `plusjade/sports-today` retains the stab
 
 Val Town's val-scoped SQLite follows the **executing val**, not the `esm.town` module that defined an imported function. Directly importing a provider function from the parent therefore reads or writes the parent's database. Database-backed cross-val work must enter the provider's `rpc.ts` HTTP runtime. The RPC is bearer-gated by `DEVICE_FEED_RPC_TOKEN`, stored independently in both vals; never expose its value. The parent centralizes calls in `lib/deviceFeedClient.ts`. `main.ts` in the provider remains a child-local script export, not the production cross-val database boundary.
 
+Responses crossing that boundary are parsed, not asserted. `rpcJson` takes a type guard and throws naming the endpoint when a body does not match, so a provider contract drift fails at the seam instead of surfacing as an undefined property several frames away. Two calls are deliberately exempt, for opposite reasons. `deviceFeedResponse` is not parsed because the widget payload is the provider's contract with iOS and the parent streams it through untouched rather than taking a position on a schema it does not own — which also means validating in the parent cannot protect the iOS contract; only a contract test against the provider can. `fetchCachedFibaScoreboard` returns `unknown` because it hands back ESPN's stored payload verbatim and its caller only tests for null, so there is no shape to assert. The one place the parent does read inside a widget payload is `previewResponse` in `http/routes/devices.ts`, which checks each item and lets the preview page's existing error state show the failure.
+
 The parent val's relevant modules are:
 
 | Remote path | Responsibility |
 | --- | --- |
 | `main.ts` | Stable Hono assembly point. Preserve this file's identity; route implementations live under `http/`. |
 | `http/routes/*.ts` | Hono route groups for the HTML-only root, stable iOS compatibility URLs, browser administration APIs, and ingest. The parent has no source-feed routes or handler directory. |
-| `lib/deviceFeedClient.ts` | Authenticated client for the composed device feed, source-cache ingest, Sleeper ingest/coverage, and FIBA cache checks. Owns the provider RPC endpoint and reads `DEVICE_FEED_RPC_TOKEN`. |
+| `lib/deviceFeedClient.ts` | Authenticated client for the composed device feed, source-cache ingest, Sleeper ingest/coverage, and FIBA cache checks. Owns the provider RPC endpoint and reads `DEVICE_FEED_RPC_TOKEN`. Typed responses are parsed through a guard, not asserted. |
+| `lib/guards.ts` | Domain-free runtime type guards shared across the RPC seam and route handlers. |
 | `lib/catalog.ts` | Known sports and teams used to parameterize Games source assignments in the parent UI. |
 | `lib/resolver.ts` | Parent-side source-assignment types plus the small Games projection used by device status. Feed request normalization belongs to the provider. |
 | `lib/deviceStore.ts` | Device-centric projections and writes for names, presentation, and `device_sources` assignments. Device views deliberately omit bunch membership; assignment writes validate ownership and rely on SQLite's JSON, priority, foreign-key, and uniqueness constraints. |
