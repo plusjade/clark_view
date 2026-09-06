@@ -5,7 +5,7 @@
 
 import AppIntents
 
-/// Persists the item a person promoted in system-v1. WidgetKit reloads the timeline after
+/// Persists the item a person promoted in Beacon. WidgetKit reloads the timeline after
 /// the intent returns, so the next entry can present that item as the large primary item.
 struct FocusWidgetItemIntent: AppIntent {
     static var title: LocalizedStringResource = "Focus Widget Item"

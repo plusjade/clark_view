@@ -48,8 +48,9 @@ struct WidgetRootSurfacePayload: Decodable {
 /// framework and can be unit tested by the containing app.
 struct WidgetPresentation: Equatable {
     enum Template: String, Equatable {
+        /// Retained as a rendering reference while the server no longer selects it.
         case standardV1 = "standard-v1"
-        case systemV1 = "system-v1"
+        case beacon = "beacon"
     }
 
     struct RootSurfacePalette: Equatable {
@@ -57,26 +58,25 @@ struct WidgetPresentation: Equatable {
         let dark: WidgetSRGBColor
     }
 
-    static let control = WidgetPresentation(
-        template: .standardV1,
-        rootSurface: RootSurfacePalette(light: .black, dark: .black)
+    static let defaultPresentation = WidgetPresentation(
+        template: .beacon,
+        rootSurface: RootSurfacePalette(light: .white, dark: .black)
     )
-
-    private static let systemControlRootSurface = RootSurfacePalette(light: .white, dark: .black)
 
     let template: Template
     let rootSurface: RootSurfacePalette
 
     init(payload: WidgetPresentationPayload?) {
         guard let payload, payload.version == 2 else {
-            self = .control
+            self = .defaultPresentation
             return
         }
 
-        let resolvedTemplate = payload.template.flatMap(Template.init(rawValue:)) ?? Self.control.template
-        let fallback = resolvedTemplate == .systemV1
-            ? Self.systemControlRootSurface
-            : Self.control.rootSurface
+        let resolvedTemplate = payload.template.flatMap(Template.init(rawValue:))
+            ?? Self.defaultPresentation.template
+        let fallback = resolvedTemplate == .beacon
+            ? Self.defaultPresentation.rootSurface
+            : RootSurfacePalette(light: .black, dark: .black)
         template = resolvedTemplate
         rootSurface = RootSurfacePalette(
             light: payload.rootSurface?.light.flatMap(WidgetSRGBColor.init(hex:)) ?? fallback.light,

@@ -12,18 +12,18 @@ import Testing
 @MainActor
 struct clark_viewTests {
 
-    @Test func legacyPayloadUsesControlPresentation() throws {
+    @Test func presentationlessPayloadUsesDefaultBeaconPresentation() throws {
         let payload = try decodePayload()
 
         #expect(payload.items.count == 1)
-        #expect(WidgetPresentation(payload: payload.presentation) == .control)
+        #expect(WidgetPresentation(payload: payload.presentation) == .defaultPresentation)
     }
 
     @Test func validPresentationOverridesRootSurfaces() throws {
         let payload = try decodePayload(presentation: """
         {
           "version": 2,
-          "template": "standard-v1",
+          "template": "beacon",
           "rootSurface": {
             "light": "#14213D",
             "dark": "#261447"
@@ -32,16 +32,16 @@ struct clark_viewTests {
         """)
         let presentation = WidgetPresentation(payload: payload.presentation)
 
-        #expect(presentation.template == .standardV1)
+        #expect(presentation.template == .beacon)
         #expect(presentation.rootSurface.light == WidgetSRGBColor(hex: "#14213D"))
         #expect(presentation.rootSurface.dark == WidgetSRGBColor(hex: "#261447"))
     }
 
-    @Test func systemTemplateIsSelectable() throws {
+    @Test func beaconTemplateIsSelectable() throws {
         let payload = try decodePayload(presentation: """
         {
           "version": 2,
-          "template": "system-v1",
+          "template": "beacon",
           "rootSurface": {
             "light": "#14213D",
             "dark": "#261447"
@@ -49,7 +49,7 @@ struct clark_viewTests {
         }
         """)
 
-        #expect(WidgetPresentation(payload: payload.presentation).template == .systemV1)
+        #expect(WidgetPresentation(payload: payload.presentation).template == .beacon)
     }
 
     @Test func malformedPresentationFieldsDegradeIndependently() throws {
@@ -66,8 +66,8 @@ struct clark_viewTests {
         let presentation = WidgetPresentation(payload: payload.presentation)
 
         #expect(payload.items.count == 1)
-        #expect(presentation.template == .standardV1)
-        #expect(presentation.rootSurface.light == .black)
+        #expect(presentation.template == .beacon)
+        #expect(presentation.rootSurface.light == .white)
         #expect(presentation.rootSurface.dark == WidgetSRGBColor(hex: "#123456"))
     }
 
@@ -76,10 +76,10 @@ struct clark_viewTests {
 
         #expect(payload.items.count == 1)
         #expect(payload.presentation == nil)
-        #expect(WidgetPresentation(payload: payload.presentation) == .control)
+        #expect(WidgetPresentation(payload: payload.presentation) == .defaultPresentation)
     }
 
-    @Test func unknownTemplateUsesStandardTemplateAndValidPalette() throws {
+    @Test func unknownTemplateUsesBeaconAndValidPalette() throws {
         let payload = try decodePayload(presentation: """
         {
           "version": 2,
@@ -92,16 +92,16 @@ struct clark_viewTests {
         """)
         let presentation = WidgetPresentation(payload: payload.presentation)
 
-        #expect(presentation.template == .standardV1)
+        #expect(presentation.template == .beacon)
         #expect(presentation.rootSurface.light == WidgetSRGBColor(hex: "#14213D"))
         #expect(presentation.rootSurface.dark == WidgetSRGBColor(hex: "#261447"))
     }
 
-    @Test func unsupportedPresentationVersionUsesControlPresentation() throws {
+    @Test func unsupportedPresentationVersionUsesDefaultBeaconPresentation() throws {
         let payload = try decodePayload(presentation: """
         {
           "version": 3,
-          "template": "standard-v1",
+          "template": "beacon",
           "rootSurface": {
             "light": "#14213D",
             "dark": "#261447"
@@ -109,10 +109,10 @@ struct clark_viewTests {
         }
         """)
 
-        #expect(WidgetPresentation(payload: payload.presentation) == .control)
+        #expect(WidgetPresentation(payload: payload.presentation) == .defaultPresentation)
     }
 
-    @Test func legacyFullColorPresentationUsesControlPresentation() throws {
+    @Test func legacyFullColorPresentationUsesDefaultBeaconPresentation() throws {
         let payload = try decodePayload(presentation: """
         {
           "version": 1,
@@ -123,7 +123,22 @@ struct clark_viewTests {
           }
         }
         """)
-        #expect(WidgetPresentation(payload: payload.presentation) == .control)
+        #expect(WidgetPresentation(payload: payload.presentation) == .defaultPresentation)
+    }
+
+    @Test func deprecatedStandardTemplateStillDecodes() throws {
+        let payload = try decodePayload(presentation: """
+        {
+          "version": 2,
+          "template": "standard-v1",
+          "rootSurface": {
+            "light": "#14213D",
+            "dark": "#261447"
+          }
+        }
+        """)
+
+        #expect(WidgetPresentation(payload: payload.presentation).template == .standardV1)
     }
 
     @Test func widgetRefreshDiagnosticsDescribeLatestOutcome() {

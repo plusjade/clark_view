@@ -19,6 +19,14 @@ struct ContentView: View {
             })
         } else {
             PairingView(onPaired: { isPaired = true })
+                .task {
+                    // A registration can succeed even if its response never reaches the app.
+                    if let status = await DeviceStatusClient.fetch(device: DeviceIdentity.deviceID), status.paired {
+                        DeviceIdentity.isPaired = true
+                        isPaired = true
+                        WidgetCenter.shared.reloadTimelines(ofKind: WidgetKind.main)
+                    }
+                }
         }
     }
 }

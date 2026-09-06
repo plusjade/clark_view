@@ -1,12 +1,12 @@
 //
-//  SystemWidgetFocusLayouts.swift
+//  BeaconWidgetFocusLayouts.swift
 //  ClarkViewWidget
 //
 
 import SwiftUI
 
 /// Reflows one stable set of item views between compact and focused card arrangements.
-struct SystemFocusItemLayout: Layout {
+struct BeaconFocusItemLayout: Layout {
     var primaryProgress: CGFloat
 
     private let compactContentRatio: CGFloat = 0.7

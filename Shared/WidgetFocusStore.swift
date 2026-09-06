@@ -5,11 +5,11 @@
 
 import Foundation
 
-/// Keeps system-v1's local focus separate from the server-owned feed while allowing
+/// Keeps Beacon's local focus separate from the server-owned feed while allowing
 /// explicit refreshes from either target to bypass the short interaction cache.
 enum WidgetFocusStore {
-    private static let focusedItemIDKey = "systemV1FocusedItemID"
-    private static let cacheReuseDeadlineKey = "systemV1CacheReuseDeadline"
+    private static let focusedItemIDKey = "beaconFocusedItemID"
+    private static let cacheReuseDeadlineKey = "beaconCacheReuseDeadline"
     private static let defaults = UserDefaults(suiteName: DeviceIdentity.appGroupID) ?? .standard
 
     static var shouldReuseCachedPayload: Bool {

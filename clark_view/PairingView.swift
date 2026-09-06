@@ -55,11 +55,15 @@ struct PairingView: View {
     }
 
     private func submit() {
-        guard !code.isEmpty else { return }
+        guard !code.isEmpty, !isSubmitting else { return }
         errorMessage = nil
         isSubmitting = true
         Task {
-            let outcome = await PairingClient.pair(code: code, device: DeviceIdentity.deviceID)
+            var outcome = await PairingClient.pair(code: code, device: DeviceIdentity.deviceID)
+            if outcome != .paired, outcome != .invalidOrExpiredCode,
+               let status = await DeviceStatusClient.fetch(device: DeviceIdentity.deviceID), status.paired {
+                outcome = .paired
+            }
             isSubmitting = false
             switch outcome {
             case .paired:
@@ -68,6 +72,10 @@ struct PairingView: View {
                 onPaired()
             case .invalidOrExpiredCode:
                 errorMessage = "That code didn't work — ask for a new one."
+            case .serverError(let statusCode):
+                errorMessage = "The server returned an error (HTTP \(statusCode)). Try again."
+            case .invalidResponse:
+                errorMessage = "The server sent an unexpected pairing response. Try again."
             case .networkError:
                 errorMessage = "Couldn't reach the server. Check your connection and try again."
             }

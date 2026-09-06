@@ -78,17 +78,6 @@ private enum GameDataService {
         (try? JSONDecoder.widgetPayload.decode(WidgetPayload.self, from: mockJSON(primaryCaption: nil, primaryEmphasized: false))) ?? .empty
     }
 
-    static var mockSystemPayload: WidgetPayload {
-        (try? JSONDecoder.widgetPayload.decode(
-            WidgetPayload.self,
-            from: mockJSON(
-                primaryCaption: nil,
-                primaryEmphasized: false,
-                template: "system-v1"
-            )
-        )) ?? .empty
-    }
-
     /// Timestamps are relative to `.now` (not hardcoded epoch values) so the fixture always
     /// exercises all three `dayLabel` states — today/tomorrow/future — regardless of when the
     /// preview is opened. "Deterministic" (see `mockPayload` above) means offline, not
@@ -106,7 +95,7 @@ private enum GameDataService {
     private static func mockJSON(
         primaryCaption: String?,
         primaryEmphasized: Bool,
-        template: String = "standard-v1"
+        template: String = "beacon"
     ) -> Data {
         let calendar = Calendar.current
         let primaryTS = Int(Date.now.addingTimeInterval(2 * 3600).timeIntervalSince1970)
@@ -761,8 +750,8 @@ struct ClarkViewWidgetEntryView: View {
         switch presentation.template {
         case .standardV1:
             StandardWidgetTemplate(entry: entry, presentation: presentation)
-        case .systemV1:
-            SystemWidgetTemplate(entry: entry, presentation: presentation)
+        case .beacon:
+            BeaconWidgetTemplate(entry: entry, presentation: presentation)
         }
     }
 }
@@ -801,20 +790,20 @@ struct ClarkViewWidget: Widget {
     GamesEntry(date: .now, payload: GameDataService.mockPayloadUpcoming)
 }
 
-#Preview("System", as: .systemSmall) {
+#Preview("Beacon", as: .systemSmall) {
     ClarkViewWidget()
 } timeline: {
-    GamesEntry(date: .now, payload: GameDataService.mockSystemPayload)
+    GamesEntry(date: .now, payload: GameDataService.mockPayloadUpcoming)
 }
 
-#Preview("System", as: .systemMedium) {
+#Preview("Beacon", as: .systemMedium) {
     ClarkViewWidget()
 } timeline: {
-    GamesEntry(date: .now, payload: GameDataService.mockSystemPayload)
+    GamesEntry(date: .now, payload: GameDataService.mockPayloadUpcoming)
 }
 
-#Preview("System", as: .systemLarge) {
+#Preview("Beacon", as: .systemLarge) {
     ClarkViewWidget()
 } timeline: {
-    GamesEntry(date: .now, payload: GameDataService.mockSystemPayload)
+    GamesEntry(date: .now, payload: GameDataService.mockPayloadUpcoming)
 }

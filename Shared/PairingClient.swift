@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import OSLog
 
 private struct PairResponse: Decodable {
     let succeeded: Bool
@@ -18,10 +19,14 @@ private struct PairResponse: Decodable {
 /// The one network write the app makes: redeeming a bunch-issued code to register
 /// this install as a device (`POST /pair`).
 enum PairingClient {
-    enum Outcome {
+    private static let logger = Logger(subsystem: "plusjade.clark-view", category: "Pairing")
+
+    enum Outcome: Equatable {
         case paired
         case invalidOrExpiredCode
         case networkError
+        case serverError(statusCode: Int)
+        case invalidResponse
     }
 
     static func pair(code: String, device: String) async -> Outcome {
@@ -30,18 +35,40 @@ enum PairingClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try? JSONEncoder().encode(["code": code, "device": device])
 
-        guard let (data, response) = try? await URLSession.shared.data(for: request),
-              let httpResponse = response as? HTTPURLResponse else {
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let response = response as? HTTPURLResponse else {
+                logger.error("POST /pair returned a non-HTTP response")
+                return .invalidResponse
+            }
+            return interpret(data: data, statusCode: response.statusCode)
+        } catch {
+            let failure = error as NSError
+            logger.error("POST /pair transport failure: \(failure.domain, privacy: .public) code=\(failure.code)")
             return .networkError
         }
-        guard httpResponse.statusCode == 200,
-              let decoded = try? JSONDecoder().decode(PairResponse.self, from: data),
-              decoded.succeeded else {
-            // 404: no such code. 422: code exists but has expired — the server
-            // distinguishes them server-side, but the app shows the same copy either way.
-            let invalidCode = httpResponse.statusCode == 404 || httpResponse.statusCode == 422
-            return invalidCode ? .invalidOrExpiredCode : .networkError
+    }
+
+    static func interpret(data: Data, statusCode: Int) -> Outcome {
+        if statusCode == 404 || statusCode == 422 {
+            logger.notice("POST /pair rejected code: HTTP \(statusCode)")
+            return .invalidOrExpiredCode
         }
-        return .paired
+        guard statusCode == 200 else {
+            logger.error("POST /pair failed: HTTP \(statusCode)")
+            return .serverError(statusCode: statusCode)
+        }
+        do {
+            let decoded = try JSONDecoder().decode(PairResponse.self, from: data)
+            guard decoded.succeeded else {
+                logger.error("POST /pair HTTP 200 returned ok=false")
+                return .invalidResponse
+            }
+            return .paired
+        } catch {
+            // Response bodies may contain identifiers; log only the failure category.
+            logger.error("POST /pair HTTP 200 could not decode the success response")
+            return .invalidResponse
+        }
     }
 }

@@ -1,5 +1,5 @@
 //
-//  SystemWidgetTemplate.swift
+//  BeaconWidgetTemplate.swift
 //  ClarkViewWidget
 //
 
@@ -9,7 +9,7 @@ import WidgetKit
 
 /// The standard template's composition expressed without measured scaling. Semantic text
 /// styles stay at their system-resolved sizes while the established visual hierarchy remains.
-struct SystemWidgetTemplate: View {
+struct BeaconWidgetTemplate: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorScheme) private var colorScheme
@@ -41,21 +41,21 @@ struct SystemWidgetTemplate: View {
     var body: some View {
         Group {
             if entry.payload.items.isEmpty {
-                SystemMissingItemsView(message: "Nothing here right now 🫨")
+                BeaconMissingItemsView(message: "Nothing here right now 🫨")
                     .padding(12)
                     .background {
-                        SystemWidgetCardSurface(
+                        BeaconWidgetCardSurface(
                             isFocused: true,
                             usesTranslucency: usesTranslucentSurfaces
                         )
                     }
                     .padding(6)
             } else if family == .systemSmall, let item = entry.payload.items.first {
-                SystemHeroCard(item: item)
+                BeaconHeroCard(item: item)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .padding(8)
                     .background {
-                        SystemWidgetCardSurface(
+                        BeaconWidgetCardSurface(
                             isFocused: true,
                             usesTranslucency: usesTranslucentSurfaces
                         )
@@ -67,7 +67,7 @@ struct SystemWidgetTemplate: View {
                 VStack(alignment: .leading, spacing: 24) {
                     if family == .systemLarge {
                         ForEach(visibleItems) { item in
-                            SystemFocusableItemView(
+                            BeaconFocusableItemView(
                                 item: item,
                                 isPrimary: item.id == focusedItemID,
                                 reduceMotion: reduceMotion,
@@ -75,7 +75,7 @@ struct SystemWidgetTemplate: View {
                             )
                         }
                     } else if let primary = visibleItems.first {
-                        SystemItemBlockView(item: primary)
+                        BeaconItemBlockView(item: primary)
                     }
                 }
                 .foregroundStyle(.primary)
@@ -86,7 +86,7 @@ struct SystemWidgetTemplate: View {
                 )
                 .background {
                     if family != .systemLarge {
-                        SystemWidgetCardSurface(
+                        BeaconWidgetCardSurface(
                             isFocused: true,
                             usesTranslucency: usesTranslucentSurfaces
                         )
@@ -104,12 +104,12 @@ struct SystemWidgetTemplate: View {
     }
 }
 
-private struct SystemHeroCard: View {
+private struct BeaconHeroCard: View {
     let item: WidgetItem
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SystemDateTimeView(item: item, style: .primary)
+            BeaconDateTimeView(item: item, style: .primary)
 
             Text(item.mainText)
                 .font(.system(.largeTitle, design: .default, weight: .black))
@@ -124,12 +124,12 @@ private struct SystemHeroCard: View {
     }
 }
 
-private struct SystemItemBlockView: View {
+private struct BeaconItemBlockView: View {
     let item: WidgetItem
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SystemDateTimeView(item: item, style: .primary)
+            BeaconDateTimeView(item: item, style: .primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             Text(item.mainText)
@@ -149,7 +149,7 @@ private struct SystemItemBlockView: View {
     }
 }
 
-private struct SystemFocusableItemView: View {
+private struct BeaconFocusableItemView: View {
     let item: WidgetItem
     let isPrimary: Bool
     let reduceMotion: Bool
@@ -157,8 +157,8 @@ private struct SystemFocusableItemView: View {
 
     var body: some View {
         Button(intent: FocusWidgetItemIntent(itemID: item.id, changesFocus: !isPrimary)) {
-            SystemFocusItemLayout(primaryProgress: isPrimary ? 1 : 0) {
-                SystemDateTimeView(
+            BeaconFocusItemLayout(primaryProgress: isPrimary ? 1 : 0) {
+                BeaconDateTimeView(
                     item: item,
                     style: isPrimary ? .primary : .secondary
                 )
@@ -192,7 +192,7 @@ private struct SystemFocusableItemView: View {
                     .font(.title.weight(.bold))
                     .foregroundStyle(.tint)
                     .frame(width: 50, height: 50)
-                    .background(SystemWidgetPalette.actionSurface, in: Circle())
+                    .background(BeaconWidgetPalette.actionSurface, in: Circle())
                     .frame(maxWidth: .infinity, minHeight: 50, alignment: .trailing)
                     .opacity(isPrimary ? 0 : 1)
             }
@@ -203,28 +203,28 @@ private struct SystemFocusableItemView: View {
                 alignment: .topLeading
             )
             .background {
-                SystemWidgetCardSurface(
+                BeaconWidgetCardSurface(
                     isFocused: isPrimary,
                     usesTranslucency: usesTranslucency
                 )
             }
             .overlay {
                 ZStack {
-                    SystemWidgetPalette.cardShape
-                        .strokeBorder(SystemWidgetPalette.focusedBorder, lineWidth: 1)
+                    BeaconWidgetPalette.cardShape
+                        .strokeBorder(BeaconWidgetPalette.focusedBorder, lineWidth: 1)
                         .opacity(isPrimary ? 1 : 0)
 
-                    SystemWidgetPalette.cardShape
+                    BeaconWidgetPalette.cardShape
                         .strokeBorder(
-                            SystemWidgetPalette.compactBorder,
+                            BeaconWidgetPalette.compactBorder,
                             style: StrokeStyle(lineWidth: 1, dash: [1, 5])
                         )
                         .opacity(isPrimary ? 0 : 1)
                 }
             }
-            .contentShape(SystemWidgetPalette.cardShape)
+            .contentShape(BeaconWidgetPalette.cardShape)
         }
-        .buttonStyle(SystemFocusButtonStyle(reduceMotion: reduceMotion))
+        .buttonStyle(BeaconFocusButtonStyle(reduceMotion: reduceMotion))
         .accessibilityLabel(
             isPrimary ? "\(item.mainText), focused item" : "Show \(item.mainText) larger"
         )
@@ -233,7 +233,7 @@ private struct SystemFocusableItemView: View {
     }
 }
 
-private struct SystemFocusButtonStyle: ButtonStyle {
+private struct BeaconFocusButtonStyle: ButtonStyle {
     let reduceMotion: Bool
 
     func makeBody(configuration: Configuration) -> some View {
@@ -247,7 +247,7 @@ private struct SystemFocusButtonStyle: ButtonStyle {
     }
 }
 
-private struct SystemDateTimeView: View {
+private struct BeaconDateTimeView: View {
     enum Style {
         case primary
         case secondary
@@ -279,7 +279,7 @@ private struct SystemDateTimeView: View {
     }
 }
 
-private struct SystemMissingItemsView: View {
+private struct BeaconMissingItemsView: View {
     let message: String
 
     var body: some View {
@@ -296,26 +296,26 @@ private struct SystemMissingItemsView: View {
     }
 }
 
-private struct SystemWidgetCardSurface: View {
+private struct BeaconWidgetCardSurface: View {
     let isFocused: Bool
     let usesTranslucency: Bool
 
     var body: some View {
         ZStack {
             if usesTranslucency {
-                SystemWidgetPalette.cardShape
+                BeaconWidgetPalette.cardShape
                     .fill(.regularMaterial)
                     .opacity(isFocused ? 1 : 0)
             } else {
-                SystemWidgetPalette.cardShape
-                    .fill(SystemWidgetPalette.focusedSurface)
+                BeaconWidgetPalette.cardShape
+                    .fill(BeaconWidgetPalette.focusedSurface)
                     .opacity(isFocused ? 1 : 0)
             }
         }
     }
 }
 
-private enum SystemWidgetPalette {
+private enum BeaconWidgetPalette {
     static let focusedSurface = Color(uiColor: .secondarySystemBackground)
     static let actionSurface = Color(uiColor: .tertiarySystemFill)
     static let focusedBorder = Color(uiColor: .separator)
