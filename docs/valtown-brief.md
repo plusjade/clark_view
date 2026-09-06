@@ -1,12 +1,12 @@
 # Clark View ↔ Val Town orientation
 
-Read this before inspecting or changing the Val Town backend. It is a local map of the parts of `plusjade/sports-today` that matter to this repository, updated on 2026-09-04, so routine iOS work should not require rediscovering the remote project through repeated MCP calls.
+Read this before inspecting or changing the Val Town backend. It is a local map of the parts of `plusjade/sports-today` that matter to this repository, updated on 2026-09-06, so routine iOS work should not require rediscovering the remote project through repeated MCP calls.
 
 ## One-minute mental model
 
 Clark View is a widget-first iOS product. The containing app is intentionally small: it enrolls an install as a device with a bunch code, exposes prototype diagnostics, and can request a widget reload. The widget is the primary user experience and registers its own WidgetKit push token.
 
-`plusjade/sports-today` is the product brain. It stores device-to-source assignments, fetches sports data, chooses the next relevant slate, creates the display-ready JSON contract, hosts the browser administration views, and sends best-effort WidgetKit pushes when a device source changes.
+`plusjade/sports-today` is the central orchestrator. It stores device-to-source assignments, hosts the browser administration views, forwards ingest work, and sends best-effort WidgetKit pushes when a device source changes. `plusjade/sports-today-device-feed` owns the current source data, feed execution, and display-ready JSON contract.
 
 This brief is the local orientation source; inspect a named remote module only when the task needs implementation detail beyond what is cached here.
 
@@ -15,10 +15,13 @@ Helper's browser ── /bunches, /devices, /sources ──> Val Town SQLite
                                       │
 iOS app ── /pair ─────────────────────┤
                                       │
-Widget ── /config/resolve ──> ordered device feed ──┬──> Games handler
-                                                    └──> Messages handler
-                                                              │
-                                                              └──> WidgetPayload v2
+Widget ── /config/resolve ──> sports-today device lookup
+                                      │
+                                      └── authenticated RPC ──> sports-today-device-feed
+                                                                        │
+                                                                        ├── Games handler
+                                                                        ├── Messages handler
+                                                                        └── WidgetPayload v2
                                       │
                                       ├── Sleeper sports data
                                       └── WidgetKit push refreshes
@@ -41,6 +44,9 @@ Keep the boundary simple:
 | HTTP file id | `f0eeffb8-9a93-11f1-9bb6-1607ee4eb77e` |
 | Endpoint | `https://plusjade--f0eeffb89a9311f19bb61607ee4eb77e.web.val.run/` |
 | iOS owner of the base URL | `Shared/GameDataURL.swift` |
+| Device-feed provider val | `plusjade/sports-today-device-feed` |
+| Provider RPC file / id | `rpc.ts` / `0d4599dc-aa26-11f1-be61-1607ee4eb77e` |
+| Provider RPC endpoint | `https://plusjade--0d4599dcaa2611f1be611607ee4eb77e.web.val.run/` |
 
 The endpoint is derived from the HTTP file id, not from the file path. **Update `main.ts` in place; never delete, recreate, or rename it.** Doing so would mint a new endpoint while the widget continued calling the old one.
 
@@ -68,50 +74,43 @@ The iOS machine calls intentionally use the `val.run` endpoint. As of this snaps
 
 ## Server-side map
 
-The remote val has one stable HTTP entrypoint plus namespaced transport, domain, and rendering modules:
+The production boundary spans two vals. `plusjade/sports-today` retains the stable public HTTP entrypoint, device lookup, administration, iOS compatibility surface, and operator-facing ingest routes/runners. `plusjade/sports-today-device-feed` owns feed execution and the `cached_games`, `messages`, and `source_cache` tables.
+
+Val Town's val-scoped SQLite follows the **executing val**, not the `esm.town` module that defined an imported function. Directly importing a provider function from the parent therefore reads or writes the parent's database. Database-backed cross-val work must enter the provider's `rpc.ts` HTTP runtime. The RPC is bearer-gated by `DEVICE_FEED_RPC_TOKEN`, stored independently in both vals; never expose its value. The parent centralizes calls in `lib/deviceFeedClient.ts`. `main.ts` in the provider remains a child-local script export, not the production cross-val database boundary.
+
+The parent val's relevant modules are:
 
 | Remote path | Responsibility |
 | --- | --- |
 | `main.ts` | Stable Hono assembly point. Preserve this file's identity; route implementations live under `http/`. |
-| `http/routes/*.ts` | Hono route groups for the root/data endpoint, stable widget compatibility URLs, and browser administration APIs. |
-| `http/handlers/games.ts` | Shared sports query pipeline for widget JSON, PNG diagnostics, and config previews. |
-| `http/handlers/messages.ts` | Shared Messages-source pipeline for widget JSON and config previews. |
-| `http/handlers/deviceFeed.ts` | Stateful device-feed composition. Runs every ordered source assignment concurrently through the existing stateless handlers, concatenates their schema-v2 items in assignment priority order, and attaches the device-owned presentation envelope. |
-| `lib/catalog.ts` | Known sports, teams, and channel tables. |
-| `lib/params.ts`, `lib/games.ts`, `lib/dates.ts`, `lib/teams.ts`, `lib/channels.ts` | Pure request validation, slate selection, date handling, and display enrichment. |
-| `lib/resolver.ts` | Pure translation from one source assignment's settings into the existing stateless games/messages request parameters. |
+| `http/routes/*.ts` | Hono route groups for the HTML-only root, stable iOS compatibility URLs, browser administration APIs, and ingest. The parent has no source-feed routes or handler directory. |
+| `lib/deviceFeedClient.ts` | Authenticated client for the composed device feed, Messages administration, source-cache ingest, Sleeper ingest/coverage, and FIBA cache checks. Owns the provider RPC endpoint and reads `DEVICE_FEED_RPC_TOKEN`. |
+| `lib/catalog.ts` | Known sports and teams used to parameterize Games source assignments in the parent UI. |
+| `lib/resolver.ts` | Parent-side source-assignment types plus the small Games projection used by device status. Feed request normalization belongs to the provider. |
 | `lib/deviceStore.ts` | Device-centric projections and writes for names, presentation, and `device_sources` assignments. Device views deliberately omit bunch membership; assignment writes validate ownership and rely on SQLite's JSON, priority, foreign-key, and uniqueness constraints. |
 | `lib/deviceSourceStore.ts` | Widget-facing read seam that resolves an install id to its presentation and all sources by `(priority ASC, device_sources.id ASC)`. |
 | `lib/presentation.ts` | Versioned widget-presentation types, control/initial values, loss-tolerant stored JSON parsing, and browser-form validation. |
 | `lib/deviceTokenStore.ts` | App-background and native-widget APNs token persistence keyed by `devices.install_id`. Native tokens are preferred while old beta builds retain a fallback. Token uploads may precede device registration. |
 | `lib/sourceStore.ts` | Read-only projections of source definitions, JSON settings schemas, and their device assignments for the browser explorer. |
 | `lib/bunchStore.ts` | Bunch administration, reusable 30-minute bunch codes, and new-model device registration. A valid code is the only write path that creates or moves a device into a bunch. |
-| `lib/messageStore.ts` | Val-scoped SQLite for the shared Messages feed, including same-day range reads and timestamp-indexed ordering. |
-| `lib/sleeper.ts` | Outbound Sleeper data access. |
-| `lib/sourceCache.ts` | Generic `source_cache` SQLite table (source, date_key, payload, fetched_at) for source payloads this val can't fetch live at request time — see the FIBA section below. |
-| `lib/fiba.ts` | FIBA's read-side seam: `fibaGamesForDate(dateKey)` reads `sourceCache` instead of the network (shaped like `sleeper.ts`'s `fetchScores`) and `mapEventToGame` reconciles ESPN's raw shape into `Game`. `listFutureFibaDateKeys` backs the source's own (uncapped) date window. |
 | `lib/push.ts` | Best-effort APNs delivery, preferring native WidgetKit pushes while retaining app-background tokens as an old-beta fallback. |
-| `lib/moonPhases.ts` | Moon's read-side seam, same `sourceCache` plumbing as `fiba.ts` but no live fetch behind it at all: `nextFullMoon(fromDateKey)` returns the next seeded full moon at or after that date, or `null` once the seeded year runs out. No reconciliation step — the cached payload is already this project's own `{peakTime, name, isBlueMoon}` shape, not a third party's. |
 | `lib/push.ts` | Best-effort APNs silent push delivery to one device or every device attached to a selected source. |
-| `render/json.ts` | The native widget's schema-versioned response. |
-| `render/messageJson.ts` | Maps stored messages into the same schema-versioned widget item contract. |
-| `render/moonJson.ts` | Maps the next full moon into the same schema-versioned widget item contract — `mainText: "Full Moon"`, `subText` the traditional name (e.g. "Harvest Moon"), `caption: null`. Mirrors `messageJson.ts`'s shape; no `Game`-typed intermediate. |
 | `render/pageShell.ts` | Shared browser shell owning typography, colors, resource tables/navigation, forms, breadcrumbs, and timestamp localization. |
-| `render/deviceHtml.tsx` | React-rendered device index, source-assignment and presentation forms, and resolver-backed preview composed through the shared config `pageShell`. |
+| `render/deviceHtml.tsx` | React-rendered device index, source-assignment and presentation forms, and provider-backed device preview composed through the shared `pageShell`. |
 | `render/sourceHtml.tsx` | React-rendered source index/show and source-owned Messages form composed through `pageShell`, including human-readable JSON Schema fields and linked device assignments. |
 | `render/bunchHtml.tsx` | React-rendered bunch index/detail and pairing-code pages. Bunches appear only in enrollment/access administration, not device feed rendering. |
-| Other `render/*` files | PNG rendering and its pure layout helpers; not the native widget's rendering path. |
+| `render/rootHtml.ts`, `render/dataTable.tsx` | The HTML-only application root and shared browser table primitives. |
 
 Prefer changing pure helpers and their tests over adding policy directly to an I/O module. Keep `main.ts` as route wiring and edge behavior.
+
+The parent no longer contains any source-feed handler. The retired public `GET /messages`, `GET /moon`, `GET /?format=json`, and `GET /?format=png` behaviors had no first-party runtime caller and were removed on 2026-09-06. Their parent-only request parsing, slate selection, date/channel enrichment, JSON/PNG renderers, and layout support were deleted with them. Source execution and widget-payload rendering now exist only in the provider; the parent receives the complete response through `deviceFeedResponse`.
 
 ## HTTP surface and callers
 
 | Method and route | Caller | Contract / caution |
 | --- | --- | --- |
-| `GET /` | Browser, widget redirect target, diagnostics | Plain requests render a centered nav to `/bunches`, `/devices`, and `/sources`. Explicit `format=json` remains the widget contract and `format=png` remains available for diagnostics. Repeated `sports[]` and `teams[]` parameters are validated without turning drift into a fatal widget error. |
-| `GET /messages` | Widget/source diagnostics | Accepts `tz=<seconds east of GMT>` and returns schema-version-2 widget JSON containing every message whose ISO timestamp falls on the current calendar day at that fixed offset. It has no config or device parameter; `/config/resolve` includes it only when the requesting device has the Messages source attached. |
-| `GET /config/resolve` | Widget | Stable compatibility URL over the device model. Accepts `device`, legacy no-op `d=<pixelWidth>x<pixelHeight>`, and `tz=<seconds east of GMT>`, looks up `devices.install_id`, and loads the device presentation plus every `device_sources` row by `(priority ASC, id ASC)`. It executes each source concurrently through the same handlers used by the stateless endpoints, concatenates their items, attaches `presentation`, and returns schema-v2 JSON directly with `cache-control: no-store`. An unknown or source-less device gets the starter-team feed, and an unknown device gets the default Beacon presentation. `x-effective-source-count` and `x-effective-sources` expose composition diagnostics without changing the body contract. |
-| `GET /moon` | Widget/source diagnostics | Accepts `tz=<seconds east of GMT>` (used only to resolve the client's "today" for the forward scan, not to adjust the returned instant) and returns schema-version-2 widget JSON containing a single item for the next full moon from today onward, or an empty `items` array once the seeded year is exhausted. `/config/resolve` includes it only when the requesting device has the Moon source attached. |
+| `GET /` | Helper's browser | Always renders the centered administration nav to `/bunches`, `/devices`, and `/sources`. Query parameters do not select a data representation. |
+| `GET /config/resolve` | Widget | Stable compatibility URL over the device model. Accepts `device`, legacy no-op `d=<pixelWidth>x<pixelHeight>`, and `tz=<seconds east of GMT>`, looks up `devices.install_id`, and loads the device presentation plus every `device_sources` row by `(priority ASC, id ASC)`. The parent sends that configuration through its authenticated provider client; the provider executes sources in its own runtime, globally sorts their items by timestamp, attaches `presentation`, and returns schema-v2 JSON with `cache-control: no-store`. An unknown or source-less device gets the starter-team feed, and an unknown device gets the default Beacon presentation. `x-device-feed-provider`, `x-effective-source-count`, and `x-effective-sources` expose boundary/composition diagnostics without changing the body contract. |
 | `POST /pair` | Containing app | Stable compatibility URL over bunch enrollment. JSON `{code, device}` redeems a `bunch_codes` row, registers or moves `devices.install_id`, and returns `{ok: true, deviceId}` (200). An unknown code is `{ok: false}` (404); an expired code is `{ok: false, message: "expired"}` (422). Codes are six characters and reusable until their 30-minute expiry. The app intentionally requires only `ok`, because the internal integer id is not part of its data path. |
 | `POST /devices/register` | Browser/new-model API | JSON `{code, device, name?}`. Performs the same bunch registration as `/pair`, with an optional device name. Unknown and expired codes use the same 404/422 split. |
 | `POST /device/token` | Widget push handler; legacy containing apps | Native JSON is `{device, token, kind: "widget", environment: "sandbox" | "production", active}`. `active: false` removes the widget token after the last instance disappears. Missing `kind`, `environment`, and `active` remain compatible with old beta builds uploading a sandbox app-background token. Tokens are stored independently of pairing; delivery prefers a widget token and otherwise falls back to the legacy app token. |
@@ -131,17 +130,17 @@ Prefer changing pure helpers and their tests over adding policy directly to an I
 | `GET /bunches`, `GET /bunches/new`, `POST /bunches` | Helper's browser | Parallel new-model replacement for the config collection/create intention at the access boundary. Lists or creates enrollment scopes; feed settings are not stored here. |
 | `GET/POST /bunches/:id` | Helper's browser | Shows/renames a bunch and lists its devices. This is access/enrollment administration and is intentionally separate from `/devices/:id` rendering configuration. |
 | `GET /bunches/:id/pair`, `POST /bunches/:id/codes` | Helper's browser | Lists bunch-code history and creates reusable 30-minute enrollment codes. There is deliberately no direct cross-bunch “link existing device” form; moving a device across the ACL boundary requires a valid code through `/devices/register`. |
-| `POST /ingest/:source/:dateKey` | External ingest process only — never the widget, app, or configurator | Bearer-gated (`INGEST_TOKEN` env var, value not recorded here) write into `source_cache`. Body is stored verbatim as JSON. See the FIBA section below for why this exists. |
+| `POST /ingest/:source/:dateKey` | External ingest process only — never the widget, app, or configurator | The parent keeps the stable bearer gate (`INGEST_TOKEN`, value not recorded here), then forwards the payload through authenticated RPC so the provider writes its own `source_cache`. Body is stored verbatim as JSON. |
 
-Only `/config/resolve` and `/config/status/:deviceId` remain under the config-named prefix; these names are stable iOS compatibility contracts, not config resources. `GET /config` and all former id-scoped browser routes return 404.
+Only `/config/resolve` and `/config/status/:deviceId` remain under the config-named prefix; these names are stable iOS compatibility contracts, not config resources. `GET /config`, `GET /messages`, `GET /moon`, and all former id-scoped browser routes return 404. The root ignores former `format`, team, day, and dimension query parameters and always returns HTML.
 
-Current fallback behavior matters: an unknown or unpaired device is resolved with the `fever` + `sparks` + `dodgers` starter-team configuration. An older comment in the widget still describes an all-sports fallback; treat the deployed server behavior above as current until a deliberate cross-project change reconciles both sides.
+Current fallback behavior matters: an unknown, unpaired, or source-less device is resolved with the `fever` + `sparks` starter-team configuration.
 
-The retired `configs`, `device_configs`, and `pairing_codes` tables were dropped after the device cutover. Canonical enrollment and rendering state now lives in `bunches`, `bunch_codes`, `devices`, `sources`, and `device_sources`; `devices.presentation` is validated JSON with a non-null initial value. `device_tokens`, `messages`, and `source_cache` retain their focused supporting roles.
+The retired `configs`, `device_configs`, and `pairing_codes` tables were dropped after the device cutover. In the parent, canonical enrollment and rendering state lives in `bunches`, `bunch_codes`, `devices`, `sources`, `device_sources`, and `device_tokens`; `devices.presentation` is validated JSON with a non-null initial value. The provider owns `cached_games`, `messages`, and `source_cache`. Parent copies of those three tables are no longer referenced by code and may be dropped independently.
 
 ## Widget JSON contract
 
-The response is `schemaVersion: 2` with server-ordered `items`. `render/json.ts` also emits a deprecated top-level `eyebrow`; Swift deliberately ignores unknown keys and derives each item's day label from its timestamp.
+The `/config/resolve` response is `schemaVersion: 2` with provider-ordered `items`. The provider also emits a deprecated top-level `eyebrow`; Swift deliberately ignores unknown keys and derives each item's day label from its timestamp.
 
 ```json
 {
@@ -170,8 +169,7 @@ The response is `schemaVersion: 2` with server-ordered `items`. `render/json.ts`
 Device resolver responses now always include the additive `presentation` envelope. Paired devices
 source it from `devices.presentation`; existing and newly paired devices use Beacon with the
 white/black values above. Registration explicitly writes this default rather than relying on the
-table's dormant legacy column default. An unknown device receives the same Beacon presentation. Stateless source
-responses (`/?format=json` and `/messages`) remain content-only because they have no device context.
+table's dormant legacy column default. An unknown device receives the same Beacon presentation.
 
 One template id represents its complete small/medium/large family; the server does not choose a
 template by widget dimensions. Root surface values are opaque six-digit sRGB colors selected by
@@ -231,21 +229,19 @@ Contract rules:
 - The product intentionally displays no scores or live game clock.
 - Preserve or add fields compatibly. Removing or repurposing a field requires a schema-version bump and coordinated server, Swift model, preview fixture, and decoding changes.
 
-`render/json.ts` returns `cache-control: public, max-age=60` and `x-effective-*` headers describing the resolved mode, sports, teams, rejected values, UTC offset, and resolved date. Use those headers for drift diagnosis instead of expanding the Swift body contract.
+Provider renderers normalize Games, Messages, and Moon data into this contract before the response crosses the RPC boundary. The provider's `messages` table has only `main`, `sub`, and `timestamp`; SQLite `rowid` remains the stable widget item id, and `messages_timestamp` supports same-day range reads. Messages are shared by every device attached to the singleton Messages source, whose schema and assignments have no settings. Devices without that source do not include messages in their combined feed. No source schema or assignment retains `legacyConfigId`; Games assignments contain only the live `teams` and `intradayFilter` values.
 
-`render/messageJson.ts` uses that same body contract and cache policy. Stored `main`, `sub`, and ISO `timestamp` values become `mainText`, `subText`, and Unix seconds; message items use `caption: null` and `emphasized: false`. The `messages` table has only `main`, `sub`, and `timestamp`; SQLite `rowid` remains the stable widget item id, and `messages_timestamp` supports same-day range reads. Messages are shared by every device attached to the singleton Messages source, whose schema and assignments have no settings. Devices without that source do not include messages in their combined feed. No source schema or assignment retains `legacyConfigId`; Games assignments contain only the live `sports`, `teams`, and `intradayFilter` values.
-
-The device feed is a source-ordered concatenation, not a global timestamp sort: assignment priority determines the source blocks, equal priorities use assignment id as the deterministic tie-breaker, and each source retains its own internal item ordering. `Promise.all` makes source execution concurrent without changing result order. A source failure currently fails the whole composition; partial-feed degradation has not been introduced.
+The device feed is globally sorted by item timestamp after all assigned sources execute concurrently. Assignment priority and id still determine the stable input order, so equal timestamps retain the configured source order. A source failure currently fails the whole composition; partial-feed degradation has not been introduced.
 
 ## FIBA women's basketball — live, second source wired into the widget pipeline
 
-Sleeper's `/scores` has no FIBA competitions. Phased deliberately: Phase 1 validated a source and shape; Phase 2 (this section) is the reconciliation service that normalizes it into `Game` and wires it into the real request path. `catalog.ts`'s `SPORTS`, `games.ts`'s pipeline, and `render/json.ts` are all touched now — this is live, not a spike.
+Sleeper's `/scores` has no FIBA competitions. Phased deliberately: Phase 1 validated a source and shape; Phase 2 (this section) is the provider-owned reconciliation service that normalizes it into `Game` and wires it into the real device-feed path.
 
 - **Source**: ESPN's unofficial `site.api.espn.com/apis/site/v2/sports/basketball/fiba/scoreboard`. Currently the FIBA Women's Basketball World Cup 2026 (Berlin, Sep 4-14). This ESPN league (id 53, name literally "FIBA World Cup") is a single flagship-tournament bucket ESPN re-points per cycle, not a durable "women's basketball" feed — it returned zero events for the Aug 2024 Olympics window, and there's real risk it repoints to the *Men's* World Cup in 2027. Re-validate before trusting it for any window beyond the current one.
-- **Why this val doesn't fetch it live**: `site.api.espn.com` returns `403 Forbidden` (Akamai edge rule against Val Town's shared egress IPs, confirmed ESPN-wide not FIBA-specific, not fixable with headers) from this val's own runtime — repro in `tools/fiba-source-check.ts`. Worked around with an ingest/serve split: `lib/sourceCache.ts`'s `source_cache` table is seeded by `POST /ingest/:source/:dateKey` (bearer-gated by `INGEST_TOKEN`) from an unblocked network — an agent session's `curl`, or a script run locally — and `lib/fiba.ts` reads from it instead of calling out live.
-- **Reconciliation** (`lib/fiba.ts`'s `mapEventToGame`): translates ESPN's raw event shape into this project's existing `Game` type — targeting the flat/string variant (`away_team`/`home_team` as plain code strings, scores as flat `metadata` fields) that `games.ts`'s `teamCode`/`teamScore` already read for nfl, so `enrichGames`/`filterByTeams`/`groupBySport`/`pickNextSlate` needed **zero changes**. ESPN's `status.type.state` (`pre`/`in`/`post`) is exact and maps directly into `render/json.ts`'s `STATUS_MAP`, unlike Sleeper's noisier vocabulary. Every field is treated as a progressive enhancement, not a guarantee — a missing team code, score, or broadcast degrades to the same "TBD"/blank the pipeline already shows for an incomplete Sleeper game (verified live: ESPN's `TNT`/`truTV` broadcasts aren't in `catalog.ts`'s channel dictionaries and fall through cleanly to the existing "regional" fallback instead of breaking; `HBO Max` got an explicit `STREAMING_CHANNELS` entry since it's confirmed and recurring).
-- **Date window**: `http/handlers/games.ts`'s `fetchGamesByDate` routes each requested sport to its source via `catalog.ts`'s new `SPORT_SOURCE` map, and gives each source its own window instead of one shared constant. Sleeper keeps `windowDatesFor`'s fixed few-day scan (justified by its one-request-per-date cost). `fiba` uses `lib/sourceCache.ts`'s `listFutureDateKeys` — every date `source_cache` actually has from today forward, uncapped, since a local table scan has no per-date cost to bound. The two window's dates are unioned before `pickNextSlate` runs, which needed no changes since it already just walks whatever `dates`/`gamesByDate` arrays it's handed. This is deliberate: the old 3-day cap was a Sleeper-specific constraint that had leaked into shared date logic, not a real limit on how far out "next" should look.
-- **Verified live against the deployed endpoint** (2026-09-02, server "today" resolved to 2026-09-01 in the default Pacific client offset): `?teams[]=united-states` correctly surfaced the USA-China group game on **2026-09-04** — a date outside Sleeper's own `[09-01, 09-02, 09-03]` window, proving the union actually reaches past it rather than coincidentally landing inside it. `?sports[]=fiba&day=today` returned all 8 real Sep-4 games, correctly sorted, with real team names and per-game channels. Mixed requests (`teams[]=fever&teams[]=united-states`, one empty source + one populated) and `format=png` both still work. No regression on existing wnba-only requests.
+- **Why the provider doesn't fetch it live**: `site.api.espn.com` returns `403 Forbidden` (Akamai edge rule against Val Town's shared egress IPs, confirmed ESPN-wide not FIBA-specific, not fixable with headers). An external process fetches from an unblocked network and POSTs to the parent's bearer-gated `/ingest/:source/:dateKey`; the parent forwards it to the provider's authenticated RPC, and provider `lib/sourceCache.ts` stores it.
+- **Reconciliation** (provider `lib/fiba.ts`): translates ESPN's raw event shape into the existing `Game` type. ESPN's `status.type.state` (`pre`/`in`/`post`) maps into the provider renderer's status vocabulary. Missing team, score, or broadcast data remains a progressive enhancement rather than failing the feed.
+- **Candidate lookup**: provider `feeds/games.ts` queries `cached_games` with one indexed seek per Sleeper-backed team and scans future FIBA `source_cache` date keys only when FIBA is selected. Slate selection and JSON rendering remain entirely inside the provider runtime.
+- **Historical live verification** (2026-09-02): the then-public stateless route proved that the union reached beyond Sleeper's three-day window and that mixed Sleeper/FIBA selections rendered correctly. Those parent diagnostic formats were retired on 2026-09-06; current verification goes through `/config/resolve` or a device preview.
 - **Team slugs**: full country names (`united-states`, `puerto-rico`, `south-korea`, `turkey` — not ESPN's `Türkiye` — etc.), not ESPN's 3-letter codes, because `teamLabel` derives the display string from the slug via `titleCase`, which has no acronym handling (`usa` → "Usa"). 16 teams, the current group stage; see `catalog.ts`'s `TEAMS` for the full list.
 - **Still open**: knockout-round dates (Sep 8-14) were ingested empty since ESPN hadn't published that schedule yet as of 2026-09-02 — re-ingest closer to those dates. Nothing re-ingests `source_cache` automatically; live/final status accuracy for fiba depends entirely on how recently someone re-ran the ingest loop. That's an accepted trade per this phase's own scope: presence (a game is on the slate at all) is the source's real contract, not intraday freshness.
 
@@ -254,11 +250,11 @@ Sleeper's `/scores` has no FIBA competitions. Phased deliberately: Phase 1 valid
 Added 2026-09-04 as the third row in `sources` (`id=3`, `kind='moon'`), alongside Games and Messages. Devices attach to it the same way as any other singleton source.
 
 - **Schema change**: `sources.kind` was `CHECK (kind IN ('games', 'messages'))`. SQLite can't alter a `CHECK` in place, so the table was recreated (same `id`s, same `ux_sources_kind` unique index) with `moon` added to the constraint. `device_sources.source_id`'s FK survives this untouched — SQLite doesn't enforce FK constraints against DDL, only DML, so dropping/recreating the parent table mid-transaction never orphans the child rows.
-- **No live-fetch problem, unlike FIBA**: full-moon instants are public, deterministic astronomical data with no Akamai-style block, so there was no need for `POST /ingest/:source/:dateKey`. `source_cache` (`source='moon'`) is reused anyway, on purpose: a calendar year's full moons are a small, fixed, known-in-advance set (13 for 2026), so seeding the whole year once is simpler and cheaper than a live per-request fetch, and `lib/sourceCache.ts`'s `listFutureDateKeys`/`getSourcePayload` already do exactly the "next date on or after X" query this needs — reused unchanged from `fiba.ts`.
+- **No live-fetch problem, unlike FIBA**: full-moon instants are public, deterministic astronomical data. Provider `source_cache` (`source='moon'`) is reused because a calendar year's full moons are a small, fixed set; provider `lib/sourceCache.ts` and `lib/moonPhases.ts` answer the "next date on or after X" query.
 - **Dataset**: 13 full moons for calendar year 2026, UTC peak instants sourced from Astropixels (Fred Espenak's ephemeris tables) and cross-checked against timeanddate.com's Central-Time table converted through 2026's US DST boundaries (Mar 8 / Nov 1) — independent sources agreed to the minute. One calendar Blue Moon (May 31, the second full moon in May). Payload shape per row: `{peakTime: "2026-01-03T10:03:00Z", name: "Wolf Moon", isBlueMoon: false}`, `date_key` = the UTC calendar date of the peak.
-- **Serving shape mirrors Messages, not Games**: a full moon has no teams or score, so it skips `games.ts`'s `Game`-typed pipeline entirely (`enrichGames`/`filterByTeams`/`groupBySport`/`pickNextSlate` never touch it) in favor of the simpler pattern `messages.ts`/`messageJson.ts` already established — a handler resolves client-local "today", a pure `lib/` function answers the domain question, a `render/` function maps straight to a schema-v2 item. `lib/moonPhases.ts`'s `nextFullMoon(fromDateKey)` returns the single next event (or `null`); `render/moonJson.ts` renders it as one item (`mainText: "Full Moon"`, `subText` the traditional name) — never a list of the year's remaining moons, since the widget only ever surfaces 1–3 items regardless of source.
+- **Serving shape mirrors Messages, not Games**: a full moon has no teams or score, so it skips the `Game` pipeline. Provider `lib/moonPhases.ts` returns the next event; provider `render/moonJson.ts` maps it directly to one schema-v2 item.
 - **`caption: "PEAK"`, not `null`**: `caption: null` tells `ClarkViewWidget.swift`'s `displayCaption` to fall back to formatting `timestamp` as a local clock time — correct for a game's kickoff, wrong here. `peakTime` is the exact geocentric opposition instant (Sun-Earth-Moon at 180°), which is unrelated to moonrise/moonset at any given location and routinely falls during local daylight (2026-09-26's is 9:49am Pacific — the Moon isn't even up then). A fixed caption avoids implying "go look now" at an instant that's often unviewable; the day label (TODAY/TMRW/date) is still derived from `timestamp` independently of `caption`, so that stays correct.
-- **`tz` is UTC-offset seconds, and stays server-side day-boundary-only**: `lib/dates.ts`'s `resolveClientOffsetSeconds` already documents that iOS sends `TimeZone.current.secondsFromGMT()` (seconds, not minutes). `/moon` uses it exactly once — to resolve the client's local "today" as the start of the forward scan through `source_cache` (`dateAtOffset` → `nextFullMoon`) — the same narrow use `games.ts`/`messages.ts` make of it. `peakTime` itself is never shifted by `tz`; it's always the single UTC instant, unmodified, all the way to the client, per `WidgetPayload.swift`'s existing contract that `timestamp` stays raw specifically so the client localizes it. There's no "shift toward moonrise" logic and there shouldn't be — moonrise is a real per-location astronomical calculation, not a fixed offset from opposition, and out of scope here.
+- **`tz` is UTC-offset seconds, and stays provider-side day-boundary-only**: provider `lib/dates.ts` documents that iOS sends `TimeZone.current.secondsFromGMT()` (seconds, not minutes). The Moon source uses it to resolve the client's local "today" as the start of the forward scan through `source_cache`; `peakTime` itself is never shifted. There is no public parent `/moon` route.
 - **Settings**: `{}`, like Messages — nothing is device-configurable. `render/deviceHtml.tsx`'s `SourceSettingsFields` and `http/routes/devices.ts`'s `settingsFor` both special-case `kind === "moon"` the same way they already special-case `"messages"`. `render/sourceHtml.tsx` needed no changes — its index/show documents are already generic over `kind`.
 - **Still open**: nothing re-seeds `source_cache` for 2027 automatically. Re-run the same research-and-insert step for the next calendar year before this one runs out, the same trade-off FIBA's uncapped-but-manually-ingested window makes.
 
@@ -286,8 +282,8 @@ If this document, `Shared/GameDataURL.swift`, and one root `list_files` result a
 ### Verifying an HTTP change
 
 1. Make one representative `val_town_fetch_val_endpoint` GET against `main.ts`, with the pathname/search needed for the changed route. The tool resolves the endpoint; do not paste a hand-built URL.
-2. For widget-contract changes, fetch `/?format=json` with a narrow known-team query and confirm status, content type, schema version, seconds-based timestamps, and `x-effective-*` headers.
-3. For resolve changes, test `/config/resolve` with a non-sensitive fixture device id. Confirm the direct response status, schema-v2 JSON, source diagnostics, and ordering; the resolver no longer redirects.
+2. For widget-contract or resolve changes, test `/config/resolve` with a non-sensitive fixture device id. Confirm the direct response status, schema-v2 JSON, source diagnostics, and ordering; the resolver no longer redirects.
+3. For parent root changes, confirm both `/` and a query-bearing root URL return `text/html`; source-shaped query parameters must not reactivate a data representation.
 4. Call `val_town_list_files` once after deployment only when the change touched `main.ts` or endpoint identity must be certified. Confirm the file id and endpoint above did not change.
 5. Use `val_town_get_traces` or `val_town_get_logs` only after a failed or surprising response. Filter to the known `main.ts` file id/trace instead of polling the whole project.
 
@@ -304,9 +300,9 @@ Do not use live POST routes as smoke tests. Pairing, token upload, bunch/code cr
 Before editing, classify the request:
 
 - Widget layout, family-specific item count, local date/time format, empty-state copy, or refresh affordance: change the iOS repository.
-- Sports selection, next-game policy, ordering, channel/matchup/status copy, or server drift handling: change `plusjade/sports-today`.
+- Sports selection, next-game policy, ordering, channel/matchup/status copy, or source drift handling: change `plusjade/sports-today-device-feed`; change the parent only when assignment parameters or orchestration also change.
 - Pairing, configuration, device status, or push behavior: inspect both sides and keep the route/client pair synchronized.
-- JSON field or meaning: coordinate `render/json.ts`, `Shared/WidgetPayload.swift`, the widget preview fixture, and tests; bump `schemaVersion` when compatibility requires it.
+- JSON field or meaning: coordinate the provider renderer, `Shared/WidgetPayload.swift`, the widget preview fixture, and tests; bump `schemaVersion` when compatibility requires it.
 - Backend endpoint identity: do not change it. Preserve `main.ts` and verify `links.endpoint` against `GameDataURL.baseURL`.
 
 After a server contract change, build the iOS app/widget and verify a representative endpoint response. After a presentation-only Swift change, do not touch Val Town merely because the widget consumes remote data.
