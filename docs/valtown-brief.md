@@ -96,7 +96,8 @@ The remote val has one stable HTTP entrypoint plus namespaced transport, domain,
 | `render/json.ts` | The native widget's schema-versioned response. |
 | `render/messageJson.ts` | Maps stored messages into the same schema-versioned widget item contract. |
 | `render/moonJson.ts` | Maps the next full moon into the same schema-versioned widget item contract — `mainText: "Full Moon"`, `subText` the traditional name (e.g. "Harvest Moon"), `caption: null`. Mirrors `messageJson.ts`'s shape; no `Game`-typed intermediate. |
-| `render/pageShell.ts` | Shared browser shell owning typography, colors, resource tables/navigation, forms, breadcrumbs, and timestamp localization. |
+| `render/pageShell.ts` | Shared browser shell owning typography, color tokens (light and Dark Mode), resource tables/navigation, forms, breadcrumbs, and timestamp localization. Mobile-first: the unqualified rules are the phone layout and `min-width: 40em` blocks restore the wide one. |
+| `render/dataTable.tsx` | The `DataTable`/`Row`/`Cell` primitives every index and detail table uses. `Cell` emits `data-label` (the stacked phone layout prints it in place of the hidden header) and each element carries its implied ARIA role, which a `display` change would otherwise drop. |
 | `render/deviceHtml.tsx` | React-rendered device index, source-assignment and presentation forms, and resolver-backed preview composed through the shared config `pageShell`. |
 | `render/sourceHtml.tsx` | React-rendered source index/show and source-owned Messages form composed through `pageShell`, including human-readable JSON Schema fields and linked device assignments. |
 | `render/bunchHtml.tsx` | React-rendered bunch index/detail and pairing-code pages. Bunches appear only in enrollment/access administration, not device feed rendering. |
