@@ -80,6 +80,8 @@ Val Town's val-scoped SQLite follows the **executing val**, not the `esm.town` m
 
 Responses crossing that boundary are parsed, not asserted. `rpcJson` takes a type guard and throws naming the endpoint when a body does not match, so a provider contract drift fails at the seam instead of surfacing as an undefined property several frames away. Two calls are deliberately exempt, for opposite reasons. `deviceFeedResponse` is not parsed because the widget payload is the provider's contract with iOS and the parent streams it through untouched rather than taking a position on a schema it does not own — which also means validating in the parent cannot protect the iOS contract; only a contract test against the provider can. `fetchCachedFibaScoreboard` returns `unknown` because it hands back ESPN's stored payload verbatim and its caller only tests for null, so there is no shape to assert. The one place the parent does read inside a widget payload is `previewResponse` in `http/routes/devices.ts`, which checks each item and lets the preview page's existing error state show the failure.
 
+A dead-export pass on 2026-09-06 removed `sendWidgetPush` (no caller; `notifyDevice` is the whole push API) and collapsed one presentation constant that carried three exported names — `DEFAULT_WIDGET_PRESENTATION`, `CONTROL_WIDGET_PRESENTATION` and `INITIAL_DEVICE_PRESENTATION` were always the same object, serving as both the parse fallback and the registration seed. `DataFeed` and `GamesSettings` in `lib/resolver.ts` were inlined at their single use rather than exported. `PushKind`, `SourceDeviceView` and `WidgetTemplate` were deliberately kept exported: each names a domain shape used repeatedly inside an exported signature. The same pass finished `isRecord`'s consolidation into `lib/guards.ts`, and rewrote `tools/presentation-check.ts`, which had asserted the retired v1 contract (`fullColor.primarySurface`, `system-v1`/`future-v2`) and so had been failing since the Beacon migration instead of guarding anything.
+
 The parent val's relevant modules are:
 
 | Remote path | Responsibility |
@@ -87,12 +89,12 @@ The parent val's relevant modules are:
 | `main.ts` | Stable Hono assembly point. Preserve this file's identity; route implementations live under `http/`. |
 | `http/routes/*.ts` | Hono route groups for the HTML-only root, stable iOS compatibility URLs, browser administration APIs, and ingest. The parent has no source-feed routes or handler directory. |
 | `lib/deviceFeedClient.ts` | Authenticated client for the composed device feed, source-cache ingest, Sleeper ingest/coverage, and FIBA cache checks. Owns the provider RPC endpoint and reads `DEVICE_FEED_RPC_TOKEN`. Typed responses are parsed through a guard, not asserted. |
-| `lib/guards.ts` | Domain-free runtime type guards shared across the RPC seam and route handlers. |
+| `lib/guards.ts` | Domain-free runtime type guards. Sole home of `isRecord`, which five modules previously defined for themselves. |
 | `lib/catalog.ts` | Known sports and teams used to parameterize Games source assignments in the parent UI. |
 | `lib/resolver.ts` | Parent-side source-assignment types plus the small Games projection used by device status. Feed request normalization belongs to the provider. |
 | `lib/deviceStore.ts` | Device-centric projections and writes for names, presentation, and `device_sources` assignments. Device views deliberately omit bunch membership; assignment writes validate ownership and rely on SQLite's JSON, priority, foreign-key, and uniqueness constraints. |
 | `lib/deviceSourceStore.ts` | Widget-facing read seam that resolves an install id to its presentation and all sources by `(priority ASC, device_sources.id ASC)`. |
-| `lib/presentation.ts` | Versioned widget-presentation types, control/initial values, loss-tolerant stored JSON parsing, and browser-form validation. |
+| `lib/presentation.ts` | Versioned widget-presentation types, the single `DEFAULT_WIDGET_PRESENTATION` value, loss-tolerant stored JSON parsing, and browser-form validation. |
 | `lib/deviceTokenStore.ts` | App-background and native-widget APNs token persistence keyed by `devices.install_id`. Native tokens are preferred while old beta builds retain a fallback. Token uploads may precede device registration. |
 | `lib/sourceStore.ts` | Read-only projections of source definitions, JSON settings schemas, and their device assignments for the browser explorer. |
 | `lib/bunchStore.ts` | Bunch administration, reusable 30-minute bunch codes, and new-model device registration. A valid code is the only write path that creates or moves a device into a bunch. |
