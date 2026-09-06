@@ -93,8 +93,7 @@ The parent val's relevant modules are:
 | `lib/deviceTokenStore.ts` | App-background and native-widget APNs token persistence keyed by `devices.install_id`. Native tokens are preferred while old beta builds retain a fallback. Token uploads may precede device registration. |
 | `lib/sourceStore.ts` | Read-only projections of source definitions, JSON settings schemas, and their device assignments for the browser explorer. |
 | `lib/bunchStore.ts` | Bunch administration, reusable 30-minute bunch codes, and new-model device registration. A valid code is the only write path that creates or moves a device into a bunch. |
-| `lib/push.ts` | Best-effort APNs delivery, preferring native WidgetKit pushes while retaining app-background tokens as an old-beta fallback. |
-| `lib/push.ts` | Best-effort APNs silent push delivery to one device or every device attached to a selected source. |
+| `lib/push.ts` | Best-effort APNs delivery to one device or to every device attached to a selected source, preferring native WidgetKit pushes while retaining app-background tokens as an old-beta fallback. |
 | `render/pageShell.ts` | Shared browser shell owning typography, colors, resource tables/navigation, forms, breadcrumbs, and timestamp localization. |
 | `render/deviceHtml.tsx` | React-rendered device index, source-assignment and presentation forms, and provider-backed device preview composed through the shared `pageShell`. |
 | `render/sourceHtml.tsx` | React-rendered source index/show and source-owned Messages form composed through `pageShell`, including human-readable JSON Schema fields and linked device assignments. |
@@ -103,7 +102,7 @@ The parent val's relevant modules are:
 
 Prefer changing pure helpers and their tests over adding policy directly to an I/O module. Keep `main.ts` as route wiring and edge behavior.
 
-The parent no longer contains any source-feed handler. The retired public `GET /messages`, `GET /moon`, `GET /?format=json`, and `GET /?format=png` behaviors had no first-party runtime caller and were removed on 2026-09-06. Their parent-only request parsing, slate selection, date/channel enrichment, JSON/PNG renderers, and layout support were deleted with them. Source execution and widget-payload rendering now exist only in the provider; the parent receives the complete response through `deviceFeedResponse`.
+The parent no longer contains any source-feed handler. The retired public `GET /messages`, `GET /moon`, `GET /?format=json`, and `GET /?format=png` behaviors had no first-party runtime caller and were removed on 2026-09-06. Their parent-only request parsing, slate selection, date/channel enrichment, JSON/PNG renderers, and layout support were deleted with them. Source execution and widget-payload rendering now exist only in the provider; the parent receives the complete response through `deviceFeedResponse`. The data those renderers read went with them: `lib/catalog.ts` keeps only `SPORTS` and `TEAMS` (the vocabulary a Games assignment is written against), having shed `SPORT_SOURCE`, `SPORT_EMOJI`, `NATIONAL_CHANNELS`, `STREAMING_CHANNELS`, `MAX_CHANNEL_LABEL`, and `MAX_TEAMS`; `lib/text.ts` keeps only `titleCase`; and `lib/push.ts` no longer exports the `sendSilentPush` compatibility seam. `notifyDevice` and `notifySourceDevices` are the push API.
 
 ## HTTP surface and callers
 
@@ -136,7 +135,7 @@ Only `/config/resolve` and `/config/status/:deviceId` remain under the config-na
 
 Current fallback behavior matters: an unknown, unpaired, or source-less device is resolved with the `fever` + `sparks` starter-team configuration.
 
-The retired `configs`, `device_configs`, and `pairing_codes` tables were dropped after the device cutover. In the parent, canonical enrollment and rendering state lives in `bunches`, `bunch_codes`, `devices`, `sources`, `device_sources`, and `device_tokens`; `devices.presentation` is validated JSON with a non-null initial value. The provider owns `cached_games`, `messages`, and `source_cache`. Parent copies of those three tables are no longer referenced by code and may be dropped independently.
+The retired `configs`, `device_configs`, and `pairing_codes` tables were dropped after the device cutover. In the parent, canonical enrollment and rendering state lives in `bunches`, `bunch_codes`, `devices`, `sources`, `device_sources`, and `device_tokens`; `devices.presentation` is validated JSON with a non-null initial value. The provider owns `cached_games`, `messages`, and `source_cache`. The parent's own copies of those three tables have been dropped: no parent code referenced them, and no parent module issues SQL against them. Every remaining parent dependency on that data goes through `lib/deviceFeedClient.ts` over authenticated RPC.
 
 ## Widget JSON contract
 
