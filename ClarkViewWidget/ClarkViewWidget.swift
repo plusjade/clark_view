@@ -11,7 +11,15 @@ import SwiftUI
 import UIKit
 
 private enum GameDataService {
+    private static let cachedPayloadKey = "latestWidgetPayload"
+    private static let defaults = UserDefaults(suiteName: DeviceIdentity.appGroupID) ?? .standard
+
     static func fetchPayload(context: Provider.Context) async -> WidgetPayload {
+        if WidgetFocusStore.shouldReuseCachedPayload, let cachedPayload {
+            return cachedPayload
+        }
+
+        WidgetRefreshDiagnostics.recordAttempt()
         let scale = UITraitCollection.current.displayScale
         let pixelWidth = Int((context.displaySize.width * scale).rounded())
         let pixelHeight = Int((context.displaySize.height * scale).rounded())
@@ -26,13 +34,32 @@ private enum GameDataService {
         )
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            guard let httpResponse = response as? HTTPURLResponse else {
+                WidgetRefreshDiagnostics.recordFailure("Invalid server response")
                 return .empty
             }
-            return try JSONDecoder.widgetPayload.decode(WidgetPayload.self, from: data)
+            guard httpResponse.statusCode == 200 else {
+                WidgetRefreshDiagnostics.recordFailure("Server returned HTTP \(httpResponse.statusCode)")
+                return .empty
+            }
+            let payload = try JSONDecoder.widgetPayload.decode(WidgetPayload.self, from: data)
+            defaults.set(data, forKey: cachedPayloadKey)
+            WidgetRefreshDiagnostics.recordSuccess()
+            return payload
         } catch {
+            let message = error is DecodingError
+                ? "Invalid widget response"
+                : error.localizedDescription
+            WidgetRefreshDiagnostics.recordFailure(message)
             return .empty
         }
+    }
+
+    private static var cachedPayload: WidgetPayload? {
+        guard let data = defaults.data(forKey: cachedPayloadKey) else {
+            return nil
+        }
+        return try? JSONDecoder.widgetPayload.decode(WidgetPayload.self, from: data)
     }
 
     /// #Preview-only fixtures now that the live provider calls `fetchPayload` directly — keeps
@@ -65,7 +92,11 @@ private enum GameDataService {
     /// 2-digit 12-hour values (10pm, 12 noon) rather than reusing the 7pm base directly: a
     /// single-digit-only fixture is exactly how TimeBlockView's 2-digit hour clipping shipped
     /// unnoticed.
-    private static func mockJSON(primaryCaption: String?, primaryEmphasized: Bool) -> Data {
+    private static func mockJSON(
+        primaryCaption: String?,
+        primaryEmphasized: Bool,
+        template: String = "beacon"
+    ) -> Data {
         let calendar = Calendar.current
         let primaryTS = Int(Date.now.addingTimeInterval(2 * 3600).timeIntervalSince1970)
         let base = calendar.date(bySettingHour: 19, minute: 0, second: 0, of: .now) ?? .now
@@ -77,6 +108,14 @@ private enum GameDataService {
         return Data("""
         {
           "schemaVersion": 2,
+          "presentation": {
+            "version": 2,
+            "template": "\(template)",
+            "rootSurface": {
+              "light": "#14213D",
+              "dark": "#261447"
+            }
+          },
           "items": [
             {
               "id": "1", "mainText": "Fever @ Wings",
@@ -114,6 +153,13 @@ private extension JSONDecoder {
 struct GamesEntry: TimelineEntry {
     let date: Date
     let payload: WidgetPayload
+    let focusedItemID: String?
+
+    init(date: Date, payload: WidgetPayload, focusedItemID: String? = nil) {
+        self.date = date
+        self.payload = payload
+        self.focusedItemID = focusedItemID
+    }
 }
 
 struct Provider: TimelineProvider {
@@ -124,14 +170,22 @@ struct Provider: TimelineProvider {
     func getSnapshot(in context: Context, completion: @escaping (GamesEntry) -> Void) {
         Task {
             let payload = await GameDataService.fetchPayload(context: context)
-            completion(GamesEntry(date: .now, payload: payload))
+            completion(GamesEntry(
+                date: .now,
+                payload: payload,
+                focusedItemID: WidgetFocusStore.focusedItemID
+            ))
         }
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<GamesEntry>) -> Void) {
         Task {
             let payload = await GameDataService.fetchPayload(context: context)
-            let entry = GamesEntry(date: .now, payload: payload)
+            let entry = GamesEntry(
+                date: .now,
+                payload: payload,
+                focusedItemID: WidgetFocusStore.focusedItemID
+            )
             // Data doesn't change fast enough to justify burning the refresh budget more often
             // than this; retune if games start/finish mid-refresh-window.
             let nextRefresh = Calendar.current.date(byAdding: .minute, value: 60, to: .now)
@@ -165,6 +219,12 @@ private func displayCaption(for item: WidgetItem) -> (text: String, color: Color
     return (caption, item.emphasized ? .red : .white.opacity(0.55))
 }
 
+extension Color {
+    init(srgb color: WidgetSRGBColor) {
+        self.init(.sRGB, red: color.red, green: color.green, blue: color.blue, opacity: 1)
+    }
+}
+
 /// "TODAY" gets a rich yellow + heavy weight to draw the eye; every other eyebrow value (e.g.
 /// "TMRW", "AUG 16") stays the existing dim, lighter-weight treatment.
 private func eyebrowStyle(for eyebrow: String) -> (color: Color, weight: Font.Weight) {
@@ -179,7 +239,7 @@ private func eyebrowStyle(for eyebrow: String) -> (color: Color, weight: Font.We
 /// `minimumScaleFactor`, which is an accessibility regression (shrinks the one word that
 /// most needs to stay legible) rather than a real fix. Shortening the string lets it render
 /// at full size; autosizing stays on as a safety net, not the primary mechanism.
-private func dayLabel(for date: Date) -> String {
+func dayLabel(for date: Date) -> String {
     let calendar = Calendar.autoupdatingCurrent
     if calendar.isDateInToday(date) { return "TODAY" }
     if calendar.isDateInTomorrow(date) { return "TMRW" }
@@ -270,6 +330,7 @@ private struct TimeBlockView: View {
                 // their own — that's already the tier's entire contrast budget. `mutedWeight`
                 // still carries the tier distinction via weight.
                 .foregroundStyle(item.emphasized ? Color.red : Color.white.opacity(0.55))
+                .widgetAccentable(item.emphasized)
         } else {
             let parts = timeParts(for: item.timestamp)
             // lineLimit + minimumScaleFactor are a safety net, not the primary fit mechanism —
@@ -423,6 +484,7 @@ private struct ItemHeroCard: View {
                 .font(.system(.caption2, design: .rounded, weight: eyebrowStyle.weight))
                 .tracking(1.5)
                 .foregroundStyle(eyebrowStyle.color)
+                .widgetAccentable(eyebrow == "TODAY")
 
             AutoFitStack(spacing: 4) {
                 ItemLineView(text: item.mainText, font: heroFont)
@@ -436,6 +498,7 @@ private struct ItemHeroCard: View {
             Text(caption.text)
                 .font(.system(.subheadline, design: .rounded, weight: .semibold))
                 .foregroundStyle(caption.color)
+                .widgetAccentable(item.emphasized)
         }
         .foregroundStyle(.white)
     }
@@ -485,6 +548,7 @@ private struct ItemBlockView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
                     .foregroundStyle(eyebrowStyle.color)
+                    .widgetAccentable(eyebrow == "TODAY")
 
                 TimeBlockView(item: item)
             }
@@ -531,6 +595,7 @@ private struct SecondaryItemRow: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
                     .foregroundStyle(eyebrowStyle.color.opacity(0.8))
+                    .widgetAccentable(eyebrow == "TODAY")
 
                 TimeBlockView(item: item, tier: .secondary, style: .compact)
             }
@@ -588,38 +653,29 @@ private struct MissingItemsView: View {
     }
 }
 
-/// Base backdrop for the widget: the tint color when the large layout has secondary items to
-/// distinguish from primary, plain black otherwise (small, medium, empty state, a large with
-/// just one item). This is deliberately *not* the dual-tone split itself — it's just the
-/// secondary tone shown everywhere by default. The primary card carves out its own opaque black
-/// region on top of this (see the `.background` attached to `ItemBlockView` below), so the two
-/// tones never need to agree on a shared boundary computed twice in two different places.
-///
-/// The secondary rows render on top of this tint rather than pure black, which nudges their
-/// contrast down slightly from the WCAG floor they were tuned against (roughly a 19% cut, e.g.
-/// the "END"-style caption text goes from ~6.3:1 to ~5.1:1) — still clear of the 4.5:1 AA
-/// minimum, just with less headroom than before. Worth a look if this tone gets any darker.
-private struct WidgetBackground: View {
-    var hasSecondaryItems: Bool
+/// The template's removable root surface. WidgetKit replaces this container when the system
+/// uses an accented or vibrant presentation, keeping the server color scoped to full color.
+struct WidgetBackground: View {
+    @Environment(\.colorScheme) private var colorScheme
 
-    //static let secondaryTone = Color(red: 0.11, green: 0.11, blue: 0.12)
-    static let secondaryTone = Color(red: 0, green: 0, blue: 0) // black
+    let palette: WidgetPresentation.RootSurfacePalette
 
     var body: some View {
-        hasSecondaryItems ? Self.secondaryTone : .black
+        Color(srgb: colorScheme == .dark ? palette.dark : palette.light)
     }
 }
 
-struct ClarkViewWidgetEntryView: View {
+/// The shipping layout template across every supported system family. Alternate server-selected
+/// templates join the switch in `ClarkViewWidgetEntryView`; family and rendering-mode choices
+/// remain native concerns inside each template.
+private struct StandardWidgetTemplate: View {
     @Environment(\.widgetFamily) private var family
-    var entry: Provider.Entry
+
+    let entry: Provider.Entry
+    let presentation: WidgetPresentation
 
     private var visibleItems: [WidgetItem] {
         family == .systemMedium ? Array(entry.payload.items.prefix(1)) : Array(entry.payload.items.prefix(3))
-    }
-
-    private var hasSecondaryItems: Bool {
-        family == .systemLarge && visibleItems.count > 1
     }
 
     var body: some View {
@@ -651,18 +707,6 @@ struct ClarkViewWidgetEntryView: View {
                         AutoFitSplitStack(minimumSpacing: secondaryItems.isEmpty ? 0 : 18) {
                             if let primary = visibleItems.first {
                                 ItemBlockView(item: primary, rowWidth: rowWidth)
-                                    .background {
-                                        if !secondaryItems.isEmpty {
-                                            // Negative padding bleeds this past its own content's
-                                            // bounds toward the widget's true top/side edges. This
-                                            // sits inside AutoFitSplitStack's scaleEffect, so it
-                                            // deliberately overshoots rather than risking a sliver
-                                            // of the secondary tone at a scaled edge.
-                                            Color.black
-                                                .padding(.top, -padding * 4)
-                                                .padding(.horizontal, -padding * 4)
-                                        }
-                                    }
                             }
                         } bottom: {
                             if !secondaryItems.isEmpty {
@@ -691,7 +735,23 @@ struct ClarkViewWidgetEntryView: View {
             }
         }
         .containerBackground(for: .widget) {
-            WidgetBackground(hasSecondaryItems: hasSecondaryItems)
+            WidgetBackground(
+                palette: presentation.rootSurface
+            )
+        }
+    }
+}
+
+struct ClarkViewWidgetEntryView: View {
+    let entry: Provider.Entry
+
+    var body: some View {
+        let presentation = WidgetPresentation(payload: entry.payload.presentation)
+        switch presentation.template {
+        case .standardV1:
+            StandardWidgetTemplate(entry: entry, presentation: presentation)
+        case .beacon:
+            BeaconWidgetTemplate(entry: entry, presentation: presentation)
         }
     }
 }
@@ -707,6 +767,7 @@ struct ClarkViewWidget: Widget {
         .description("Shows upcoming games for your paired teams.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
         .contentMarginsDisabled()
+        .pushHandler(ClarkViewWidgetPushHandler.self)
     }
 }
 
@@ -724,6 +785,24 @@ struct ClarkViewWidget: Widget {
 }
 
 #Preview(as: .systemLarge) {
+    ClarkViewWidget()
+} timeline: {
+    GamesEntry(date: .now, payload: GameDataService.mockPayloadUpcoming)
+}
+
+#Preview("Beacon", as: .systemSmall) {
+    ClarkViewWidget()
+} timeline: {
+    GamesEntry(date: .now, payload: GameDataService.mockPayloadUpcoming)
+}
+
+#Preview("Beacon", as: .systemMedium) {
+    ClarkViewWidget()
+} timeline: {
+    GamesEntry(date: .now, payload: GameDataService.mockPayloadUpcoming)
+}
+
+#Preview("Beacon", as: .systemLarge) {
     ClarkViewWidget()
 } timeline: {
     GamesEntry(date: .now, payload: GameDataService.mockPayloadUpcoming)

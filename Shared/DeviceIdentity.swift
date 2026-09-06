@@ -12,7 +12,7 @@ import Foundation
 /// to the person using the device — it's only what `/pair` registers and what
 /// `/config/resolve` looks up.
 enum DeviceIdentity {
-    private static let appGroupID = "group.plusjade.clark-view"
+    static let appGroupID = "group.plusjade.clark-view"
     private static let deviceIDKey = "deviceID"
     private static let pairedKey = "isPaired"
 

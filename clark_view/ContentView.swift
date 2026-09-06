@@ -19,6 +19,14 @@ struct ContentView: View {
             })
         } else {
             PairingView(onPaired: { isPaired = true })
+                .task {
+                    // A registration can succeed even if its response never reaches the app.
+                    if let status = await DeviceStatusClient.fetch(device: DeviceIdentity.deviceID), status.paired {
+                        DeviceIdentity.isPaired = true
+                        isPaired = true
+                        WidgetCenter.shared.reloadTimelines(ofKind: WidgetKind.main)
+                    }
+                }
         }
     }
 }
@@ -43,9 +51,11 @@ private struct PairedView: View {
                 .padding(.horizontal)
 
             Button {
+                WidgetRefreshDiagnostics.recordManualRequest()
+                WidgetFocusStore.requireNetworkRefresh()
                 WidgetCenter.shared.reloadTimelines(ofKind: WidgetKind.main)
             } label: {
-                Label("Refresh Widget", systemImage: "arrow.clockwise")
+                Label("Request Widget Refresh", systemImage: "arrow.clockwise")
             }
             .buttonStyle(.bordered)
 
@@ -106,6 +116,16 @@ private struct DiagnosticsView: View {
                 Text("Couldn't load status")
                     .foregroundStyle(.secondary)
             }
+
+            TimelineView(.periodic(from: .now, by: 1)) { _ in
+                let refresh = WidgetRefreshDiagnostics.snapshot
+                VStack(alignment: .leading, spacing: 6) {
+                    row("Requested", displayDate(refresh.lastRequestedAt))
+                    row("Last Attempt", displayDate(refresh.lastAttemptedAt))
+                    row("Last Success", displayDate(refresh.lastSucceededAt))
+                    row("Last Result", refresh.resultDescription)
+                }
+            }
         }
         .font(.system(.footnote, design: .monospaced))
         .padding(10)
@@ -118,11 +138,15 @@ private struct DiagnosticsView: View {
         return values.joined(separator: ", ")
     }
 
+    private func displayDate(_ date: Date?) -> String {
+        date?.formatted(date: .abbreviated, time: .standard) ?? "—"
+    }
+
     private func row(_ label: String, _ value: String) -> some View {
         HStack(alignment: .top, spacing: 8) {
             Text(label)
                 .foregroundStyle(.secondary)
-                .frame(width: 90, alignment: .leading)
+                .frame(width: 100, alignment: .leading)
             Text(value)
         }
     }

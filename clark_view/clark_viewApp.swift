@@ -9,8 +9,6 @@ import SwiftUI
 
 @main
 struct clark_viewApp: App {
-    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-
     var body: some Scene {
         WindowGroup {
             ContentView()
