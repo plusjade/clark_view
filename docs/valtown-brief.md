@@ -142,15 +142,62 @@ selections — FIBA, WNBA/NFL/CFB mixes, `intradayFilter` on, tz `-25200`/`0`/`5
 `null`, and an empty selection — plus `/v1/descriptor`: all seven byte-identical.
 The work was done on a `sports-only` Val Town branch and merged once.
 
-Open items. Two env vars on `source-sports` are now unreferenced: the unused
+### Second pass: templates, scores, and module layout
+
+A follow-on pass removed the remaining unread surface, including code that
+predated the remix.
+
+The `WidgetItemTemplate` layer is gone: `render/templates.ts`, its `{{path}}`
+interpolator, `FieldTemplate`/`renderField`, and `DEFAULT_WIDGET_TEMPLATE`. It
+existed so a seasonal or personalized presentation could be a template value
+rather than a code path, but there was one template, no lookup, and no caller
+that passed a second one — the indirection only hid the two strings it produced.
+`mainText` and the `LIVE`/`END` captions are now literals at their point of use.
+Deliberately not replaced with a smaller abstraction: per-caller presentation,
+when it is wanted, is a stored record on the source's own settings, not an
+interpolation engine compiled into the val.
+
+Scores went with it. The product shows no score and no game clock, so
+`teamScore`, `EnrichedGame.awayScore`/`homeScore`, `Game.metadata.away_score`/
+`home_score`, FIBA's `parseScore`, and the `cached_games` write of
+`away_score`/`home_score` were written on every ingest and read by nothing.
+`lib/games.ts` keeps a note recording Sleeper's two-level score-shape hazard
+(wnba/mlb nest it, nfl uses flat siblings; mlb calls it `score`, wnba `points`)
+so reinstating them does not have to rediscover it. **The two SQLite columns are
+still on the live table** — the DDL drop was refused by this session's sandbox —
+but nothing reads or writes them and `CREATE TABLE IF NOT EXISTS` will not
+recreate them, so they are inert until someone runs
+`ALTER TABLE cached_games DROP COLUMN away_score` / `home_score` by hand.
+
+Module layout followed. `feeds/` and `render/` each held one file, so both are
+now empty: `feeds/games.ts` → `lib/sportsFeed.ts` and `render/json.ts` →
+`lib/widgetItems.ts` (the old name had stopped being true — it builds items, not
+a JSON response). One-function files folded into their natural homes: `chop` into
+`lib/channels.ts` (its only caller) and `teamLabel` into `lib/catalog.ts`, which
+now holds the domain types plus that pure lookup. `lib/dates.ts` un-exported
+`SLEEPER_TIME_ZONE`, `DEFAULT_CLIENT_TIME_ZONE`, `localDateFor` and
+`shiftByOffset`, which had only internal callers left. The val is 16 modules,
+down from 26 at remix.
+
+Validation: both checks pass on deployed `main`. `catalog-check.ts` gained an
+item-wire-key assertion and now uses the nested wnba `away_team` shape as its
+fixture, so a `teamCode` regression fails there rather than only against live
+Sleeper data. A throwaway parity script compared branch and live-`main` across
+seven `/v1/read` selections plus `/v1/descriptor`, `/catalog` and
+`/cached-games/coverage` — nine of nine byte-identical. The `sleeper.refresh`
+write path was exercised end to end against production (4 cfb rows upserted, 0
+skipped, row count unchanged) because the INSERT column list changed.
+
+### Open items
+
+Two env vars on `source-sports` are unreferenced: the unused
 `SOURCE_SPORTS_RPC_TOKEN` bootstrap key, and `DEVICE_FEED_RPC_TOKEN` — a copy of the
 *sibling's* credential that the remix carried over and that nothing in this val
 reads. Deleting them is a separate decision because Val Town does not show a stored
 value back. Pointer rollback to the old sibling is unaffected (its Sports shim is
 untouched), but the reverse no longer holds: `source-sports` will not answer for
-`moon`. `EnrichedGame.awayScore`/`homeScore` and the `cached_games` score columns
-survive unread — the product shows no scores — but they are ingest-model surface
-rather than remix residue, so they were left alone.
+`moon`, and the sibling still carries the pre-cleanup Games implementation, so a
+rollback also reinstates the template layer and score writes.
 
 ## Historical orientation (before source-val migration)
 
