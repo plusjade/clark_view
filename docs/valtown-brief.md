@@ -41,8 +41,10 @@ Widget → sports-today /config/resolve
   20-second timeout and refused redirects, v1 response validation, writes, and
   device composition. `lib/sourceContract.ts` holds pure temporal-item guards and
   composition. The old sibling still carries the parent's full contract file and a
-  two-key `sourceProtocol.ts`; `source-sports`'s copies are now sports-only (see
-  the cleanup section). Cross-val database access always uses HTTP.
+  two-key `sourceProtocol.ts`. `source-sports` no longer has an equivalent: its
+  protocol half is now a source-agnostic `sdk/` and its sports half a
+  `SourceDefinition` (see the cleanup section). Cross-val database access always
+  uses HTTP.
 - Every exported item is temporal and preserves the actual widget wire keys
   `id`, `mainText`, `subText`, `caption`, `emphasized`, and Unix-second `timestamp`.
   Items are globally timestamp-sorted; source ID and local item ID break ties.
@@ -187,6 +189,69 @@ seven `/v1/read` selections plus `/v1/descriptor`, `/catalog` and
 `/cached-games/coverage` — nine of nine byte-identical. The `sleeper.refresh`
 write path was exercised end to end against production (4 cfb rows upserted, 0
 skipped, row count unchanged) because the INSERT column list changed.
+
+### Third pass: an SDK boundary (2026-09-07)
+
+The val now separates *the contract every source is held to* from *what makes
+this one a sports source*, so the first half can be published for implementers
+— likely agents — to build their own sources against.
+
+`sdk/` is the publishable half, and it has no dependencies at all: not npm, not
+Val Town's `std`, not the val around it.
+
+- `sdk/contract.ts` — `Item`, the `items()` guard that enforces it, and the
+  `Result` type with `accept`/`reject`. Was the root `sourceContract.ts`.
+- `sdk/defineSource.ts` — `SourceDefinition`, `ReadContext`, `WriteHandler`,
+  and `defineSource()`. Everything an implementer writes, and nothing else.
+- `sdk/serve.ts` — `serveSource(definition, req)`: protocol v1 as a function of
+  a definition. Was `sourceProtocol.ts`, with the sports parts lifted out.
+- `sdk/README.md` — the implementer's guide, written to be read by an agent:
+  a complete example, what the SDK does versus what the implementer owes it,
+  what belongs to the parent instead, and the three mistakes that actually
+  happen (milliseconds in `timestamp`, an unstable `id`, re-reading storage in
+  `read`).
+
+`sportsSource.ts` is the other half — one `defineSource` object holding the
+settings schema, `parseSettings`, `read`, and the two write operations, ~100
+lines, importing `lib/` for data and `sdk/` for the shape. `rpc.ts` is the only
+file that knows both: it keeps the bearer check (auth is a deployment concern,
+so it stays outside the SDK) and calls `serveSource(sportsSource, req)`.
+
+Two things the SDK now enforces that were previously conventions. `capabilities`
+in the descriptor is **derived** from the definition's `writes` keys, so a
+source cannot advertise an operation it does not implement. And the item guard
+runs on every read inside `serveSource`, so an implementer cannot ship a
+malformed item by forgetting to check — it fails 502 `invalid_source_output` at
+the source, which names the culprit, rather than failing composition at the
+parent, which does not.
+
+One behaviour change, found while writing the conformance suite: write dispatch
+now uses `Object.hasOwn` rather than a plain lookup. `writes` is an object
+literal, so `operation: "toString"` previously resolved to `Object.prototype`'s
+method and called it with the payload. It now returns 422 like any other
+unknown operation.
+
+Also settled here: `parseSettings` may do I/O, and whatever it returns is passed
+to `read` verbatim. That is what lets the catalog be read once per request
+instead of twice, and it means selection is resolved against exactly the catalog
+snapshot the request was validated against.
+
+The boundary is structural, not stylistic: **nothing under `sdk/` may import
+anything outside `sdk/`**. `tools/sdk-check.ts` enforces it — it reads the three
+SDK modules and fails if any import escapes the directory, or if SDK *code*
+(comments excluded) so much as names a host-val concept. That is what keeps the
+directory liftable into its own published val without a rewrite.
+
+Validation: `tools/sdk-check.ts` also defines a fixture source with no storage,
+no network and no games, and runs ~25 protocol assertions against it — proving
+`serveSource` works for a source that is not this one. It doubles as the
+shortest complete example. All three checks pass on deployed `main`. A throwaway
+parity script compared branch and live-`main` across eighteen requests — eight
+`/v1/read` selections plus `/v1/descriptor`, `/catalog`,
+`/cached-games/coverage`, `/health`, and six error paths (`/v1/publish`, an
+unsupported operation, a foreign cache source, a wrong `sourceKey`, a bad
+protocol version, an unknown settings key) — all eighteen byte-identical.
+`rpc.ts`'s file ID and endpoint are unchanged.
 
 ### Open items
 
@@ -528,5 +593,18 @@ Before editing, classify the request:
 - Pairing, configuration, device status, or push behavior: inspect both sides and keep the route/client pair synchronized.
 - JSON field or meaning: coordinate the provider renderer, `Shared/WidgetPayload.swift`, the widget preview fixture, and tests; bump `schemaVersion` when compatibility requires it.
 - Backend endpoint identity: do not change it. Preserve `main.ts` and verify `links.endpoint` against `GameDataURL.baseURL`.
+
+Within `plusjade/source-sports`, the three-way split says where a change goes.
+The checklist above predates the source-val migration; this is the current one
+for that val:
+
+- Protocol shape — a route, an envelope, a status code, the item guard, what a
+  descriptor advertises: `sdk/`. It applies to every source, so it must not
+  mention sports; `tools/sdk-check.ts` enforces that.
+- What this source *is* — settings, their validation, which write operations
+  exist: `sportsSource.ts`.
+- How it gets and phrases its data — adapters, selection, storage, item text:
+  `lib/`.
+- Auth or a non-protocol route: `rpc.ts`, the only file that knows both halves.
 
 After a server contract change, build the iOS app/widget and verify a representative endpoint response. After a presentation-only Swift change, do not touch Val Town merely because the widget consumes remote data.
