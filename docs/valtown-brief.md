@@ -2,6 +2,99 @@
 
 Read this before inspecting or changing the Val Town backend. It is a local map of the parts of `plusjade/sports-today` that matter to this repository, updated on 2026-09-06, so routine iOS work should not require rediscovering the remote project through repeated MCP calls.
 
+## Current boundary — source vals (2026-09-07)
+
+This section supersedes the pre-migration topology and singleton/priority behavior
+in the historical notes below. Milestone one of [the source plan](val-based-sources-plan.md)
+is deployed.
+
+```text
+Widget → sports-today /config/resolve
+         → sources registry + device_sources
+         → sourceClient.ts: authenticated HTTP reads
+              → source-sports: Sports + copied SQLite
+              → sports-today-device-feed: Moon + original SQLite
+         → validate temporal items → timestamp sort → presentation → widget v2
+```
+
+- `sources` is reimplemented as a bunch-owned instance registry. Rows carry `id`,
+  `bunch_id`, `name`, `endpoint`, `remote_source_key`, `contract_version`, and
+  `credential_ref`, plus description/schema snapshots and timestamps. `kind` is
+  unrestricted compatibility metadata for the existing browser settings adapters;
+  it is neither unique nor the transport dispatch key. There is no definitions
+  registry or separate `source_instances` table.
+- Prototype sources: Sports `id=1`, Moon `id=3`, both owned by bunch `id=1`.
+  Devices assign source IDs with JSON settings. Triggers reject cross-bunch
+  assignments and prevent moving an attached source; moving a device clears its
+  old assignments. The existing `priority` column remains inert for migration
+  compatibility, but no current runtime or form reads/writes priority.
+- Sports val: `plusjade/source-sports`, public code/public app access, remixed with
+  data from the old sibling. HTTP entry `rpc.ts`, file ID
+  `01a07aad-0a72-7127-a01d-5ab044902bbe`, endpoint
+  `https://plusjade--01a07aad0a727127a01d5ab044902bbe.web.val.run`.
+  RPC reads `SOURCE_SPORTS_V1_TOKEN`, configured independently in parent and source.
+  Never expose the value. The earlier bootstrap key is unused.
+- Moon keeps the old sibling RPC identity listed below and `DEVICE_FEED_RPC_TOKEN`.
+  That sibling also implements the Sports shim for pointer rollback. Copied
+  unused modules/data in `source-sports` are dormant; its HTTP surface serves
+  Sports only. No source data tables were redesigned.
+- New `lib/sourceClient.ts` owns source-ID lookup, authenticated transport with a
+  20-second timeout and refused redirects, v1 response validation, writes, and
+  device composition. `lib/sourceContract.ts` holds pure temporal-item guards and
+  composition. Both provider vals carry the same contract and `sourceProtocol.ts`
+  compatibility adapters. Cross-val database access always uses HTTP.
+- Every exported item is temporal and preserves the actual widget wire keys
+  `id`, `mainText`, `subText`, `caption`, `emphasized`, and Unix-second `timestamp`.
+  Items are globally timestamp-sorted; source ID and local item ID break ties.
+  IDs become `<source-id>:<local-id>` and stay stable when a pointer changes.
+  Parent attaches presentation and the deprecated `eyebrow: "NEXT"` field.
+  A source failure still fails the whole composition.
+- `GET /v1/descriptor?sourceKey=sports|moon` returns protocol version 1, source
+  identity, temporal flag, settings/options, and supported capabilities.
+  `POST /v1/read` accepts `{protocolVersion:1, sourceKey, settings,
+  context:{utcOffsetSeconds:number|null}}` and returns
+  `{protocolVersion:1, sourceKey, items}`. No device identity or presentation is
+  sent to source vals. `null` offset preserves the source's existing default.
+- `POST /v1/write` accepts `{protocolVersion:1, sourceKey, operation, payload}`.
+  Supported operations: `cache.put` with `{source,dateKey,payload}` (Sports FIBA
+  or Moon cache), and Sports `sleeper.refresh` with `{days}`. Responses wrap the
+  existing result in `{protocolVersion:1,sourceKey,ok:true,result}`. Unknown writes
+  fail; `/v1/publish` returns 501 and descriptors advertise `publish:false`.
+- Parent `lib/deviceFeedClient.ts` is now a compatibility adapter. Existing
+  ingest, catalog, coverage, and FIBA callers resolve the Sports pointer; Moon
+  ingest resolves Moon. Sports forms fetch the catalog for the selected source
+  ID. Generic descriptor-rendered forms are milestone two. The source show page
+  exposes its bunch and implementing endpoint.
+- Prototype fallback and operator ingest defaults explicitly use Sports ID 1
+  (Moon cache writes use ID 3). These are instance IDs, not kind lookups; they
+  are not a future multi-bunch authorization policy.
+- Parent's stable `main.ts` file ID/base URL and Swift schema version 2 are
+  unchanged. Diagnostics now include `x-device-feed-provider: source-registry-v1`
+  and `x-effective-sources: 1:sports,3:moon` for mixed assignments.
+
+Validation: Sports and Moon contract checks, malformed settings/protocol/source
+rejection, unsupported publication, duplicate-item rejection, deterministic ties,
+disposable write isolation, duplicate implementation instances, and a pointer-only
+switch to the old compatible Sports endpoint passed. Parent integration checked
+8 routes (including both resolvers and preview) with a disposable mixed-source
+device, then repeated after deployment. Catalog has 67 teams; copied Games had
+181 rows and source cache 24 rows. Fixture writes/devices were removed. Migration
+found seven devices and zero assignments; no real assignments were added. Local
+SQLite rehearsal verified membership triggers and device moves, and live
+`foreign_key_check` passed. The iOS app/widget simulator build succeeded.
+The live mixed-source payload decoded using unchanged Swift models, including
+Unix-second dates and Beacon presentation. APNs was not exercised; runtime logs report missing
+APNs configuration. Starter Sports items were already empty in both datasets.
+
+Migration snapshots remain in parent SQLite as `sources_before_val_boundary` and
+`device_sources_before_val_boundary`. They are recovery data, not active registries.
+Pointer rollback to the old sibling must change endpoint and credential reference
+together and reconcile post-cutover Sports writes first. The current deployment is
+mutable: immutable release publication and agent sandbox permissions remain future
+milestones.
+
+## Historical orientation (before source-val migration)
+
 ## One-minute mental model
 
 Clark View is a widget-first iOS product. The containing app is intentionally small: it enrolls an install as a device with a bunch code, exposes prototype diagnostics, and can request a widget reload. The widget is the primary user experience and registers its own WidgetKit push token.
