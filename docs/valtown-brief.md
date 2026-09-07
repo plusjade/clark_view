@@ -2,6 +2,346 @@
 
 Read this before inspecting or changing the Val Town backend. It is a local map of the parts of `plusjade/sports-today` that matter to this repository, updated on 2026-09-06, so routine iOS work should not require rediscovering the remote project through repeated MCP calls.
 
+## Current boundary — source vals (2026-09-07)
+
+This section supersedes the pre-migration topology and singleton/priority behavior
+in the historical notes below. Milestone one of [the source plan](val-based-sources-plan.md)
+is deployed.
+
+```text
+Widget → sports-today /config/resolve
+         → sources registry + device_sources
+         → sourceClient.ts: authenticated HTTP reads
+              → source-sports: Sports + copied SQLite
+              → source-moon: Moon + dedicated SQLite
+         → validate temporal items → timestamp sort → presentation → widget v2
+```
+
+- `sources` is reimplemented as a bunch-owned instance registry. Rows carry `id`,
+  `bunch_id`, `name`, `endpoint`, `remote_source_key`, `contract_version`, and
+  `credential_ref`, plus description/schema snapshots and timestamps. `kind` is
+  unrestricted compatibility metadata for diagnostics;
+  it is neither unique nor the transport dispatch key. There is no definitions
+  registry or separate `source_instances` table.
+- Prototype sources: Sports `id=1`, Moon `id=3`, both owned by bunch `id=1`.
+  Devices assign source IDs with JSON settings. Triggers reject cross-bunch
+  assignments and prevent moving an attached source; moving a device clears its
+  old assignments. The existing `priority` column remains inert for migration
+  compatibility, but no current runtime or form reads/writes priority.
+- Sports val: `plusjade/source-sports`, public code/public app access, remixed with
+  data from the old sibling. HTTP entry `rpc.ts`, file ID
+  `01a07aad-0a72-7127-a01d-5ab044902bbe`, endpoint
+  `https://plusjade--01a07aad0a727127a01d5ab044902bbe.web.val.run`.
+  RPC reads `SOURCE_SPORTS_V1_TOKEN`, configured independently in parent and source.
+  Never expose the value. The earlier bootstrap key is unused.
+- Moon now uses `plusjade/source-moon`, public code/public app access. HTTP entry
+  `rpc.ts`, file ID `2f093378-aaec-11f1-932c-1607ee4eb77e`, endpoint
+  `https://plusjade--2f093378aaec11f1932c1607ee4eb77e.web.val.run`.
+  Parent and source use independent `SOURCE_MOON_V1_TOKEN` credentials.
+- `lib/sourceClient.ts` owns source-ID lookup, authenticated HTTP transport,
+  v1 validation, writes, and composition. Provider vals each vendor the same
+  SDK; the parent retains its own item guard. Source data stays val-local.
+- `sports-today-device-feed` is a retired historical artifact. Its former
+  `rpc.ts` is now a script, and it has no HTTP, interval, or email entrypoints.
+  Code and SQLite remain available for historical reference, not rollback.
+- Every exported item is temporal and preserves the actual widget wire keys
+  `id`, `mainText`, `subText`, `caption`, `emphasized`, and Unix-second `timestamp`.
+  Items are globally timestamp-sorted; source ID and local item ID break ties.
+  IDs become `<source-id>:<local-id>` and stay stable when a pointer changes.
+  Parent attaches presentation and the deprecated `eyebrow: "NEXT"` field.
+  A source failure still fails the whole composition.
+- `GET /v1/descriptor?sourceKey=sports|moon` returns protocol version 1, source
+  identity, temporal flag, settings/options, and supported capabilities.
+  `POST /v1/read` accepts `{protocolVersion:1, sourceKey, settings,
+  context:{utcOffsetSeconds:number|null}}` and returns
+  `{protocolVersion:1, sourceKey, items}`. No device identity or presentation is
+  sent to source vals. `null` offset preserves the source's existing default.
+- `POST /v1/write` accepts `{protocolVersion:1, sourceKey, operation, payload}`.
+  Supported operations: `cache.put` with `{source,dateKey,payload}` (Sports FIBA
+  or Moon cache), and Sports `sleeper.refresh` with `{days}`. Responses wrap the
+  existing result in `{protocolVersion:1,sourceKey,ok:true,result}`. Unknown writes
+  fail; `/v1/publish` returns 501 and descriptors advertise `publish:false`.
+- Parent `lib/deviceFeedClient.ts` is now a compatibility adapter. Existing
+  ingest, catalog, coverage, and FIBA callers resolve the Sports pointer; Moon
+  ingest resolves Moon. Settings forms fetch the live descriptor for the selected
+  source ID and render generically (see below). The source show page
+  exposes its bunch and implementing endpoint.
+- Prototype fallback and operator ingest defaults explicitly use Sports ID 1
+  (Moon cache writes use ID 3). These are instance IDs, not kind lookups; they
+  are not a future multi-bunch authorization policy.
+- Parent's stable `main.ts` file ID/base URL and Swift schema version 2 are
+  unchanged. Diagnostics now include `x-device-feed-provider: source-registry-v1`
+  and `x-effective-sources: 1:sports,3:moon` for mixed assignments.
+
+Validation: Sports and Moon contract checks, malformed settings/protocol/source
+rejection, unsupported publication, duplicate-item rejection, deterministic ties,
+disposable write isolation, duplicate implementation instances, and a pointer-only
+switch to the old compatible Sports endpoint passed. Parent integration checked
+8 routes (including both resolvers and preview) with a disposable mixed-source
+device, then repeated after deployment. Catalog has 67 teams; copied Games had
+181 rows and source cache 24 rows. Fixture writes/devices were removed. Migration
+found seven devices and zero assignments; no real assignments were added. Local
+SQLite rehearsal verified membership triggers and device moves, and live
+`foreign_key_check` passed. The iOS app/widget simulator build succeeded.
+The live mixed-source payload decoded using unchanged Swift models, including
+Unix-second dates and Beacon presentation. APNs was not exercised; runtime logs report missing
+APNs configuration. Starter Sports items were already empty in both datasets.
+
+Migration snapshots remain in parent SQLite as `sources_before_val_boundary` and
+`device_sources_before_val_boundary`. They are recovery data, not active registries.
+The old sibling is no longer a supported rollback destination. The current
+source deployments remain mutable; immutable publication is still future work.
+
+## Descriptor-driven settings (2026-09-07)
+
+APNs logging follow-up: parent `lib/push.ts` guards optional environment reads
+with `Deno.env.has` before `get`, avoiding Val Town's missing-variable warnings
+for all five APNs keys. Missing credentials quietly skip delivery; configuring
+the three required credentials later restores the existing delivery path.
+
+Deployed the small form contract described in [source-settings-contract.md](source-settings-contract.md).
+Parent `lib/sourceSettings.ts` loads and validates the live descriptor, decodes
+form values, and asks the source to validate before persistence. Device routes
+and `SourceSettingsFields` no longer branch on source kind or import the catalog.
+The registry's stored schema snapshots are not the editing contract.
+
+Supported schema: a closed object with boolean fields and arrays of string
+choices. Fields declare titles/descriptions/defaults; choices use
+`items.oneOf[{const,title,"x-group"?}]`. Sports builds the schema from its 67
+catalog teams, grouped by competition. The intraday setting is now a checkbox
+with the same saved boolean semantics. Moon's empty schema yields no controls.
+Legacy unbound descriptor `options` is not used by forms.
+
+Both sources now support async `settingsSchema()` and
+`POST /v1/validate-settings` in their vendored SDK. This calls `parseSettings`
+without feed generation or leaking parsed internal context; descriptors advertise
+`capabilities.validateSettings:true`. The source remains authoritative during
+saves and reads. Widget items, data tables, and existing assignment JSON are unchanged.
+
+A hidden field fingerprint rejects stale forms with 409. Invalid values and
+unknown fields fail with 422; unavailable/unsupported descriptors or validation
+fail with 502. No assignment changes on failure. Unchecked booleans and empty
+selections save false/[]; removed choices remain visible for explicit removal.
+The parent preserves stable source validation error codes.
+
+Verified in Val Town: SDK validation-only isolation; Sports and Moon checks;
+arbitrary non-Sports field rendering/decoding, escaping, unsupported constraints;
+real add/edit/clear routes on a disposable device; invalid/stale POST persistence
+protection; Moon empty forms; eight mixed-source integration routes; deployed HTTP.
+Fixtures were cleaned up. Logs showed only existing missing-APNs configuration
+warnings. No Xcode, iOS, or CI checks.
+
+This removes source coupling from device settings. The prototype starter feed
+still hard-codes Sports ID 1 and its initial selections; operator ingest, catalog,
+and coverage adapters still know their source-specific operations. Those are
+separate from the now-generalized settings path.
+
+## Standalone Moon and sibling retirement (2026-09-07)
+
+Created `source-moon` from curated files, without remixing. Five runtime modules:
+`rpc.ts`, `moonSource.ts`, and the three unchanged SDK modules copied from
+`source-sports` main version 11. SDK documentation, a short README, and manual
+`check.ts` accompany them. No remote source-SDK imports, sports code, catalog,
+legacy HTTP routes, schedules, or upstream fetches.
+
+One dedicated table, `full_moons(date_key, payload, fetched_at)`, contains the
+13 copied 2026 events. Schema is provisioned at deployment, never in reads.
+Settings are exactly `{}`; no options are advertised. The existing `cache.put`
+operation is preserved, with Moon payload/date validation. Existing UTC-date
+selection, Pacific fallback, local item IDs, `PEAK` caption, and Unix seconds are
+unchanged. This migration deliberately does not redesign lunar date-boundary
+semantics. Coverage ends December 24, 2026; next-year seeding remains manual.
+
+Updated only source row 3's endpoint, credential reference, and timestamp;
+assignments remain intact. No parent feed implementation change was necessary.
+Replaced `tools/source-pointer-check.ts`'s old-sibling Sports rollback assumption
+with a duplicate-Moon-instance namespace check. A scan of parent TypeScript found
+no direct old sibling endpoint, val name, or credential references remaining.
+The earlier credential keys may remain stored but are not active registry refs.
+
+Verified entirely in Val Town: authenticated HTTP descriptor; old/new HTTP read
+parity across four timezone contexts; Moon auth/settings/write validation, date
+boundaries, Blue Moon and dataset exhaustion; disposable write cleanup; distinct
+instance namespaces; eight parent routes including mixed composition after the
+old HTTP entrypoint was disabled; live stable parent resolve; and the parent's
+existing Moon ingest adapter writing to the new database. The ingest check
+re-upserted an unchanged historical event, updating only its fetch timestamp.
+No Xcode, iOS, or CI validation was run. Temporary parent ingest script removed.
+
+The source-sports cleanup narrative below is historical; its references to an
+available sibling rollback no longer describe the active system.
+
+## `source-sports` remix cleanup (2026-09-07)
+
+Milestone one deliberately left the remixed val's unused modules and copied data
+dormant rather than turning routing work into a cleanup project. That cleanup has
+now happened. `plusjade/source-sports` serves exactly one source; everything the
+remix carried for the multi-source device-feed role is gone.
+
+Deleted: `main.ts` (a child-local re-export nothing called — `rpc.ts` is the whole
+boundary), `feeds/deviceFeed.ts`, `feeds/moon.ts`, `feeds/messages.ts`,
+`render/moonJson.ts`, `render/messageJson.ts`, `lib/moonPhases.ts`,
+`lib/messageStore.ts`, `lib/presentation.ts`, and `lib/resolver.ts`. The `messages`
+table was dropped from this val's SQLite; its three rows were a remix duplicate
+and the sibling still holds the originals and the table.
+
+`feeds/deviceFeed.ts` and `lib/resolver.ts` are the substantive removals. `/v1/read`
+used to serialize its validated settings into a synthetic query URL, build a
+`Request` from it, and re-parse that URL in `gamesResponse` — the shape left over
+from when this code answered public HTTP routes. Everything that round trip carried
+is now parent-owned: multi-source composition and timestamp interleaving, the
+`presentation` envelope, the `NEXT` eyebrow, the `fever`/`sparks` starter fallback,
+the `x-device-feed-provider` headers, and widget pixel dimensions. `feeds/games.ts`
+now exports `sportsItems(settings, utcOffsetSeconds)` returning `Item[]` directly,
+and `render/json.ts` exports `widgetItems` instead of a whole schema-v2 `Response`.
+
+Trimmed with it: the `day=today|tomorrow|next` term and its scan-window and label
+helpers in `lib/dates.ts` (every read means "from the start of the client's today",
+which is what all three resolved to here); `resolveClientOffsetSeconds`, replaced by
+`clientOffsetSeconds(number | null)` that keeps the same [-12:00, +14:00] range check
+and DST-correct `America/Los_Angeles` fallback for a `null` offset; the
+`x-effective-*` drift echo and `lib/params.ts`'s `rejected` list, which had no reader
+left once `sourceProtocol.ts` began rejecting unknown slugs outright with a 400;
+`compose` from this val's `sourceContract.ts` (the parent composes); and
+`transformScores`, `teamId`, and `titleCase`.
+
+`sourceProtocol.ts` is sports-only: no `allowed` key array, no Moon settings or
+`moon` cache-write branch. Unchanged: `rpc.ts`'s file ID and endpoint, the v1 wire
+contract, `SOURCE_SPORTS_V1_TOKEN`, the `/health`, `/catalog`,
+`/cached-games/coverage` and `/fiba/:dateKey` compatibility routes, the catalog and
+Sleeper/FIBA data model, and `render/templates.ts`.
+
+Validation: `tools/source-contract-check.ts` (extended to 14 checks, adding a null
+offset, an unknown settings key, and a rejected `moon` cache write) and
+`tools/catalog-check.ts` (reworked off the deleted exports; its stale
+`DEVICE_FEED_RPC_TOKEN` assertion now uses `SOURCE_SPORTS_V1_TOKEN`) both pass. A
+throwaway parity script compared branch and live-`main` `/v1/read` across six
+selections — FIBA, WNBA/NFL/CFB mixes, `intradayFilter` on, tz `-25200`/`0`/`50400`/
+`null`, and an empty selection — plus `/v1/descriptor`: all seven byte-identical.
+The work was done on a `sports-only` Val Town branch and merged once.
+
+### Second pass: templates, scores, and module layout
+
+A follow-on pass removed the remaining unread surface, including code that
+predated the remix.
+
+The `WidgetItemTemplate` layer is gone: `render/templates.ts`, its `{{path}}`
+interpolator, `FieldTemplate`/`renderField`, and `DEFAULT_WIDGET_TEMPLATE`. It
+existed so a seasonal or personalized presentation could be a template value
+rather than a code path, but there was one template, no lookup, and no caller
+that passed a second one — the indirection only hid the two strings it produced.
+`mainText` and the `LIVE`/`END` captions are now literals at their point of use.
+Deliberately not replaced with a smaller abstraction: per-caller presentation,
+when it is wanted, is a stored record on the source's own settings, not an
+interpolation engine compiled into the val.
+
+Scores went with it. The product shows no score and no game clock, so
+`teamScore`, `EnrichedGame.awayScore`/`homeScore`, `Game.metadata.away_score`/
+`home_score`, FIBA's `parseScore`, and the `cached_games` write of
+`away_score`/`home_score` were written on every ingest and read by nothing.
+`lib/games.ts` keeps a note recording Sleeper's two-level score-shape hazard
+(wnba/mlb nest it, nfl uses flat siblings; mlb calls it `score`, wnba `points`)
+so reinstating them does not have to rediscover it. **The two SQLite columns are
+still on the live table** — the DDL drop was refused by this session's sandbox —
+but nothing reads or writes them and `CREATE TABLE IF NOT EXISTS` will not
+recreate them, so they are inert until someone runs
+`ALTER TABLE cached_games DROP COLUMN away_score` / `home_score` by hand.
+
+Module layout followed. `feeds/` and `render/` each held one file, so both are
+now empty: `feeds/games.ts` → `lib/sportsFeed.ts` and `render/json.ts` →
+`lib/widgetItems.ts` (the old name had stopped being true — it builds items, not
+a JSON response). One-function files folded into their natural homes: `chop` into
+`lib/channels.ts` (its only caller) and `teamLabel` into `lib/catalog.ts`, which
+now holds the domain types plus that pure lookup. `lib/dates.ts` un-exported
+`SLEEPER_TIME_ZONE`, `DEFAULT_CLIENT_TIME_ZONE`, `localDateFor` and
+`shiftByOffset`, which had only internal callers left. The val is 16 modules,
+down from 26 at remix.
+
+Validation: both checks pass on deployed `main`. `catalog-check.ts` gained an
+item-wire-key assertion and now uses the nested wnba `away_team` shape as its
+fixture, so a `teamCode` regression fails there rather than only against live
+Sleeper data. A throwaway parity script compared branch and live-`main` across
+seven `/v1/read` selections plus `/v1/descriptor`, `/catalog` and
+`/cached-games/coverage` — nine of nine byte-identical. The `sleeper.refresh`
+write path was exercised end to end against production (4 cfb rows upserted, 0
+skipped, row count unchanged) because the INSERT column list changed.
+
+### Third pass: an SDK boundary (2026-09-07)
+
+The val now separates *the contract every source is held to* from *what makes
+this one a sports source*, so the first half can be published for implementers
+— likely agents — to build their own sources against.
+
+`sdk/` is the publishable half, and it has no dependencies at all: not npm, not
+Val Town's `std`, not the val around it.
+
+- `sdk/contract.ts` — `Item`, the `items()` guard that enforces it, and the
+  `Result` type with `accept`/`reject`. Was the root `sourceContract.ts`.
+- `sdk/defineSource.ts` — `SourceDefinition`, `ReadContext`, `WriteHandler`,
+  and `defineSource()`. Everything an implementer writes, and nothing else.
+- `sdk/serve.ts` — `serveSource(definition, req)`: protocol v1 as a function of
+  a definition. Was `sourceProtocol.ts`, with the sports parts lifted out.
+- `sdk/README.md` — the implementer's guide, written to be read by an agent:
+  a complete example, what the SDK does versus what the implementer owes it,
+  what belongs to the parent instead, and the three mistakes that actually
+  happen (milliseconds in `timestamp`, an unstable `id`, re-reading storage in
+  `read`).
+
+`sportsSource.ts` is the other half — one `defineSource` object holding the
+settings schema, `parseSettings`, `read`, and the two write operations, ~100
+lines, importing `lib/` for data and `sdk/` for the shape. `rpc.ts` is the only
+file that knows both: it keeps the bearer check (auth is a deployment concern,
+so it stays outside the SDK) and calls `serveSource(sportsSource, req)`.
+
+Two things the SDK now enforces that were previously conventions. `capabilities`
+in the descriptor is **derived** from the definition's `writes` keys, so a
+source cannot advertise an operation it does not implement. And the item guard
+runs on every read inside `serveSource`, so an implementer cannot ship a
+malformed item by forgetting to check — it fails 502 `invalid_source_output` at
+the source, which names the culprit, rather than failing composition at the
+parent, which does not.
+
+One behaviour change, found while writing the conformance suite: write dispatch
+now uses `Object.hasOwn` rather than a plain lookup. `writes` is an object
+literal, so `operation: "toString"` previously resolved to `Object.prototype`'s
+method and called it with the payload. It now returns 422 like any other
+unknown operation.
+
+Also settled here: `parseSettings` may do I/O, and whatever it returns is passed
+to `read` verbatim. That is what lets the catalog be read once per request
+instead of twice, and it means selection is resolved against exactly the catalog
+snapshot the request was validated against.
+
+The boundary is structural, not stylistic: **nothing under `sdk/` may import
+anything outside `sdk/`**. `tools/sdk-check.ts` enforces it — it reads the three
+SDK modules and fails if any import escapes the directory, or if SDK *code*
+(comments excluded) so much as names a host-val concept. That is what keeps the
+directory liftable into its own published val without a rewrite.
+
+Validation: `tools/sdk-check.ts` also defines a fixture source with no storage,
+no network and no games, and runs ~25 protocol assertions against it — proving
+`serveSource` works for a source that is not this one. It doubles as the
+shortest complete example. All three checks pass on deployed `main`. A throwaway
+parity script compared branch and live-`main` across eighteen requests — eight
+`/v1/read` selections plus `/v1/descriptor`, `/catalog`,
+`/cached-games/coverage`, `/health`, and six error paths (`/v1/publish`, an
+unsupported operation, a foreign cache source, a wrong `sourceKey`, a bad
+protocol version, an unknown settings key) — all eighteen byte-identical.
+`rpc.ts`'s file ID and endpoint are unchanged.
+
+### Open items
+
+Two env vars on `source-sports` are unreferenced: the unused
+`SOURCE_SPORTS_RPC_TOKEN` bootstrap key, and `DEVICE_FEED_RPC_TOKEN` — a copy of the
+*sibling's* credential that the remix carried over and that nothing in this val
+reads. Deleting them is a separate decision because Val Town does not show a stored
+value back. Pointer rollback to the old sibling is unaffected (its Sports shim is
+untouched), but the reverse no longer holds: `source-sports` will not answer for
+`moon`, and the sibling still carries the pre-cleanup Games implementation, so a
+rollback also reinstates the template layer and score writes.
+
+## Historical orientation (before source-val migration)
+
 ## One-minute mental model
 
 Clark View is a widget-first iOS product. The containing app is intentionally small: it enrolls an install as a device with a bunch code, exposes prototype diagnostics, and can request a widget reload. The widget is the primary user experience and registers its own WidgetKit push token.
@@ -90,7 +430,7 @@ The parent val's relevant modules are:
 | `http/routes/*.ts` | Hono route groups for the HTML-only root, stable iOS compatibility URLs, browser administration APIs, and ingest. The parent has no source-feed routes or handler directory. |
 | `lib/deviceFeedClient.ts` | Authenticated client for the composed device feed, source-cache ingest, Sleeper ingest/coverage, and FIBA cache checks. Owns the provider RPC endpoint and reads `DEVICE_FEED_RPC_TOKEN`. Typed responses are parsed through a guard, not asserted. |
 | `lib/guards.ts` | Domain-free runtime type guards. Sole home of `isRecord`, which five modules previously defined for themselves. |
-| `lib/catalog.ts` | Known sports and teams used to parameterize Games source assignments in the parent UI. |
+| `lib/catalog.ts` | Pure parent projection and runtime guard for the provider-owned SQLite selection catalog; no hard-coded team data. `lib/deviceFeedClient.ts` reads it over authenticated `GET /catalog`. |
 | `lib/resolver.ts` | Parent-side source-assignment types plus the small Games projection used by device status. Feed request normalization belongs to the provider. |
 | `lib/deviceStore.ts` | Device-centric projections and writes for names, presentation, and `device_sources` assignments. Device views deliberately omit bunch membership; assignment writes validate ownership and rely on SQLite's JSON, priority, foreign-key, and uniqueness constraints. |
 | `lib/deviceSourceStore.ts` | Widget-facing read seam that resolves an install id to its presentation and all sources by `(priority ASC, device_sources.id ASC)`. |
@@ -110,6 +450,24 @@ Prefer changing pure helpers and their tests over adding policy directly to an I
 The parent no longer contains any source-feed handler. The retired public `GET /messages`, `GET /moon`, `GET /?format=json`, and `GET /?format=png` behaviors had no first-party runtime caller and were removed on 2026-09-06. Their parent-only request parsing, slate selection, date/channel enrichment, JSON/PNG renderers, and layout support were deleted with them. Source execution and widget-payload rendering now exist only in the provider; the parent receives the complete response through `deviceFeedResponse`. The data those renderers read went with them: `lib/catalog.ts` keeps only `SPORTS` and `TEAMS` (the vocabulary a Games assignment is written against), having shed `SPORT_SOURCE`, `SPORT_EMOJI`, `NATIONAL_CHANNELS`, `STREAMING_CHANNELS`, `MAX_CHANNEL_LABEL`, and `MAX_TEAMS`; `lib/text.ts` keeps only `titleCase`; and `lib/push.ts` no longer exports the `sendSilentPush` compatibility seam. `notifyDevice` is the whole push API.
 
 The Messages source was retired from the parent on 2026-09-06. It was a proof of concept, and its parent-side plumbing carried the two couplings least worth keeping: a browser form that wrote through the RPC boundary and then fanned out pushes locally in a separate, non-transactional step, and a "singleton Messages source" invariant enforced only by the parent's route guard while the provider's read and write side stayed globally unscoped. Removed together: the `GET/POST /sources/:id/messages` routes; `listMessages`, `createMessage` and `StoredMessage` in `lib/deviceFeedClient.ts`; `sourceMessagesDocument` and `SourceMessageView` in `render/sourceHtml.tsx`; `notifySourceDevices` in `lib/push.ts`; `getTokensForSource` in `lib/deviceTokenStore.ts`; and the `datetime-local` form styling plus ISO-timestamp script in `render/pageShell.ts`. The `sources` row (`id=2`) was deleted — no device was attached to it — and `"messages"` is gone from every parent type union (`SourceKind`, `DataFeed`, `settingsFor`, `SourceSettingsFields`), so the parent can no longer write a Messages assignment or send that kind across the RPC boundary. `sources.kind`'s CHECK still admits `'messages'`: the constraint was left alone rather than recreating the table for no behavioral gain, and it is what a re-implementation will want anyway. The provider's `messages` table and handler are untouched and still hold their rows. Re-implementation in a more aligned pattern is deferred until the parent/source boundary stabilizes.
+
+## SQLite selection catalog (2026-09-06)
+
+The static `SPORTS` and `TEAMS` copies described in the earlier split history above
+have been replaced. `plusjade/sports-today-device-feed` now owns
+`catalog_competitions` and `catalog_teams` in its val-scoped SQLite database.
+Competition-scoped provider codes, stable assignment slugs, independent display
+names, and explicit ordering preserve all 67 teams and the existing selection
+contract. Provider `lib/catalogStore.ts` reads a request snapshot; pure selection
+and rendering helpers receive it explicitly. Sleeper ingest reads adapter routing
+from the same catalog. Broadcaster rules moved into provider `lib/channels.ts`.
+
+The parent reads authenticated provider `GET /catalog` through `fetchCatalog`,
+validates its body, and uses it for both picker rendering and submitted team
+validation. There is no duplicate parent catalog database. See
+[catalog-model.md](catalog-model.md) for extension ergonomics, ownership, FIBA's
+tournament scope, and migration/check instructions; [catalog-schema.sql](catalog-schema.sql)
+is the complete initial schema and seed.
 
 ## HTTP surface and callers
 
@@ -249,7 +607,7 @@ Sleeper's `/scores` has no FIBA competitions. Phased deliberately: Phase 1 valid
 - **Reconciliation** (provider `lib/fiba.ts`): translates ESPN's raw event shape into the existing `Game` type. ESPN's `status.type.state` (`pre`/`in`/`post`) maps into the provider renderer's status vocabulary. Missing team, score, or broadcast data remains a progressive enhancement rather than failing the feed.
 - **Candidate lookup**: provider `feeds/games.ts` queries `cached_games` with one indexed seek per Sleeper-backed team and scans future FIBA `source_cache` date keys only when FIBA is selected. Slate selection and JSON rendering remain entirely inside the provider runtime.
 - **Historical live verification** (2026-09-02): the then-public stateless route proved that the union reached beyond Sleeper's three-day window and that mixed Sleeper/FIBA selections rendered correctly. Those parent diagnostic formats were retired on 2026-09-06; current verification goes through `/config/resolve` or a device preview.
-- **Team slugs**: full country names (`united-states`, `puerto-rico`, `south-korea`, `turkey` — not ESPN's `Türkiye` — etc.), not ESPN's 3-letter codes, because `teamLabel` derives the display string from the slug via `titleCase`, which has no acronym handling (`usa` → "Usa"). 16 teams, the current group stage; see `catalog.ts`'s `TEAMS` for the full list.
+- **Team slugs**: full country names (`united-states`, `puerto-rico`, `south-korea`, `turkey` — not ESPN's `Türkiye` — etc.) preserve the original assignment vocabulary. The SQLite catalog now stores independent display names, so labels no longer depend on `titleCase(slug)`. Its 16 `catalog_teams` rows with `competition_code = 'fiba'` are the current group-stage roster.
 - **Still open**: knockout-round dates (Sep 8-14) were ingested empty since ESPN hadn't published that schedule yet as of 2026-09-02 — re-ingest closer to those dates. Nothing re-ingests `source_cache` automatically; live/final status accuracy for fiba depends entirely on how recently someone re-ran the ingest loop. That's an accepted trade per this phase's own scope: presence (a game is on the slate at all) is the source's real contract, not intraday freshness.
 
 ## Moon — lunar full moons, a third static source
@@ -311,5 +669,18 @@ Before editing, classify the request:
 - Pairing, configuration, device status, or push behavior: inspect both sides and keep the route/client pair synchronized.
 - JSON field or meaning: coordinate the provider renderer, `Shared/WidgetPayload.swift`, the widget preview fixture, and tests; bump `schemaVersion` when compatibility requires it.
 - Backend endpoint identity: do not change it. Preserve `main.ts` and verify `links.endpoint` against `GameDataURL.baseURL`.
+
+Within `plusjade/source-sports`, the three-way split says where a change goes.
+The checklist above predates the source-val migration; this is the current one
+for that val:
+
+- Protocol shape — a route, an envelope, a status code, the item guard, what a
+  descriptor advertises: `sdk/`. It applies to every source, so it must not
+  mention sports; `tools/sdk-check.ts` enforces that.
+- What this source *is* — settings, their validation, which write operations
+  exist: `sportsSource.ts`.
+- How it gets and phrases its data — adapters, selection, storage, item text:
+  `lib/`.
+- Auth or a non-protocol route: `rpc.ts`, the only file that knows both halves.
 
 After a server contract change, build the iOS app/widget and verify a representative endpoint response. After a presentation-only Swift change, do not touch Val Town merely because the widget consumes remote data.
