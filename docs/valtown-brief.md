@@ -94,6 +94,11 @@ source deployments remain mutable; immutable publication is still future work.
 
 ## Descriptor-driven settings (2026-09-07)
 
+APNs logging follow-up: parent `lib/push.ts` guards optional environment reads
+with `Deno.env.has` before `get`, avoiding Val Town's missing-variable warnings
+for all five APNs keys. Missing credentials quietly skip delivery; configuring
+the three required credentials later restores the existing delivery path.
+
 Deployed the small form contract described in [source-settings-contract.md](source-settings-contract.md).
 Parent `lib/sourceSettings.ts` loads and validates the live descriptor, decodes
 form values, and asks the source to validate before persistence. Device routes
