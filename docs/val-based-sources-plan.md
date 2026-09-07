@@ -1,8 +1,15 @@
+> 2026-09-07 follow-up: standalone `source-moon` is deployed and source ID 3
+> points to it. `sports-today-device-feed` is retired with its HTTP entry disabled;
+> its code/data are historical only. Generic descriptor-driven settings UI is also
+> deployed: see [the settings contract](source-settings-contract.md). Prototype
+> starter-feed and operator-ingest adapters remain separate follow-up work.
+
 # Val-based sources: direction and first implementation plan
 
 Status: milestone one deployed on 2026-09-07. See `valtown-brief.md` for the
 current endpoints, validation results, and deliberate compatibility seams.
-The remaining milestones are proposed.
+The descriptor-driven configuration portion of milestone two is also deployed.
+The remaining work is proposed.
 
 ## Direction
 
@@ -32,7 +39,8 @@ Immutable implementation/package releases and changing live data are distinct.
    Prove two destinations using Games on the new val and Moon on the old sibling.
 2. **Make configuration domain-independent.** Source descriptors supply settings,
    options, and validation. Replace parent Games/Moon form branches with the small
-   supported descriptor vocabulary. Remove remaining legacy routing adapters.
+   supported descriptor vocabulary. **Configuration deployed 2026-09-07.**
+   Removal of prototype starter-feed and operator adapters remains separate.
 3. **Provide a standard data-package template.** Implement items/facets/options,
    package metadata, deterministic example inputs/outputs, and explicit temporal
    and freshness semantics. Verify it with a non-sports source. Keep custom vals

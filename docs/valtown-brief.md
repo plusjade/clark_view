@@ -13,14 +13,14 @@ Widget → sports-today /config/resolve
          → sources registry + device_sources
          → sourceClient.ts: authenticated HTTP reads
               → source-sports: Sports + copied SQLite
-              → sports-today-device-feed: Moon + original SQLite
+              → source-moon: Moon + dedicated SQLite
          → validate temporal items → timestamp sort → presentation → widget v2
 ```
 
 - `sources` is reimplemented as a bunch-owned instance registry. Rows carry `id`,
   `bunch_id`, `name`, `endpoint`, `remote_source_key`, `contract_version`, and
   `credential_ref`, plus description/schema snapshots and timestamps. `kind` is
-  unrestricted compatibility metadata for the existing browser settings adapters;
+  unrestricted compatibility metadata for diagnostics;
   it is neither unique nor the transport dispatch key. There is no definitions
   registry or separate `source_instances` table.
 - Prototype sources: Sports `id=1`, Moon `id=3`, both owned by bunch `id=1`.
@@ -34,17 +34,16 @@ Widget → sports-today /config/resolve
   `https://plusjade--01a07aad0a727127a01d5ab044902bbe.web.val.run`.
   RPC reads `SOURCE_SPORTS_V1_TOKEN`, configured independently in parent and source.
   Never expose the value. The earlier bootstrap key is unused.
-- Moon keeps the old sibling RPC identity listed below and `DEVICE_FEED_RPC_TOKEN`.
-  That sibling also implements the Sports shim for pointer rollback, and is
-  unchanged by the cleanup below. No source data schema was redesigned.
-- New `lib/sourceClient.ts` owns source-ID lookup, authenticated transport with a
-  20-second timeout and refused redirects, v1 response validation, writes, and
-  device composition. `lib/sourceContract.ts` holds pure temporal-item guards and
-  composition. The old sibling still carries the parent's full contract file and a
-  two-key `sourceProtocol.ts`. `source-sports` no longer has an equivalent: its
-  protocol half is now a source-agnostic `sdk/` and its sports half a
-  `SourceDefinition` (see the cleanup section). Cross-val database access always
-  uses HTTP.
+- Moon now uses `plusjade/source-moon`, public code/public app access. HTTP entry
+  `rpc.ts`, file ID `2f093378-aaec-11f1-932c-1607ee4eb77e`, endpoint
+  `https://plusjade--2f093378aaec11f1932c1607ee4eb77e.web.val.run`.
+  Parent and source use independent `SOURCE_MOON_V1_TOKEN` credentials.
+- `lib/sourceClient.ts` owns source-ID lookup, authenticated HTTP transport,
+  v1 validation, writes, and composition. Provider vals each vendor the same
+  SDK; the parent retains its own item guard. Source data stays val-local.
+- `sports-today-device-feed` is a retired historical artifact. Its former
+  `rpc.ts` is now a script, and it has no HTTP, interval, or email entrypoints.
+  Code and SQLite remain available for historical reference, not rollback.
 - Every exported item is temporal and preserves the actual widget wire keys
   `id`, `mainText`, `subText`, `caption`, `emphasized`, and Unix-second `timestamp`.
   Items are globally timestamp-sorted; source ID and local item ID break ties.
@@ -64,8 +63,8 @@ Widget → sports-today /config/resolve
   fail; `/v1/publish` returns 501 and descriptors advertise `publish:false`.
 - Parent `lib/deviceFeedClient.ts` is now a compatibility adapter. Existing
   ingest, catalog, coverage, and FIBA callers resolve the Sports pointer; Moon
-  ingest resolves Moon. Sports forms fetch the catalog for the selected source
-  ID. Generic descriptor-rendered forms are milestone two. The source show page
+  ingest resolves Moon. Settings forms fetch the live descriptor for the selected
+  source ID and render generically (see below). The source show page
   exposes its bunch and implementing endpoint.
 - Prototype fallback and operator ingest defaults explicitly use Sports ID 1
   (Moon cache writes use ID 3). These are instance IDs, not kind lookups; they
@@ -90,10 +89,82 @@ APNs configuration. Starter Sports items were already empty in both datasets.
 
 Migration snapshots remain in parent SQLite as `sources_before_val_boundary` and
 `device_sources_before_val_boundary`. They are recovery data, not active registries.
-Pointer rollback to the old sibling must change endpoint and credential reference
-together and reconcile post-cutover Sports writes first. The current deployment is
-mutable: immutable release publication and agent sandbox permissions remain future
-milestones.
+The old sibling is no longer a supported rollback destination. The current
+source deployments remain mutable; immutable publication is still future work.
+
+## Descriptor-driven settings (2026-09-07)
+
+Deployed the small form contract described in [source-settings-contract.md](source-settings-contract.md).
+Parent `lib/sourceSettings.ts` loads and validates the live descriptor, decodes
+form values, and asks the source to validate before persistence. Device routes
+and `SourceSettingsFields` no longer branch on source kind or import the catalog.
+The registry's stored schema snapshots are not the editing contract.
+
+Supported schema: a closed object with boolean fields and arrays of string
+choices. Fields declare titles/descriptions/defaults; choices use
+`items.oneOf[{const,title,"x-group"?}]`. Sports builds the schema from its 67
+catalog teams, grouped by competition. The intraday setting is now a checkbox
+with the same saved boolean semantics. Moon's empty schema yields no controls.
+Legacy unbound descriptor `options` is not used by forms.
+
+Both sources now support async `settingsSchema()` and
+`POST /v1/validate-settings` in their vendored SDK. This calls `parseSettings`
+without feed generation or leaking parsed internal context; descriptors advertise
+`capabilities.validateSettings:true`. The source remains authoritative during
+saves and reads. Widget items, data tables, and existing assignment JSON are unchanged.
+
+A hidden field fingerprint rejects stale forms with 409. Invalid values and
+unknown fields fail with 422; unavailable/unsupported descriptors or validation
+fail with 502. No assignment changes on failure. Unchecked booleans and empty
+selections save false/[]; removed choices remain visible for explicit removal.
+The parent preserves stable source validation error codes.
+
+Verified in Val Town: SDK validation-only isolation; Sports and Moon checks;
+arbitrary non-Sports field rendering/decoding, escaping, unsupported constraints;
+real add/edit/clear routes on a disposable device; invalid/stale POST persistence
+protection; Moon empty forms; eight mixed-source integration routes; deployed HTTP.
+Fixtures were cleaned up. Logs showed only existing missing-APNs configuration
+warnings. No Xcode, iOS, or CI checks.
+
+This removes source coupling from device settings. The prototype starter feed
+still hard-codes Sports ID 1 and its initial selections; operator ingest, catalog,
+and coverage adapters still know their source-specific operations. Those are
+separate from the now-generalized settings path.
+
+## Standalone Moon and sibling retirement (2026-09-07)
+
+Created `source-moon` from curated files, without remixing. Five runtime modules:
+`rpc.ts`, `moonSource.ts`, and the three unchanged SDK modules copied from
+`source-sports` main version 11. SDK documentation, a short README, and manual
+`check.ts` accompany them. No remote source-SDK imports, sports code, catalog,
+legacy HTTP routes, schedules, or upstream fetches.
+
+One dedicated table, `full_moons(date_key, payload, fetched_at)`, contains the
+13 copied 2026 events. Schema is provisioned at deployment, never in reads.
+Settings are exactly `{}`; no options are advertised. The existing `cache.put`
+operation is preserved, with Moon payload/date validation. Existing UTC-date
+selection, Pacific fallback, local item IDs, `PEAK` caption, and Unix seconds are
+unchanged. This migration deliberately does not redesign lunar date-boundary
+semantics. Coverage ends December 24, 2026; next-year seeding remains manual.
+
+Updated only source row 3's endpoint, credential reference, and timestamp;
+assignments remain intact. No parent feed implementation change was necessary.
+Replaced `tools/source-pointer-check.ts`'s old-sibling Sports rollback assumption
+with a duplicate-Moon-instance namespace check. A scan of parent TypeScript found
+no direct old sibling endpoint, val name, or credential references remaining.
+The earlier credential keys may remain stored but are not active registry refs.
+
+Verified entirely in Val Town: authenticated HTTP descriptor; old/new HTTP read
+parity across four timezone contexts; Moon auth/settings/write validation, date
+boundaries, Blue Moon and dataset exhaustion; disposable write cleanup; distinct
+instance namespaces; eight parent routes including mixed composition after the
+old HTTP entrypoint was disabled; live stable parent resolve; and the parent's
+existing Moon ingest adapter writing to the new database. The ingest check
+re-upserted an unchanged historical event, updating only its fetch timestamp.
+No Xcode, iOS, or CI validation was run. Temporary parent ingest script removed.
+
+The source-sports cleanup narrative below is historical; its references to an
+available sibling rollback no longer describe the active system.
 
 ## `source-sports` remix cleanup (2026-09-07)
 
