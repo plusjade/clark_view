@@ -7,7 +7,7 @@
 
 import Foundation
 
-/// Decoded shape of the `?format=json` response. This is a *view* contract, not a data
+/// Decoded shape of the `/config/resolve` response. This is a *view* contract, not a data
 /// contract — the server decides exactly what text to show (matchup names, status word),
 /// not raw properties (scores, team ids) for the client to interpret. That keeps the widget a
 /// dumb template: any future change to what's displayed ships server-side with no client update.
