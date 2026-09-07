@@ -90,7 +90,7 @@ The parent val's relevant modules are:
 | `http/routes/*.ts` | Hono route groups for the HTML-only root, stable iOS compatibility URLs, browser administration APIs, and ingest. The parent has no source-feed routes or handler directory. |
 | `lib/deviceFeedClient.ts` | Authenticated client for the composed device feed, source-cache ingest, Sleeper ingest/coverage, and FIBA cache checks. Owns the provider RPC endpoint and reads `DEVICE_FEED_RPC_TOKEN`. Typed responses are parsed through a guard, not asserted. |
 | `lib/guards.ts` | Domain-free runtime type guards. Sole home of `isRecord`, which five modules previously defined for themselves. |
-| `lib/catalog.ts` | Known sports and teams used to parameterize Games source assignments in the parent UI. |
+| `lib/catalog.ts` | Pure parent projection and runtime guard for the provider-owned SQLite selection catalog; no hard-coded team data. `lib/deviceFeedClient.ts` reads it over authenticated `GET /catalog`. |
 | `lib/resolver.ts` | Parent-side source-assignment types plus the small Games projection used by device status. Feed request normalization belongs to the provider. |
 | `lib/deviceStore.ts` | Device-centric projections and writes for names, presentation, and `device_sources` assignments. Device views deliberately omit bunch membership; assignment writes validate ownership and rely on SQLite's JSON, priority, foreign-key, and uniqueness constraints. |
 | `lib/deviceSourceStore.ts` | Widget-facing read seam that resolves an install id to its presentation and all sources by `(priority ASC, device_sources.id ASC)`. |
@@ -110,6 +110,24 @@ Prefer changing pure helpers and their tests over adding policy directly to an I
 The parent no longer contains any source-feed handler. The retired public `GET /messages`, `GET /moon`, `GET /?format=json`, and `GET /?format=png` behaviors had no first-party runtime caller and were removed on 2026-09-06. Their parent-only request parsing, slate selection, date/channel enrichment, JSON/PNG renderers, and layout support were deleted with them. Source execution and widget-payload rendering now exist only in the provider; the parent receives the complete response through `deviceFeedResponse`. The data those renderers read went with them: `lib/catalog.ts` keeps only `SPORTS` and `TEAMS` (the vocabulary a Games assignment is written against), having shed `SPORT_SOURCE`, `SPORT_EMOJI`, `NATIONAL_CHANNELS`, `STREAMING_CHANNELS`, `MAX_CHANNEL_LABEL`, and `MAX_TEAMS`; `lib/text.ts` keeps only `titleCase`; and `lib/push.ts` no longer exports the `sendSilentPush` compatibility seam. `notifyDevice` is the whole push API.
 
 The Messages source was retired from the parent on 2026-09-06. It was a proof of concept, and its parent-side plumbing carried the two couplings least worth keeping: a browser form that wrote through the RPC boundary and then fanned out pushes locally in a separate, non-transactional step, and a "singleton Messages source" invariant enforced only by the parent's route guard while the provider's read and write side stayed globally unscoped. Removed together: the `GET/POST /sources/:id/messages` routes; `listMessages`, `createMessage` and `StoredMessage` in `lib/deviceFeedClient.ts`; `sourceMessagesDocument` and `SourceMessageView` in `render/sourceHtml.tsx`; `notifySourceDevices` in `lib/push.ts`; `getTokensForSource` in `lib/deviceTokenStore.ts`; and the `datetime-local` form styling plus ISO-timestamp script in `render/pageShell.ts`. The `sources` row (`id=2`) was deleted — no device was attached to it — and `"messages"` is gone from every parent type union (`SourceKind`, `DataFeed`, `settingsFor`, `SourceSettingsFields`), so the parent can no longer write a Messages assignment or send that kind across the RPC boundary. `sources.kind`'s CHECK still admits `'messages'`: the constraint was left alone rather than recreating the table for no behavioral gain, and it is what a re-implementation will want anyway. The provider's `messages` table and handler are untouched and still hold their rows. Re-implementation in a more aligned pattern is deferred until the parent/source boundary stabilizes.
+
+## SQLite selection catalog (2026-09-06)
+
+The static `SPORTS` and `TEAMS` copies described in the earlier split history above
+have been replaced. `plusjade/sports-today-device-feed` now owns
+`catalog_competitions` and `catalog_teams` in its val-scoped SQLite database.
+Competition-scoped provider codes, stable assignment slugs, independent display
+names, and explicit ordering preserve all 67 teams and the existing selection
+contract. Provider `lib/catalogStore.ts` reads a request snapshot; pure selection
+and rendering helpers receive it explicitly. Sleeper ingest reads adapter routing
+from the same catalog. Broadcaster rules moved into provider `lib/channels.ts`.
+
+The parent reads authenticated provider `GET /catalog` through `fetchCatalog`,
+validates its body, and uses it for both picker rendering and submitted team
+validation. There is no duplicate parent catalog database. See
+[catalog-model.md](catalog-model.md) for extension ergonomics, ownership, FIBA's
+tournament scope, and migration/check instructions; [catalog-schema.sql](catalog-schema.sql)
+is the complete initial schema and seed.
 
 ## HTTP surface and callers
 
@@ -249,7 +267,7 @@ Sleeper's `/scores` has no FIBA competitions. Phased deliberately: Phase 1 valid
 - **Reconciliation** (provider `lib/fiba.ts`): translates ESPN's raw event shape into the existing `Game` type. ESPN's `status.type.state` (`pre`/`in`/`post`) maps into the provider renderer's status vocabulary. Missing team, score, or broadcast data remains a progressive enhancement rather than failing the feed.
 - **Candidate lookup**: provider `feeds/games.ts` queries `cached_games` with one indexed seek per Sleeper-backed team and scans future FIBA `source_cache` date keys only when FIBA is selected. Slate selection and JSON rendering remain entirely inside the provider runtime.
 - **Historical live verification** (2026-09-02): the then-public stateless route proved that the union reached beyond Sleeper's three-day window and that mixed Sleeper/FIBA selections rendered correctly. Those parent diagnostic formats were retired on 2026-09-06; current verification goes through `/config/resolve` or a device preview.
-- **Team slugs**: full country names (`united-states`, `puerto-rico`, `south-korea`, `turkey` — not ESPN's `Türkiye` — etc.), not ESPN's 3-letter codes, because `teamLabel` derives the display string from the slug via `titleCase`, which has no acronym handling (`usa` → "Usa"). 16 teams, the current group stage; see `catalog.ts`'s `TEAMS` for the full list.
+- **Team slugs**: full country names (`united-states`, `puerto-rico`, `south-korea`, `turkey` — not ESPN's `Türkiye` — etc.) preserve the original assignment vocabulary. The SQLite catalog now stores independent display names, so labels no longer depend on `titleCase(slug)`. Its 16 `catalog_teams` rows with `competition_code = 'fiba'` are the current group-stage roster.
 - **Still open**: knockout-round dates (Sep 8-14) were ingested empty since ESPN hadn't published that schedule yet as of 2026-09-02 — re-ingest closer to those dates. Nothing re-ingests `source_cache` automatically; live/final status accuracy for fiba depends entirely on how recently someone re-ran the ingest loop. That's an accepted trade per this phase's own scope: presence (a game is on the slate at all) is the source's real contract, not intraday freshness.
 
 ## Moon — lunar full moons, a third static source
