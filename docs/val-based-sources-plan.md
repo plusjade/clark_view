@@ -56,9 +56,13 @@ and schema-v2 payload.
 Preserve source data schemas, selection/rendering behavior, assignment IDs,
 presentation, fallback teams, timestamp ordering, and browser configuration. Defer arbitrary
 source creation UI, advanced bunch policies, agent authentication/ACL design,
-generic SQL execution, package deployment,
-and wholesale provider cleanup. Retained source-kind branches are explicitly
-compatibility code, not the new routing abstraction.
+generic SQL execution, and package deployment. Retained source-kind branches are
+explicitly compatibility code, not the new routing abstraction.
+
+The deferred provider cleanup was taken separately on 2026-09-07, once routing was
+proven: `source-sports` now carries only what serves the sports source, and its
+`sourceProtocol.ts` no longer answers for `moon`. See `valtown-brief.md`. It changed
+no contract and no data schema, so it neither advances nor blocks milestone two.
 
 ## Architecture decision
 
