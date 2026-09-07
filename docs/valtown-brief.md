@@ -35,14 +35,14 @@ Widget → sports-today /config/resolve
   RPC reads `SOURCE_SPORTS_V1_TOKEN`, configured independently in parent and source.
   Never expose the value. The earlier bootstrap key is unused.
 - Moon keeps the old sibling RPC identity listed below and `DEVICE_FEED_RPC_TOKEN`.
-  That sibling also implements the Sports shim for pointer rollback. Copied
-  unused modules/data in `source-sports` are dormant; its HTTP surface serves
-  Sports only. No source data tables were redesigned.
+  That sibling also implements the Sports shim for pointer rollback, and is
+  unchanged by the cleanup below. No source data schema was redesigned.
 - New `lib/sourceClient.ts` owns source-ID lookup, authenticated transport with a
   20-second timeout and refused redirects, v1 response validation, writes, and
   device composition. `lib/sourceContract.ts` holds pure temporal-item guards and
-  composition. Both provider vals carry the same contract and `sourceProtocol.ts`
-  compatibility adapters. Cross-val database access always uses HTTP.
+  composition. The old sibling still carries the parent's full contract file and a
+  two-key `sourceProtocol.ts`; `source-sports`'s copies are now sports-only (see
+  the cleanup section). Cross-val database access always uses HTTP.
 - Every exported item is temporal and preserves the actual widget wire keys
   `id`, `mainText`, `subText`, `caption`, `emphasized`, and Unix-second `timestamp`.
   Items are globally timestamp-sorted; source ID and local item ID break ties.
@@ -92,6 +92,65 @@ Pointer rollback to the old sibling must change endpoint and credential referenc
 together and reconcile post-cutover Sports writes first. The current deployment is
 mutable: immutable release publication and agent sandbox permissions remain future
 milestones.
+
+## `source-sports` remix cleanup (2026-09-07)
+
+Milestone one deliberately left the remixed val's unused modules and copied data
+dormant rather than turning routing work into a cleanup project. That cleanup has
+now happened. `plusjade/source-sports` serves exactly one source; everything the
+remix carried for the multi-source device-feed role is gone.
+
+Deleted: `main.ts` (a child-local re-export nothing called — `rpc.ts` is the whole
+boundary), `feeds/deviceFeed.ts`, `feeds/moon.ts`, `feeds/messages.ts`,
+`render/moonJson.ts`, `render/messageJson.ts`, `lib/moonPhases.ts`,
+`lib/messageStore.ts`, `lib/presentation.ts`, and `lib/resolver.ts`. The `messages`
+table was dropped from this val's SQLite; its three rows were a remix duplicate
+and the sibling still holds the originals and the table.
+
+`feeds/deviceFeed.ts` and `lib/resolver.ts` are the substantive removals. `/v1/read`
+used to serialize its validated settings into a synthetic query URL, build a
+`Request` from it, and re-parse that URL in `gamesResponse` — the shape left over
+from when this code answered public HTTP routes. Everything that round trip carried
+is now parent-owned: multi-source composition and timestamp interleaving, the
+`presentation` envelope, the `NEXT` eyebrow, the `fever`/`sparks` starter fallback,
+the `x-device-feed-provider` headers, and widget pixel dimensions. `feeds/games.ts`
+now exports `sportsItems(settings, utcOffsetSeconds)` returning `Item[]` directly,
+and `render/json.ts` exports `widgetItems` instead of a whole schema-v2 `Response`.
+
+Trimmed with it: the `day=today|tomorrow|next` term and its scan-window and label
+helpers in `lib/dates.ts` (every read means "from the start of the client's today",
+which is what all three resolved to here); `resolveClientOffsetSeconds`, replaced by
+`clientOffsetSeconds(number | null)` that keeps the same [-12:00, +14:00] range check
+and DST-correct `America/Los_Angeles` fallback for a `null` offset; the
+`x-effective-*` drift echo and `lib/params.ts`'s `rejected` list, which had no reader
+left once `sourceProtocol.ts` began rejecting unknown slugs outright with a 400;
+`compose` from this val's `sourceContract.ts` (the parent composes); and
+`transformScores`, `teamId`, and `titleCase`.
+
+`sourceProtocol.ts` is sports-only: no `allowed` key array, no Moon settings or
+`moon` cache-write branch. Unchanged: `rpc.ts`'s file ID and endpoint, the v1 wire
+contract, `SOURCE_SPORTS_V1_TOKEN`, the `/health`, `/catalog`,
+`/cached-games/coverage` and `/fiba/:dateKey` compatibility routes, the catalog and
+Sleeper/FIBA data model, and `render/templates.ts`.
+
+Validation: `tools/source-contract-check.ts` (extended to 14 checks, adding a null
+offset, an unknown settings key, and a rejected `moon` cache write) and
+`tools/catalog-check.ts` (reworked off the deleted exports; its stale
+`DEVICE_FEED_RPC_TOKEN` assertion now uses `SOURCE_SPORTS_V1_TOKEN`) both pass. A
+throwaway parity script compared branch and live-`main` `/v1/read` across six
+selections — FIBA, WNBA/NFL/CFB mixes, `intradayFilter` on, tz `-25200`/`0`/`50400`/
+`null`, and an empty selection — plus `/v1/descriptor`: all seven byte-identical.
+The work was done on a `sports-only` Val Town branch and merged once.
+
+Open items. Two env vars on `source-sports` are now unreferenced: the unused
+`SOURCE_SPORTS_RPC_TOKEN` bootstrap key, and `DEVICE_FEED_RPC_TOKEN` — a copy of the
+*sibling's* credential that the remix carried over and that nothing in this val
+reads. Deleting them is a separate decision because Val Town does not show a stored
+value back. Pointer rollback to the old sibling is unaffected (its Sports shim is
+untouched), but the reverse no longer holds: `source-sports` will not answer for
+`moon`. `EnrichedGame.awayScore`/`homeScore` and the `cached_games` score columns
+survive unread — the product shows no scores — but they are ingest-model surface
+rather than remix residue, so they were left alone.
 
 ## Historical orientation (before source-val migration)
 
