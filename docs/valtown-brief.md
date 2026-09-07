@@ -14,6 +14,7 @@ Widget → sports-today /config/resolve
          → sourceClient.ts: authenticated HTTP reads
               → source-sports: Sports + copied SQLite
               → source-moon: Moon + dedicated SQLite
+              → source-wfiba: Women's FIBA + dedicated SQLite
          → validate temporal items → timestamp sort → presentation → widget v2
 ```
 
@@ -23,7 +24,8 @@ Widget → sports-today /config/resolve
   unrestricted compatibility metadata for diagnostics;
   it is neither unique nor the transport dispatch key. There is no definitions
   registry or separate `source_instances` table.
-- Prototype sources: Sports `id=1`, Moon `id=3`, both owned by bunch `id=1`.
+- Prototype sources: Sports `id=1`, Moon `id=3`, Women's FIBA `id=4`, all owned
+  by bunch `id=1`.
   Devices assign source IDs with JSON settings. Triggers reject cross-bunch
   assignments and prevent moving an attached source; moving a device clears its
   old assignments. The existing `priority` column remains inert for migration
@@ -38,6 +40,12 @@ Widget → sports-today /config/resolve
   `rpc.ts`, file ID `2f093378-aaec-11f1-932c-1607ee4eb77e`, endpoint
   `https://plusjade--2f093378aaec11f1932c1607ee4eb77e.web.val.run`.
   Parent and source use independent `SOURCE_MOON_V1_TOKEN` credentials.
+- Women's FIBA uses `plusjade/source-wfiba`, public code/public app access. HTTP
+  entry `rpc.ts`, file ID `01a07d73-0d02-703f-be73-09449008031e`, endpoint
+  `https://plusjade--01a07d730d02703fbe7309449008031e.web.val.run`. Parent and
+  source use independent `SOURCE_WFIBA_V1_TOKEN` credentials. It stores a row
+  per game rather than a day-keyed blob, and `source-sports` still serves its
+  own overlapping `fiba` competition — see the split section below.
 - `lib/sourceClient.ts` owns source-ID lookup, authenticated HTTP transport,
   v1 validation, writes, and composition. Provider vals each vendor the same
   SDK; the parent retains its own item guard. Source data stays val-local.
@@ -91,6 +99,179 @@ Migration snapshots remain in parent SQLite as `sources_before_val_boundary` and
 `device_sources_before_val_boundary`. They are recovery data, not active registries.
 The old sibling is no longer a supported rollback destination. The current
 source deployments remain mutable; immutable publication is still future work.
+
+## Women's FIBA split into `source-wfiba` (2026-09-07)
+
+The first per-league source split. `plusjade/source-wfiba` serves the 2026 FIBA
+Women's Basketball World Cup on its own, validating that a league can leave the
+multi-competition Sports val without changing the protocol or the widget.
+
+| Item | Value |
+| --- | --- |
+| Val | `plusjade/source-wfiba`, public code / public app access |
+| HTTP entry file / id | `rpc.ts` / `01a07d73-0d02-703f-be73-09449008031e` |
+| Endpoint | `https://plusjade--01a07d730d02703fbe7309449008031e.web.val.run` |
+| Protocol source key | `wfiba` |
+| Credential | `SOURCE_WFIBA_V1_TOKEN`, set independently in the source and the parent |
+| Registry row | `sources.id = 4`, bunch 1, name "Women's FIBA", kind `wfiba` |
+
+Created by remixing `source-sports` with `copyDatabase: false`. The remix
+carried no tables at all, which is what made the storage redesign a clean start
+rather than a migration.
+
+### Storage: a row per game, not a day-keyed blob
+
+The brief's actual complaint about `source_cache` is fixed here. That table
+stores one whole ESPN scoreboard as JSON per date, so "which games involve
+Spain" means loading and parsing every day's payload and filtering in
+TypeScript. `wfiba_games` holds **one row per game** with `away_code` and
+`home_code` as indexed columns, so the team filter is a `WHERE` clause. There is
+no JSON on the read path.
+
+`wfiba_teams` is the 16-nation selectable roster (slug, display name, ESPN code,
+order). It is a table rather than a `SELECT DISTINCT` over the games so the
+settings form's choices never depend on ingest state. Slugs are carried over
+verbatim from the sports catalog (`spain`, `united-states`, …), so a selection
+means the same thing in both vals. There is no competition table and no adapter
+column: one competition, one upstream.
+
+Both tables are provisioned by `tools/deploy-schema.ts` from `lib/schema.sql`,
+at deployment and never in a request — the `source-moon` precedent.
+
+### Ingest
+
+**ESPN still blocks Val Town's egress**: re-verified 2026-09-07, 403 Access
+Denied both bare and with a browser User-Agent, so this was tested rather than
+inherited from the older note. `read` never fetches.
+
+`POST /v1/write` with `operation: "games.ingest"` and `{dateKey, payload}` takes
+ESPN's raw scoreboard and does the shape translation val-side, so the external
+process stays a dumb pipe. Each date's payload is **authoritative**: it replaces
+that date's rows rather than merging, so a cancelled or rescheduled game
+disappears instead of lingering on a widget. Idempotent, so re-running is also
+how live statuses refresh. `tools/ingest.ts` is that process, run off-platform
+with `deno run --allow-net --allow-env`; `GET /coverage` reports what is held.
+
+The upstream is
+`site.api.espn.com/apis/site/v2/sports/basketball/fiba/scoreboard?dates=YYYYMMDD`
+— league 53, season 2026-09-04 to 2026-09-14. That bucket is reused across
+cycles and can change tournament and gender, so revalidate before reuse.
+
+**Coverage is incomplete by upstream, not by omission.** ESPN publishes the
+knockout bracket late: only the four group-stage dates exist (24 games, all
+ingested), and 09-08 through 09-14 return zero events. The ingest must be re-run
+as the bracket fills.
+
+**Statuses are frozen as of the last ingest, and nothing refreshes them.** There
+is no scheduled job and no interval. At the time of writing one game was `in`
+(serving `caption: "LIVE"`, `emphasized: true`) and will keep serving that until
+the next ingest, and a later game's `END` will not appear until then either.
+Re-running the ingest is the only refresh. Whether that becomes a cron is a
+deliberate open question, not an oversight. Ingest verified all 24 events land with none dropped by
+the val's date filter, which keeps only events whose own UTC date matches the
+requested key — ESPN's buckets were confirmed to align exactly with UTC dates
+for this tournament, so nothing is orphaned, and `tools/ingest.ts` reports any
+off-bucket event rather than letting that failure be invisible.
+
+### A latent `source-sports` bug this design cannot have
+
+Parity was checked by loading the sports val's own stored FIBA payloads into
+`source-wfiba` so both answered from identical captures, then diffing
+`/v1/read` across 48 combinations (6 selections × `intradayFilter` × tz
+`-25200`/`0`/`50400`/`null`). **38 were byte-identical. All 10 differences were
+at `utcOffsetSeconds: 50400` (UTC+14), where `source-sports` returns `[]` and
+`source-wfiba` correctly returns the games.**
+
+`source-sports` derives its `source_cache` scan floor with
+`dateAtOffset(clientOffset, new Date(fromMs))` — the client's *local* date —
+while payloads are bucketed by *UTC* date. For a client whose local date is
+ahead of UTC, the floor lands a day late and excludes games that are genuinely
+inside the client's today. Confirmed arithmetically: at UTC+14 the floor becomes
+`2026-09-08` while the 18:45Z game sits under `2026-09-07`, even though it is
+after the correct `fromMs` of `2026-09-07T10:00Z`.
+
+`source-wfiba` filters on the absolute instant only and has no date-window scan,
+so the bug is unrepresentable. **This is not fixed in `source-sports`.** It is
+currently *latent, not live*: a `device_sources` scan found no device selecting
+any FIBA team (the six existing assignments are `rams`, empty, or Moon's `{}`),
+so nothing is affected today, but the defect is still there for any far-east
+client that selects one. Recorded rather than repaired because that val's FIBA
+path is on its own removal track. A regression test for the rule lives in the
+new val's contract check.
+
+### Settings contract
+
+`GET /v1/descriptor` publishes the supported subset from
+[source-settings-contract.md](source-settings-contract.md): a closed object,
+`teams` as an array of 16 string choices carrying `const`/`title`/`x-group`, and
+the `intradayFilter` boolean. `capabilities.validateSettings` is true and
+`POST /v1/validate-settings` runs the same `parseSettings` a read does without
+reading or leaking parsed context. `unknown_team` stays a distinct error code
+from `invalid_settings`.
+
+### Pruning
+
+Deleted from the remix: `lib/sleeper.ts`, `lib/sleeperIngest.ts`,
+`lib/cachedGames.ts`, `lib/catalogStore.ts`, `lib/catalog.ts`,
+`lib/sourceCache.ts`, `lib/params.ts`, `lib/sportsFeed.ts`, `lib/fiba.ts`,
+`lib/games.ts`, `lib/widgetItems.ts`, `sportsSource.ts`, and
+`tools/catalog-check.ts`. `rpc.ts` lost `/catalog`, `/cached-games/coverage` and
+`/fiba/:dateKey`, which exist for parent adapters still pointed at source 1.
+`lib/dates.ts` lost its Sleeper half (`todaySlateDate`, `addDays`).
+
+`sdk/` is byte-identical to the sports val's, and `tools/sdk-check.ts` still
+enforces that nothing under it imports outward or names a domain concept.
+`lib/channels.ts` was kept intact rather than trimmed to the three broadcasters
+FIBA currently uses (HBO Max, truTV, TNT): broadcaster vocabulary is not
+sport-specific, and trimming it would only produce worse labels later.
+
+### Validation
+
+- `tools/source-contract-check.ts` — 39 assertions, passing on deployed `main`:
+  auth, descriptor identity and the full settings-contract shape,
+  validate-settings including no context leakage, read guards, write guards,
+  and pinned pure behaviour (Unix seconds, per-team union/dedupe, the ingest
+  date filter, the UTC+14 rule). Its disposable `1900-01-01` row is always
+  removed; 24 games confirmed intact afterwards.
+- `tools/sdk-check.ts` — passes on deployed `main`.
+- The browser path a human actually takes, driven against a disposable device
+  through the parent's real routes: the add-source picker offers source 4;
+  `?source=4` renders 16 choices, the `intradayFilter` checkbox and a
+  fingerprint; POST saves (303); the edit form round-trips
+  `["spain","united-states"]` and the checkbox as *checked*, which is what would
+  silently lose a selection if it regressed; a stale fingerprint is refused 409;
+  the device preview composes a game. The apostrophe in the `x-group` label
+  "FIBA Women's World Cup" renders escaped. The assignment and the device row
+  were both removed; the registry is back to 7 devices and 6 assignments, none
+  on source 4.
+- Parent end-to-end through `sourcePointer`/`sourceRpc`/`composeDeviceFeed`:
+  descriptor 16 choices, validate-settings ok, and a schema-v2 composition with
+  `4:`-namespaced ids, `LIVE`/`emphasized` on the in-progress game, `END` on the
+  finished one, Unix-second timestamps, and correct interleaving when mixed with
+  Moon (source 3). No device or assignment was created; the temporary script was
+  removed.
+- `tools/ingest.ts` was verified only as far as Val Town allows — it parses,
+  loads its credential, generates the range and fails exactly at the documented
+  ESPN 403. The ESPN-200-through-write path was exercised live twice by an
+  equivalent script run off-platform, which is what loaded the 24 games.
+- No Xcode, iOS, or CI checks were run. iOS needs none: the widget contract is
+  unchanged.
+
+### Deliberately not done
+
+- **FIBA was not removed from `source-sports`.** Both vals now serve this
+  tournament. Devices still assigned source 1 with FIBA teams keep the old
+  behaviour, including the UTC+14 bug. De-duplicating them is a separate
+  migration with its own assignment rewrite.
+- The parent's starter-feed fallback, operator ingest, catalog and coverage
+  adapters still hard-code Sports ID 1. `source-wfiba` has no parent ingest
+  route; its ingest goes directly to `/v1/write`.
+- `source-wfiba` inherited three live env vars from the remix —
+  `SOURCE_SPORTS_V1_TOKEN`, `SOURCE_SPORTS_RPC_TOKEN` and
+  `DEVICE_FEED_RPC_TOKEN`. The first is a real copy of the sports val's
+  credential and **should be deleted from `source-wfiba` in the web UI**; the
+  MCP tool set has no delete-env-var operation. Nothing in the val reads any of
+  them.
 
 ## Descriptor-driven settings (2026-09-07)
 
