@@ -274,20 +274,27 @@ Reduce Motion and Reduce Transparency. Consult Swift for geometry, not this brie
 
 The widget extension owns its push entitlement and `.pushHandler`. The containing
 app separately requests visible-notification permission and registers an app token
-for Apple console testing; it does not yet upload that token to the server. See
+and uploads it with the last observed alert permission to `/device/notifications/register`.
+`/device/notifications/test` sends fixed self-test text with token proof and a cooldown.
+`device_alert_tokens` is keyed by install/environment, independent of widget tokens. See
 [push-notifications.md](push-notifications.md) for setup and remaining integration.
 Parent APNs
 uses push type `widgets`, extension topic suffix `.push-type.widgets`, and
-`{"aps":{"content-changed":true}}`. Debug tokens use sandbox; distribution tokens
-use production. Server delivery prefers widget tokens with a legacy app-background
+`{"aps":{"content-changed":true}}`. Embedded signing profiles determine the environment; App Store builds without
+profiles use production, and simulators use sandbox. Server delivery prefers widget tokens with a legacy app-background
 fallback. Push is opportunistic; it neither refreshes source data nor replaces
 the hourly timeline.
 
 APNs requires `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_AUTH_KEY`; `APNS_APP_TOPIC` and
-`APNS_WIDGET_TOPIC` are optional overrides. Missing configuration skips delivery.
-Environment-key metadata checked on 2026-09-08 contained none of the three required
-APNs keys; delivery remains unverified. Token storage is independent of pairing,
-not tied to retired configs.
+`APNS_WIDGET_TOPIC` are optional overrides. The configured key is production-only.
+Sandbox uses separate `APNS_SANDBOX_KEY_ID`/`APNS_SANDBOX_AUTH_KEY` credentials,
+never production fallback. Both environments use the live val database. Missing
+configuration skips delivery and the alert test returns an explicit reason.
+All three credentials were configured on 2026-09-08. Running
+`tools/apns-credentials-check.ts` confirmed identifier format, P-256 private-key
+import, and signing in the server runtime without printing secrets. Apple
+authentication, key scope/environment, and delivery remain unverified. Token
+storage is independent of pairing, not tied to retired configs.
 
 ## Source operations and freshness
 

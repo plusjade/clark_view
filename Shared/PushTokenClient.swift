@@ -18,15 +18,8 @@ enum PushTokenClient {
         let active: Bool
     }
 
-    private static var environment: String {
-#if DEBUG
-        "sandbox"
-#else
-        "production"
-#endif
-    }
-
     static func updateWidgetToken(device: String, token: Data, active: Bool) async {
+        guard let environment = PushEnvironment.current else { return }
         let hexToken = token.map { String(format: "%02x", $0) }.joined()
         var request = URLRequest(url: GameDataURL.baseURL.appendingPathComponent("device/token"))
         request.httpMethod = "POST"

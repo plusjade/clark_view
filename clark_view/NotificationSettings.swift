@@ -11,13 +11,47 @@ final class NotificationSettings {
     var token: String?
     var registrationStatus = "Not registered"
     var errorMessage: String?
+    var serverStatus = "Not synced with server"
+    var isSendingTest = false
+    private var syncTask: Task<Void, Never>?
+
+    var allowsAlerts: Bool {
+        authorization == .authorized || authorization == .provisional || authorization == .ephemeral
+    }
+
+    func synchronize() {
+        let previous = syncTask
+        syncTask = Task {
+            await previous?.value
+            guard let token else { return }
+            do {
+                serverStatus = try await AlertPushClient.send(token: token, allowed: allowsAlerts)
+                errorMessage = nil
+            } catch {
+                serverStatus = "Server sync failed; retry or reopen the app"
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    func sendTest() async {
+        guard let token, allowsAlerts, !isSendingTest else { return }
+        isSendingTest = true
+        defer { isSendingTest = false }
+        await syncTask?.value
+        do {
+            serverStatus = try await AlertPushClient.send(token: token, allowed: true, test: true)
+            errorMessage = nil
+        } catch { errorMessage = error.localizedDescription }
+    }
 
     func refresh() async {
         let settings = await UNUserNotificationCenter.current().notificationSettings()
         authorization = settings.authorizationStatus
-        if authorization == .authorized || authorization == .provisional || authorization == .ephemeral {
+        if authorization != .notDetermined {
             if token == nil { registrationStatus = "Registering with Apple…" }
             UIApplication.shared.registerForRemoteNotifications()
+            synchronize()
         }
     }
 
@@ -47,6 +81,11 @@ final class NotificationDelegate: NSObject, UIApplicationDelegate, UNUserNotific
         notifications.token = deviceToken.map { String(format: "%02x", $0) }.joined()
         notifications.registrationStatus = "Registered with Apple"
         notifications.errorMessage = nil
+        Task {
+            let settings = await UNUserNotificationCenter.current().notificationSettings()
+            notifications.authorization = settings.authorizationStatus
+            notifications.synchronize()
+        }
     }
 
     func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
@@ -86,7 +125,9 @@ struct NotificationSettingsView: View {
                 if let token = notifications.token {
                     Button("Copy APNs Token for Testing") { UIPasteboard.general.string = token }
                         .font(.footnote)
-                    Text("Ready for an Apple Push Notifications Console test. Server delivery is not connected yet.")
+                    Button("Send Test Notification") { Task { await notifications.sendTest() } }
+                        .disabled(notifications.isSendingTest || !notifications.allowsAlerts)
+                    Text(notifications.serverStatus)
                         .font(.footnote).foregroundStyle(.secondary)
                 }
             }

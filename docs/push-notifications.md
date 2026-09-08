@@ -4,12 +4,16 @@
 
 The app supports requesting alert/sound permission, registering its APNs token,
 foreground banners, and opening notification settings. The paired screen can
-copy the app token for a manual Apple console test. Tokens are not logged or
-persisted locally. App tokens are **not yet uploaded to Val Town**.
+copy the app token for a manual Apple console test or send a fixed test through
+Val Town. App tokens and current alert permission synchronize on registration,
+return to foreground, and explicit retry. Tokens are not logged or persisted locally.
 
 The existing widget extension independently uploads its WidgetKit token to
-`POST /device/token`. As checked on September 8, 2026, `sports-today` has none of
-the three required APNs credentials, so server widget delivery is skipped.
+`POST /device/token`. On September 8, 2026, all three APNs credentials were
+configured in `sports-today`. The server's `tools/apns-credentials-check.ts`
+passed identifier-format, private-key import, and P-256 signing checks without
+exposing secrets. Apple authentication, key scope/environment, and actual
+delivery are still unverified.
 
 | Channel | Token | APNs push type | Topic | Payload |
 | --- | --- | --- | --- | --- |
@@ -51,32 +55,52 @@ storage category to represent visible-notification opt-in.
 This is a real remote notification through APNs, without a server private key.
 No notification has been sent or device delivery verified by the code build.
 
-## Connect Val Town after the console test
+## Live server and APNs environments
 
-Create an APNs signing key in
-[Apple Developer → Keys](https://developer.apple.com/account/resources/authkeys/list).
-Choose environment and scope that cover the intended development/production
-delivery and app/widget topics. Environment-specific keys may require separate
-server configuration; the existing sender assumes a single key set.
-Keep the downloaded `.p8` private and store it directly in Val Town environment
-variables rather than in this repository or chat:
+All builds use the same live Val Town endpoint and val-scoped SQLite database.
+Branches isolate code, not the database or Apple delivery environments.
+`device_alert_tokens` is keyed by install identifier plus `environment`; it stores
+an app token, the last observed permission (`allowed`), and a persistent test cooldown.
+Existing `device_push_tokens` remains the widget/legacy-background registration store.
+Each legacy/widget install-kind row retains its environment; a new registration
+replaces that row. Alert permission is independent from widget activity.
 
-- `APNS_KEY_ID`: the key identifier from Apple.
-- `APNS_TEAM_ID`: the Apple team owning the app (Xcode currently uses `8ADZL76VCT`).
-- `APNS_AUTH_KEY`: the complete PEM contents of the `.p8` file.
+Development/ad hoc provisioning profiles provide `aps-environment`; the Swift
+helper extracts that entitlement from the embedded profile. Missing/malformed
+entitlements in an existing profile stop registration. App Store builds without
+an embedded profile use production; simulator builds use sandbox. This no longer
+depends on `DEBUG`. Validate a signed device build when one is available.
 
-[Configure sports-today environment variables](https://www.val.town/x/plusjade/sports-today/environment-variables).
+The existing `APNS_KEY_ID` and `APNS_AUTH_KEY` are **production-only** credentials.
+`APNS_TEAM_ID` is shared. Xcode development builds require a separate sandbox key:
+`APNS_SANDBOX_KEY_ID` and `APNS_SANDBOX_AUTH_KEY`. Both environments can register
+against the live server; missing credentials return `MissingCredentials:sandbox`
+or `MissingCredentials:production`, with no cross-environment fallback.
 
-Remaining server work after credential/connection validation:
+[Configure environment variables](https://www.val.town/x/plusjade/sports-today/environment-variables).
+Never place private key contents in source or logs.
 
-- Add a distinct visible-token registration category, including schema migration,
-  route validation, permission synchronization, and retriable app uploads.
-- Preserve widget-token preference only for refresh delivery; visible delivery
-  must explicitly select the app token, never fall back to the widget token.
-- Add a sender using `alert`, the app topic, and explicit APNs outcomes. Keep test
-  sending private or authenticated; do not expose an anonymous arbitrary sender.
-- Test one registered install, then independently verify a WidgetKit push causes
-  a timeline fetch. Add event rules only after both transports are verified.
+## Server registration and self-test
+
+- `POST /device/notifications/register`: `{device,token,environment,allowed}`.
+  Environment and Boolean permission are mandatory; malformed tokens are rejected.
+- `POST /device/notifications/test`: `{device,token,environment}`. Requires the
+  current token, allowed permission, and at least 60 seconds since the last test
+  attempt. Sends fixed Clark View text, never caller-provided announcements.
+- Success means APNs accepted the request, not that a banner appeared. Errors are
+  visible in the app. APNs 410 removes only the exact alert token/environment;
+  `BadDeviceToken` is retained for diagnosis because environment mismatch can cause it.
+- Permission is the last state observed by the app; Settings changes synchronize
+  next time the app runs. iOS itself enforces notification presentation permission.
+- Registration follows this prototype's existing public install-ID API model;
+  it is not full device authentication. The self-test requires token knowledge,
+  but enrollment/auth hardening is still needed before broader consumer rollout.
+
+Run `tools/alert-push-check.ts` in Val Town for signing and mocked transport checks,
+plus disposable SQLite fixtures (cleaned up). It sends no real APNs requests.
+The test button is the first live delivery check once a signed build is installed.
+No real delivery has yet been verified. There are no automatic event rules or
+arbitrary announcement endpoint.
 
 ## References
 
