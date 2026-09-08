@@ -288,7 +288,9 @@ Parent APNs
 uses push type `widgets`, containing-app topic `plusjade.clark-view.push-type.widgets`, and
 `{"aps":{"content-changed":true}}`. Embedded signing profiles determine the environment; App Store builds without
 profiles use production, and simulators use sandbox. Server delivery prefers widget tokens with a legacy app-background
-fallback. Push is opportunistic; it neither refreshes source data nor replaces
+fallback. The widget must be added before testing; pairing alone does not register its token.
+Use the containing app bundle ID for the widget APNs topic, not the extension ID.
+Push is opportunistic; it neither refreshes source data nor replaces
 the hourly timeline.
 
 APNs requires `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_AUTH_KEY`; `APNS_APP_TOPIC` and
@@ -298,8 +300,11 @@ never production fallback. Both environments use the live val database. Missing
 configuration skips delivery and the alert test returns an explicit reason.
 All three credentials were configured on 2026-09-08. Running
 `tools/apns-credentials-check.ts` confirmed identifier format, P-256 private-key
-import, and signing in the server runtime without printing secrets. Apple
-authentication, key scope/environment, and delivery remain unverified. Token
+import, and signing in the server runtime without printing secrets. Sandbox
+alert delivery was confirmed by the user. A sandbox widget push accepted at
+20:50:27 UTC on 2026-09-08 produced matching Last Attempt/Last Success timestamps
+on the phone, without a manual reload or visible notification permission.
+Production authentication and delivery remain unverified. Token
 storage is independent of pairing, not tied to retired configs.
 
 ## Source operations and freshness
@@ -431,8 +436,3 @@ identities, ownership, contracts, verification entrypoints and actionable gotcha
 Date time-sensitive observations. Remove superseded guidance rather than layering
 another override above it; omit per-task branch names, file-deletion inventories,
 assertion counts and routine validation narratives.
-
-Widget verification on 2026-09-08: sandbox APNs accepted a WidgetKit push at
-19:42:02 UTC after correcting the topic to the containing app bundle ID plus
-`.push-type.widgets`. Device timeline refresh confirmation is pending. The widget
-must be added to the Home Screen before testing; pairing alone does not register it.

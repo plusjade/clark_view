@@ -12,8 +12,8 @@ The existing widget extension independently uploads its WidgetKit token to
 `POST /device/token`. On September 8, 2026, all three APNs credentials were
 configured in `sports-today`. The server's `tools/apns-credentials-check.ts`
 passed identifier-format, private-key import, and P-256 signing checks without
-exposing secrets. Apple authentication, key scope/environment, and actual
-delivery are still unverified.
+exposing secrets. Sandbox alert and widget delivery were subsequently verified on September 8.
+Production authentication and delivery remain unverified.
 
 | Channel | Token | APNs push type | Topic | Payload |
 | --- | --- | --- | --- | --- |
@@ -53,7 +53,7 @@ storage category to represent visible-notification opt-in.
    alert appeared; use the console's development delivery logs when diagnosing.
 
 This is a real remote notification through APNs, without a server private key.
-No notification has been sent or device delivery verified by the code build.
+A code build alone does not verify delivery; the sandbox device checks below do.
 
 ## Live server and APNs environments
 
@@ -98,8 +98,8 @@ Never place private key contents in source or logs.
 
 Run `tools/alert-push-check.ts` in Val Town for signing and mocked transport checks,
 plus disposable SQLite fixtures (cleaned up). It sends no real APNs requests.
-The test button is the first live delivery check once a signed build is installed.
-No real delivery has yet been verified. There are no automatic event rules or
+The user confirmed receipt of the sandbox alert sent with the app test button.
+The sandbox widget test also passed (see below). There are no automatic event rules or
 arbitrary announcement endpoint.
 
 ## References
@@ -110,7 +110,18 @@ arbitrary announcement endpoint.
 - [WidgetKit pushes](https://developer.apple.com/documentation/widgetkit/updating-widgets-with-widgetkit-push-notifications)
 - [Create an Apple service key](https://developer.apple.com/help/account/keys/create-a-private-key/)
 
-Widget verification on 2026-09-08: sandbox APNs accepted a WidgetKit push at
-19:42:02 UTC after correcting the topic to the containing app bundle ID plus
-`.push-type.widgets`. Device timeline refresh confirmation is pending. The widget
-must be added to the Home Screen before testing; pairing alone does not register it.
+## Device verification — September 8, 2026
+
+- Sandbox visible alert: user confirmed receipt using **Send Test Notification**.
+- Sandbox WidgetKit push: APNs accepted the request at **20:50:27 UTC
+  (1:50:27 PM Pacific)**; the user confirmed **Last Attempt** and **Last Success**
+  both advanced to **1:50:27**, without a manual reload. Visible notification
+  permission had not been enabled on this reinstalled app.
+- The server topic was corrected to `plusjade.clark-view.push-type.widgets`.
+  Using the widget extension bundle ID caused `DeviceTokenNotForTopic`.
+- Add the widget to the Home Screen before testing; pairing alone does not
+  register a WidgetKit token. After a reinstall/merge, verify the current
+  install-to-device mapping before selecting a token for a test.
+- Remaining: install a TestFlight build and repeat both alert and widget tests
+  with production tokens and credentials. Event-triggered notification policy
+  is a separate product brief; no automatic rules are enabled.
