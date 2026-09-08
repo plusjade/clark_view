@@ -287,7 +287,8 @@ a push task. Token storage is independent of pairing, not tied to retired config
 ## Source operations and freshness
 
 Reads use stored data; refreshing a widget does not ingest upstream events.
-No automatic ingestion schedules were recorded for these sources.
+WNBA is the one source that ingests on a schedule (see below); every other
+source ingests only when an operator or the parent drives a write.
 
 | Source | Settings / storage | Write and known operational limits |
 | --- | --- | --- |
@@ -295,7 +296,7 @@ No automatic ingestion schedules were recorded for these sources.
 | Women's FIBA | 16 stable nation slugs plus `intradayFilter`; indexed `wfiba_games`, independent roster in `wfiba_teams` | `games.ingest` with `{dateKey,payload}`. Each date replaces its rows authoritatively. Off-platform `tools/ingest.ts` fetches ESPN; `GET /coverage` diagnoses storage. |
 | NFL | 32 team choices plus `intradayFilter`; indexed `cached_games` | `sleeper.refresh` with integer `{days:1..31}`; NFL-only normalization/storage |
 | CFB | Curated `trojans`/`bruins` choices plus `intradayFilter`; indexed `cached_games` | Same refresh operation, CFB-only; not a full college roster |
-| WNBA | 15 choices plus `intradayFilter`; indexed `cached_games` | Same refresh operation, WNBA-only; accepts Sleeper nested `{team:code}` and stored flat codes |
+| WNBA | 15 choices plus `intradayFilter`; indexed `cached_games` | Same refresh operation, WNBA-only; accepts Sleeper nested `{team:code}` and stored flat codes. **Also runs itself hourly** — see the scheduled-ingest section below |
 
 Sports sources use per-team next-game union/deduplication and client-day bounds.
 Sleeper refresh uses Eastern-day windows, including yesterday for clients west
@@ -311,10 +312,65 @@ The UTC date filter assumes events belong to the requested bucket; the ingest
 runner reports off-bucket events. Status stays frozen until another ingest.
 
 Last recorded FIBA coverage (2026-09-07) was 24 group-stage games with Sep 8–14
-empty pending bracket publication. WNBA refresh returned zero games for Sep 6–14.
+empty pending bracket publication. WNBA refresh returned zero games for Sep 6–14;
+re-probed per date on 2026-09-08, Sleeper genuinely publishes none until Sep 17,
+and a 14-day window then stored 18 games across Sep 17–21. An empty date range is
+normal for this source and is not an ingest failure.
 These are observations, not current guarantees or proof of correct nonempty
 upstream handling. Inspect coverage and representative stored/provider data for
 freshness tasks; avoid silently adding a provider or schedule.
+
+### WNBA scheduled ingest (2026-09-08)
+
+`plusjade/source-wnba` keeps itself fresh. `refresh.ts` is an `interval` file at
+the val root on cron `0 * * * *`; it calls `ingestSleeperWindow(14)` directly and
+logs one line per run. Verified by manual `run_file` invocation:
+`wnba ingest 2026-09-06..2026-09-21: fetched 18, stored 18, skipped 0`.
+
+**The cron expression is not in the file.** It is set out of band with
+`write_interval_settings`, evaluated in **UTC**, with no DST handling — reading
+`refresh.ts` alone will not tell you when it runs.
+
+The val now has three entrypoints, deliberately not layered on each other:
+
+| Entrypoint | Caller | Path to the ingest |
+| --- | --- | --- |
+| `rpc.ts` | the parent, remote | bearer-checked, protocol envelopes |
+| `refresh.ts` | the hourly cron | calls `lib/` directly, no auth hop |
+| `tools/sleeper-ingest.ts` | an operator, ad hoc | through `rpc.ts`, on purpose |
+
+The interval skips `rpc.ts` because the bearer check exists to gate *remote*
+callers and an in-val cron is not one; routing a local job through the val's own
+HTTP auth would invert the dependency direction. The operator tool does the
+opposite for the opposite reason: exercising the real auth, envelope and `days`
+guard is the point of running it by hand. Its `DAYS` is edited in place before a
+run, since `run_file` passes no arguments. `DAYS = 14` therefore appears in both
+files — the standing horizon and an operator's ad-hoc choice, free to differ.
+
+**Hourly, not daily, because status decays faster than coverage does.** `status`
+is cached alongside the game, and `lib/widgetItems.ts` maps it through
+`STATUS_MAP` into the `LIVE` / `END` caption and the `emphasized` flag, while
+`intradayFilter` uses it to hide a game the moment it ends. A daily run would
+leave a finished game reading as scheduled for up to a day and make
+`intradayFilter` effectively inoperative. Cost is one upstream request per date
+in the window, in parallel — 16 per run. If that needs trimming, split it into a
+frequent narrow refresh (today ±1) for status plus a daily wide one for the
+horizon; deliberately not built, as twice the machinery for a load level that is
+not a problem.
+
+Two inherited hazards, both from remixing `source-sports` **with** its database:
+
+- The ingest fan-out is scoped by `readCatalog()`, which hard-filters
+  `catalog_competitions` and `catalog_teams` to `code = 'wnba'`. Those tables
+  still hold all five competitions, so widening that filter would silently make
+  the hourly job fetch other leagues — which `normalizeGame` drops and
+  `saveCachedGames` rejects. **The scoping is load-bearing.**
+- `cached_games` arrived carrying `cfb`/`nfl` rows and unused `away_score` /
+  `home_score` columns. Reads and coverage all hard-filter `sport = 'wnba'`, so
+  the rows are inert; removal is separate cleanup.
+
+`tools/source-contract-check.ts` (39 assertions) passes against the deployed val
+and is the check to re-run after any change here.
 
 ## Bounded remote workflow and verification
 
