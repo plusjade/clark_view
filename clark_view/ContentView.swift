@@ -60,6 +60,7 @@ private struct PairedView: View {
             .buttonStyle(.bordered)
 
             DiagnosticsView(status: status, isLoading: isLoading, onRefresh: refresh)
+            NotificationSettingsView()
         }
         .padding()
         .task { await refresh() }
@@ -154,4 +155,5 @@ private struct DiagnosticsView: View {
 
 #Preview {
     ContentView()
+        .environment(NotificationSettings())
 }

@@ -272,7 +272,11 @@ do not guarantee immediate execution. The normal timeline requests an hourly
 refresh. Native accented/vibrant appearances remain system-owned; Beacon respects
 Reduce Motion and Reduce Transparency. Consult Swift for geometry, not this brief.
 
-The widget extension owns the push entitlement and `.pushHandler`. Parent APNs
+The widget extension owns its push entitlement and `.pushHandler`. The containing
+app separately requests visible-notification permission and registers an app token
+for Apple console testing; it does not yet upload that token to the server. See
+[push-notifications.md](push-notifications.md) for setup and remaining integration.
+Parent APNs
 uses push type `widgets`, extension topic suffix `.push-type.widgets`, and
 `{"aps":{"content-changed":true}}`. Debug tokens use sandbox; distribution tokens
 use production. Server delivery prefers widget tokens with a legacy app-background
@@ -281,8 +285,9 @@ the hourly timeline.
 
 APNs requires `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_AUTH_KEY`; `APNS_APP_TOPIC` and
 `APNS_WIDGET_TOPIC` are optional overrides. Missing configuration skips delivery.
-Previous verification did not prove APNs delivery; inspect configuration only for
-a push task. Token storage is independent of pairing, not tied to retired configs.
+Environment-key metadata checked on 2026-09-08 contained none of the three required
+APNs keys; delivery remains unverified. Token storage is independent of pairing,
+not tied to retired configs.
 
 ## Source operations and freshness
 
