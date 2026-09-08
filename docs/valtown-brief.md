@@ -62,6 +62,7 @@ Credential names are references only; their values must never enter this repo.
 | 5 | `plusjade/source-nfl` / `nfl` | `01a07d9f-d1a7-75dc-86db-eb178f2b25b1` | `SOURCE_NFL_V1_TOKEN` |
 | 6 | `plusjade/source-cfb` / `cfb` | `01a07dd8-7b2c-778e-9b98-1f67aa94b955` | `SOURCE_CFB_V1_TOKEN` |
 | 7 | `plusjade/source-wnba` / `wnba` | `01a07de5-f2ca-7358-a270-26c8bacce23f` | `SOURCE_WNBA_V1_TOKEN` |
+| 8 | `plusjade/source-lunar` / `lunar` | `bf3ab8aa-ab9f-11f1-a75e-1607ee4eb77e` | `SOURCE_LUNAR_V1_TOKEN` |
 
 Cached endpoints, in the same order:
 
@@ -70,6 +71,7 @@ Cached endpoints, in the same order:
 - NFL: `https://plusjade--01a07d9fd1a775dc86dbeb178f2b25b1.web.val.run`
 - CFB: `https://plusjade--01a07dd87b2c778e9b981f67aa94b955.web.val.run`
 - WNBA: `https://plusjade--01a07de5f2ca7358a27026c8bacce23f.web.val.run`
+- Lunar: `https://plusjade--bf3ab8aaab9f11f1a75e1607ee4eb77e.web.val.run`
 
 ## Parent model and code map
 
@@ -160,7 +162,8 @@ including identity, duplicate IDs and finite Unix-second timestamps.
 The shared SDK is `plusjade/source-sdk`, public and dependency-free, with no
 HTTP entry, storage, credentials, or schedules. See its
 [creator guide](https://www.val.town/x/plusjade/source-sdk/code/README.md).
-Moon and Women's FIBA import its public entrypoint at this tested immutable pin:
+Moon, Women's FIBA and Lunar import its public entrypoint at this tested
+immutable pin:
 
 ```ts
 import { accept, reject, defineSource, serveSource, type Item }
@@ -287,7 +290,8 @@ a push task. Token storage is independent of pairing, not tied to retired config
 ## Source operations and freshness
 
 Reads use stored data; refreshing a widget does not ingest upstream events.
-No automatic ingestion schedules were recorded for these sources.
+Lunar is the only source with an ingestion schedule; the rest are ingested
+out of band.
 
 | Source | Settings / storage | Write and known operational limits |
 | --- | --- | --- |
@@ -296,6 +300,7 @@ No automatic ingestion schedules were recorded for these sources.
 | NFL | 32 team choices plus `intradayFilter`; indexed `cached_games` | `sleeper.refresh` with integer `{days:1..31}`; NFL-only normalization/storage |
 | CFB | Curated `trojans`/`bruins` choices plus `intradayFilter`; indexed `cached_games` | Same refresh operation, CFB-only; not a full college roster |
 | WNBA | 15 choices plus `intradayFilter`; indexed `cached_games` | Same refresh operation, WNBA-only; accepts Sleeper nested `{team:code}` and stored flat codes |
+| Lunar | Exactly `{}`; `lunar_fifteenths(date_key,payload,fetched_at)` | `calendar.rebuild` with `{year}`, replacing that year authoritatively. Computed from Meeus ch. 49, so there is no provider to fetch or 403. Its own `ingest.ts` interval runs cron `0 0 1 12 *` and rebuilds the current and next year; 2026-2027 are seeded. |
 
 Sports sources use per-team next-game union/deduplication and client-day bounds.
 Sleeper refresh uses Eastern-day windows, including yesterday for clients west
@@ -405,8 +410,9 @@ Keep these constraints; use Git/Val Town history for change lists and old probes
   cleanup was previously rejected by automatic approval review and did not run.
   Do not assume cleanup happened or bundle it into an unrelated change.
 - **Deferred:** immutable source publication/activation, agent ACLs, advanced
-  sharing/subscriptions, partial-feed degradation, automated ingestion and
-  next-year Moon seeding. Implement these only when the task calls for them.
+  sharing/subscriptions, partial-feed degradation, automated ingestion for the
+  sports sources, and next-year Moon seeding. Implement these only when the
+  task calls for them.
 
 When maintaining this brief, update the relevant section in place. Keep endpoint
 identities, ownership, contracts, verification entrypoints and actionable gotchas.
