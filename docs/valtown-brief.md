@@ -2,7 +2,66 @@
 
 Read this before inspecting or changing the Val Town backend. It is a local map of the parts of `plusjade/sports-today` that matter to this repository, updated on 2026-09-06, so routine iOS work should not require rediscovering the remote project through repeated MCP calls.
 
-## Current boundary — source vals (2026-09-07)
+## Current boundary — Sports retired (2026-09-07)
+
+`plusjade/sports-today` now composes only explicitly assigned source instances.
+Its stable `main.ts` file ID and endpoint remain
+`f0eeffb8-9a93-11f1-9bb6-1607ee4eb77e` /
+`https://plusjade--f0eeffb89a9311f19bb61607ee4eb77e.web.val.run`.
+
+```text
+Widget → sports-today /config/resolve
+         → device assignments + source registry
+         → sourceClient.ts → authenticated source HTTP
+              Moon 3 · Women's FIBA 4 · NFL 5 · CFB 6 · WNBA 7
+         → validate temporal items → timestamp sort → widget schema v2
+```
+
+All five sources belong to bunch 1. **Sports registry row 1 was removed** after
+confirming zero assignments. `plusjade/source-sports` is preserved as-is, with
+no remaining parent runtime or test callers. No NBA replacement was created;
+the two prototype NBA teams are retired until a fresh seasonal source is built.
+All six existing assignments remain unchanged (Moon 2, Women's FIBA 3, NFL 1).
+
+An absent, unknown, or unassigned device now receives an **empty schema-v2 feed**
+with normal presentation, `x-effective-source-count: 0`, and an empty
+`x-effective-sources` header. There is no starter source and no provider request.
+The device page explains that a source must be added to populate its feed.
+
+The parent owns registration, assignments, generic settings forms, authenticated
+reads and composition. Sources own their data, ingest and domain policy.
+Both resolver routes and preview call `composeDeviceFeed` directly. Shared
+selection/query types live in `lib/sourceClient.ts`; the unused `d` passthrough
+and request-URL adapter argument are gone. `tz` remains offset seconds.
+`/config/status` retains its existing optional teams diagnostic for iOS
+compatibility, projected locally at that route; there is no internal games model.
+
+Removed 10 files: `lib/deviceFeedClient.ts`, `lib/catalog.ts`, `lib/resolver.ts`,
+`http/routes/ingest.ts`, `tools/ingestSleeper.ts`, `tools/fiba-ingest.ts`,
+`tools/fiba-cache-check.ts`, `tools/fiba-source-check.ts`, `tools/catalog-check.ts`,
+and the obsolete FIBA scoreboard fixture. Removed prototype source constants,
+the implicit Sports fallback and the unused parent `writeSource` helper.
+**The old `/ingest/:source/:dateKey` route is gone**, including its Moon adapter;
+operators must write directly to the implementing source's SDK endpoint.
+No schedules were added. Provider credentials and INGEST_TOKEN may remain as
+unused environment keys; there is no MCP delete-env operation. Historical
+migration tables remain recovery data, not executable source references.
+
+Validation: the 30-file parent reference/import audit found no retired Sports
+references or broken relative imports. Updated source-boundary checks pass on
+branch and deployed main: zero-provider empty feeds, both resolver routes,
+browser pages, retired ingest 404s, status compatibility and NFL/Moon composition.
+Source-settings checks pass with NFL multi-select and Moon empty settings;
+the widget fixture now uses Women's FIBA/Moon. All disposable rows were removed.
+Live `/config/resolve` returned 200 with an empty schema-v2 body; `/sources/1`
+returned 404. Foreign-key check is clean. One `retire-sports` branch merged once.
+No iOS changes or Xcode checks: the wire fields and endpoint are unchanged.
+
+**The sections below record prior migrations.** Their statements about Sports
+callers, fallback, registry membership and parent ingest are superseded above.
+Standalone source endpoint identities and settings contracts remain valid.
+
+## Historical boundary — initial source vals (2026-09-07)
 
 This section supersedes the pre-migration topology and singleton/priority behavior
 in the historical notes below. Milestone one of [the source plan](val-based-sources-plan.md)
