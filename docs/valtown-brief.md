@@ -81,6 +81,11 @@ Canonical parent tables are `bunches`, `bunch_codes`, `devices`, `sources`,
   descriptor/schema snapshots and timestamps. `kind` is unrestricted diagnostic
   metadata, neither unique nor the transport dispatch key. There is no separate
   definitions or `source_instances` table.
+- A reinstall pairs into a new row; `/devices/:id/merge` resolves that by moving
+  the live install ID onto the configured device and deleting the origin row.
+  Adoption preserves the target's row ID, name, assignments, presentation and
+  page; the retired install ID's push/alert token rows are dropped. Nothing
+  copies assignments forward, so the bunch triggers never fire.
 - `device_sources` stores instance IDs and JSON settings. Triggers reject
   cross-bunch assignments and moving an attached source. Moving a device into
   another bunch clears its previous assignments. A valid bunch code is the
@@ -129,6 +134,7 @@ a reason to add a component library or client-side JavaScript.
 | `/devices/:id` | Integer-ID browser resource, name edit, assignment and presentation subpages |
 | `/devices/:id/sources/new`, `/devices/:id/sources`, `/devices/:id/sources/:assignmentId` | Choose an eligible instance, then add/edit descriptor-driven settings; deletion uses POST to the assignment's `/delete` route |
 | `/devices/:id/presentation`, `/devices/:id/preview` | Edit device presentation; preview the same composition as the resolver |
+| `/devices/:id/merge` | Move a reinstalled app's install ID onto the device it replaces; the chosen target survives and the origin row is deleted |
 | `/sources`, `/sources/:id` | Read-only registry explorer, implementing endpoint, schema, attached devices |
 | `/bunches`, `/bunches/new`, `/bunches/:id`, `/bunches/:id/pair`, `/bunches/:id/codes` | Enrollment administration and pairing-code creation |
 
