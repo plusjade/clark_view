@@ -1,6 +1,6 @@
 # Clark View ↔ Val Town orientation
 
-Read this before inspecting or changing the Val Town backend. It is a local map of the parts of `plusjade/sports-today` that matter to this repository, updated on 2026-09-06, so routine iOS work should not require rediscovering the remote project through repeated MCP calls.
+Read this before inspecting or changing the Val Town backend. It is a local map of the parts of `plusjade/sports-today` that matter to this repository, updated on 2026-09-08, so routine iOS work should not require rediscovering the remote project through repeated MCP calls.
 
 ## Current boundary — source vals (2026-09-07)
 
@@ -12,11 +12,21 @@ is deployed.
 Widget → sports-today /config/resolve
          → sources registry + device_sources
          → sourceClient.ts: authenticated HTTP reads
-              → source-sports: Sports + copied SQLite
-              → source-moon: Moon + dedicated SQLite
-              → source-wfiba: Women's FIBA + dedicated SQLite
+              → source-moon:  id=3  Moon         + dedicated SQLite
+              → source-wfiba: id=4  Women's FIBA + dedicated SQLite
+              → source-nfl:   id=5  NFL          + dedicated SQLite
+              → source-cfb:   id=6  CFB          + dedicated SQLite
+              → source-wnba:  id=7  WNBA         + dedicated SQLite (hourly self-ingest)
          → validate temporal items → timestamp sort → presentation → widget v2
 ```
+
+**The per-league split is complete and `source-sports` has left the registry.**
+Verified 2026-09-08: `sources` holds exactly the five rows above, all bunch 1,
+all `contract_version` 1. There is no `id = 1` row any more. The
+`plusjade/source-sports` val still exists and its `rpc.ts` still deploys, but
+nothing points at it — it is reachable only by hand. Prose further down this
+document that treats Sports as `id = 1`, as the prototype fallback, or as the
+operator ingest default predates that removal; see the staleness note below.
 
 - `sources` is reimplemented as a bunch-owned instance registry. Rows carry `id`,
   `bunch_id`, `name`, `endpoint`, `remote_source_key`, `contract_version`, and
@@ -24,8 +34,10 @@ Widget → sports-today /config/resolve
   unrestricted compatibility metadata for diagnostics;
   it is neither unique nor the transport dispatch key. There is no definitions
   registry or separate `source_instances` table.
-- Prototype sources: Sports `id=1`, Moon `id=3`, Women's FIBA `id=4`, all owned
-  by bunch `id=1`.
+- Registered sources: Moon `id=3`, Women's FIBA `id=4`, NFL `id=5`, CFB `id=6`,
+  WNBA `id=7`, all owned by bunch `id=1`. Device assignments as of 2026-09-08
+  cover Moon (2), Women's FIBA (3), and NFL (1); CFB and WNBA are registered but
+  not yet assigned to any device.
   Devices assign source IDs with JSON settings. Triggers reject cross-bunch
   assignments and prevent moving an attached source; moving a device clears its
   old assignments. The existing `priority` column remains inert for migration
@@ -36,6 +48,10 @@ Widget → sports-today /config/resolve
   `https://plusjade--01a07aad0a727127a01d5ab044902bbe.web.val.run`.
   RPC reads `SOURCE_SPORTS_V1_TOKEN`, configured independently in parent and source.
   Never expose the value. The earlier bootstrap key is unused.
+  **Deregistered.** Its `sources` row is gone and no device resolves to it; the
+  per-league vals below replaced it. It remains the origin every per-league val
+  was remixed from, and the reference implementation of the three-way split
+  documented in the change-location checklist.
 - Moon now uses `plusjade/source-moon`, public code/public app access. HTTP entry
   `rpc.ts`, file ID `2f093378-aaec-11f1-932c-1607ee4eb77e`, endpoint
   `https://plusjade--2f093378aaec11f1932c1607ee4eb77e.web.val.run`.
@@ -46,6 +62,18 @@ Widget → sports-today /config/resolve
   source use independent `SOURCE_WFIBA_V1_TOKEN` credentials. It stores a row
   per game rather than a day-keyed blob, and `source-sports` still serves its
   own overlapping `fiba` competition — see the split section below.
+- NFL uses `plusjade/source-nfl` (`sources.id = 5`, credential
+  `SOURCE_NFL_V1_TOKEN`, endpoint
+  `https://plusjade--01a07d9fd1a775dc86dbeb178f2b25b1.web.val.run`) and CFB uses
+  `plusjade/source-cfb` (`sources.id = 6`, credential `SOURCE_CFB_V1_TOKEN`,
+  endpoint `https://plusjade--01a07dd87b2c778e9b981f67aa94b955.web.val.run`).
+  Registry facts only: neither val's internals have been read into this brief,
+  so treat them as undocumented rather than as absent or as copies of WNBA.
+- WNBA uses `plusjade/source-wnba` (`sources.id = 7`, credential
+  `SOURCE_WNBA_V1_TOKEN`, endpoint
+  `https://plusjade--01a07de5f2ca7358a27026c8bacce23f.web.val.run`). It is the
+  first source that keeps itself fresh on a schedule rather than waiting for an
+  operator — see the WNBA section below.
 - `lib/sourceClient.ts` owns source-ID lookup, authenticated HTTP transport,
   v1 validation, writes, and composition. Provider vals each vendor the same
   SDK; the parent retains its own item guard. Source data stays val-local.
@@ -65,8 +93,10 @@ Widget → sports-today /config/resolve
   `{protocolVersion:1, sourceKey, items}`. No device identity or presentation is
   sent to source vals. `null` offset preserves the source's existing default.
 - `POST /v1/write` accepts `{protocolVersion:1, sourceKey, operation, payload}`.
-  Supported operations: `cache.put` with `{source,dateKey,payload}` (Sports FIBA
-  or Moon cache), and Sports `sleeper.refresh` with `{days}`. Responses wrap the
+  Operations are per-source, not protocol-wide: `cache.put` with
+  `{source,dateKey,payload}` (Sports FIBA or Moon cache), Sports and WNBA
+  `sleeper.refresh` with `{days}`, and Women's FIBA `games.ingest` with
+  `{dateKey,payload}`. Responses wrap the
   existing result in `{protocolVersion:1,sourceKey,ok:true,result}`. Unknown writes
   fail; `/v1/publish` returns 501 and descriptors advertise `publish:false`.
 - Parent `lib/deviceFeedClient.ts` is now a compatibility adapter. Existing
@@ -74,9 +104,14 @@ Widget → sports-today /config/resolve
   ingest resolves Moon. Settings forms fetch the live descriptor for the selected
   source ID and render generically (see below). The source show page
   exposes its bunch and implementing endpoint.
-- Prototype fallback and operator ingest defaults explicitly use Sports ID 1
-  (Moon cache writes use ID 3). These are instance IDs, not kind lookups; they
-  are not a future multi-bunch authorization policy.
+- **Stale, flagged not rewritten (2026-09-08):** this section previously recorded
+  that prototype fallback and operator ingest defaults explicitly use Sports
+  ID 1 (Moon cache writes use ID 3). Sports ID 1 no longer exists in `sources`,
+  so any parent code still defaulting to it resolves nothing. The parent's
+  fallback and ingest-default code paths were not re-read when this was noticed,
+  so what they do now is unverified — check before relying on either. The
+  original point stands regardless: these are instance IDs, not kind lookups,
+  and not a future multi-bunch authorization policy.
 - Parent's stable `main.ts` file ID/base URL and Swift schema version 2 are
   unchanged. Diagnostics now include `x-device-feed-provider: source-registry-v1`
   and `x-effective-sources: 1:sports,3:moon` for mixed assignments.
@@ -167,7 +202,12 @@ is no scheduled job and no interval. At the time of writing one game was `in`
 (serving `caption: "LIVE"`, `emphasized: true`) and will keep serving that until
 the next ingest, and a later game's `END` will not appear until then either.
 Re-running the ingest is the only refresh. Whether that becomes a cron is a
-deliberate open question, not an oversight. Ingest verified all 24 events land with none dropped by
+deliberate open question, not an oversight — but `source-wnba` has since
+answered it for itself (see below), and the reasoning there applies here: cached
+status is what the LIVE/END caption and `intradayFilter` are computed from, so
+"stale window" and "stale status" are two different decay clocks and the faster
+one governs. What blocks copying the answer is upstream, not design: this val
+cannot fetch ESPN at all, so a cron would have nothing to call. Ingest verified all 24 events land with none dropped by
 the val's date filter, which keeps only events whose own UTC date matches the
 requested key — ESPN's buckets were confirmed to align exactly with UTC dates
 for this tournament, so nothing is orphaned, and `tools/ingest.ts` reports any
@@ -804,6 +844,117 @@ Added 2026-09-04 as the third row in `sources` (`id=3`, `kind='moon'`), alongsid
 - **Settings**: `{}` — nothing is device-configurable. `render/deviceHtml.tsx`'s `SourceSettingsFields` and `http/routes/devices.ts`'s `settingsFor` both special-case `kind === "moon"`; since the Messages retirement it is the only kind they special-case. `render/sourceHtml.tsx` needed no changes — its index/show documents are already generic over `kind`.
 - **Still open**: nothing re-seeds `source_cache` for 2027 automatically. Re-run the same research-and-insert step for the next calendar year before this one runs out, the same trade-off FIBA's uncapped-but-manually-ingested window makes.
 
+## `source-wnba` and the first scheduled ingest (2026-09-08)
+
+The fifth registered source, and the first that refreshes itself. Everything
+below was verified live on 2026-09-08.
+
+| Item | Value |
+| --- | --- |
+| Val | `plusjade/source-wnba`, public code / public app access |
+| HTTP entry file / id | `rpc.ts` / `01a07de5-f2ca-7358-a270-26c8bacce23f` |
+| Endpoint | `https://plusjade--01a07de5f2ca7358a27026c8bacce23f.web.val.run` |
+| Protocol source key | `wnba` |
+| Credential | `SOURCE_WNBA_V1_TOKEN`, set independently in the source and the parent |
+| Registry row | `sources.id = 7`, bunch 1, name "WNBA", kind `wnba` |
+| Scheduled ingest | `refresh.ts`, `fileType: "interval"`, cron `0 * * * *` (UTC) |
+
+Remixed from `source-sports` **with** its database, which is the opposite of the
+`source-wfiba` choice and has consequences in both directions — see the
+inherited-data note below.
+
+### Three entrypoints, and which one to reach for
+
+`rpc.ts` is no longer the only way in. The val now has three, and they are
+deliberately not layered on each other:
+
+- `rpc.ts` — remote callers (the parent). Bearer-checked, protocol envelopes.
+- `refresh.ts` — the hourly interval. Calls `ingestSleeperWindow` **directly**,
+  not through `rpc.ts`: the bearer check exists to gate remote callers and an
+  in-val cron is not one. Routing a local job through the val's own HTTP auth
+  would invert the dependency direction the repo's shared hygiene rules ask for.
+- `tools/sleeper-ingest.ts` — operator-run ad-hoc backfill with a chosen window.
+  This one *does* go through `rpc.ts`, on purpose and for the opposite reason:
+  exercising the real auth, envelope, and `days` guard is the point of running
+  it by hand. Its `DAYS` is edited in place before a run; `run_file` passes no
+  arguments.
+
+The `DAYS = 14` constant therefore appears twice, in `refresh.ts` and in the
+tool. That is not duplication to factor out: one is the standing horizon, the
+other is an operator's ad-hoc choice, and they are free to differ.
+
+### Why hourly
+
+Coverage decay is the obvious reason and the weaker one. The stronger one is
+that `status` is cached alongside the game: `lib/widgetItems.ts` maps it through
+`STATUS_MAP` into the `LIVE` / `END` caption and the `emphasized` flag, and
+`intradayFilter` uses it to hide a game the moment it ends. A daily cron would
+leave a finished game reading as scheduled for up to a day, and would make
+`intradayFilter` effectively inoperative. The window and the statuses decay on
+different clocks; the schedule has to satisfy the faster one.
+
+Cost is one upstream request per date in the window, issued in parallel — 16 per
+run, ~384/day against a public API. If that ever needs trimming, the split is a
+frequent narrow refresh (today ±1, three requests) for status plus a daily wide
+one for the horizon. Deliberately not built: twice the machinery for a load
+level that is not currently a problem.
+
+`interval.lastRunAt` is available on the handler argument and is unused. The
+ingest is an idempotent upsert over a fixed window, not a since-scan, so
+consuming it would be decoration.
+
+### Storage and the ingest window
+
+`cached_games` is inherited from `source-sports` unchanged:
+
+```sql
+PRIMARY KEY (sport, game_id)
+ix_cached_games_away (sport, away_code, start_time_ms)
+ix_cached_games_home (sport, home_code, start_time_ms)
+```
+
+`lib/cachedGames.ts` seeks one indexed row per selected team via
+`nextGamesForTeams`, and `saveCachedGames` upserts on the primary key, which is
+what makes re-running the ingest a refresh rather than a duplication. It also
+throws on any row whose `sport` is not `wnba` — the val's own guard against the
+multi-league table it inherited.
+
+`ingestSleeperWindow(days, now, backfillDays = 1)` builds the window
+`[today_ET − 1, today_ET + days]` and fetches Sleeper's `/scores` once per date.
+Sleeper buckets by **Eastern** day, not UTC; `lib/dates.ts` keeps that half of
+the pipeline on IANA zone names and the client-facing half on offset seconds,
+and the two must not be swapped.
+
+The fan-out is scoped by `readCatalog()`, which hard-filters
+`catalog_competitions` and `catalog_teams` to `code = 'wnba'`. The tables
+themselves still hold all five competitions from the remix, so widening that
+filter would silently make the ingest fetch other leagues — which
+`normalizeGame` would then drop and `saveCachedGames` would reject. The scoping
+is load-bearing.
+
+### Inherited data from the remix
+
+Remixing with the database carried `source-sports`'s rows and columns:
+
+- **Rows.** 182 `cfb`/`nfl` rows arrived with no `wnba` rows at all. Nothing
+  reads them — every read and coverage query hard-filters `sport = 'wnba'` — so
+  they are inert, not harmful. Being removed separately.
+- **Columns.** `away_score` and `home_score` exist on the table and are written
+  by nothing in this val; `CachedGameRow` has no such fields. Same status as the
+  note elsewhere in this brief about dropping them by hand.
+
+### Coverage as of the first scheduled run
+
+`GET /cached-games/coverage` (bearer-authenticated) reports held WNBA rows. The
+first ingest stored 18 games across 2026-09-17 → 09-21. **2026-09-14 through
+09-16 hold zero games because Sleeper publishes none** — probed per-date
+directly, not inferred from an empty table. The slate resumes 09-17. An empty
+date range is normal for this source and is not an ingest failure.
+
+`tools/source-contract-check.ts` (39 assertions) passes against the deployed val
+and is the check to re-run after any change here.
+
+
 ## MCP quick start: bounded workflow
 
 Use the narrowest sequence that answers the task. Tool names below omit their generated namespace prefix.
@@ -846,14 +997,16 @@ Do not use live POST routes as smoke tests. Pairing, token upload, bunch/code cr
 Before editing, classify the request:
 
 - Widget layout, family-specific item count, local date/time format, empty-state copy, or refresh affordance: change the iOS repository.
-- Sports selection, next-game policy, ordering, channel/matchup/status copy, or source drift handling: change `plusjade/sports-today-device-feed`; change the parent only when assignment parameters or orchestration also change.
+- Sports selection, next-game policy, ordering, channel/matchup/status copy, or source drift handling: change the per-league source val that owns the competition (`source-wnba`, `source-nfl`, `source-cfb`, `source-wfiba`, `source-moon`); change the parent only when assignment parameters or orchestration also change. `sports-today-device-feed` and `source-sports` are both retired from this path — see the current boundary section.
 - Pairing, configuration, device status, or push behavior: inspect both sides and keep the route/client pair synchronized.
 - JSON field or meaning: coordinate the provider renderer, `Shared/WidgetPayload.swift`, the widget preview fixture, and tests; bump `schemaVersion` when compatibility requires it.
 - Backend endpoint identity: do not change it. Preserve `main.ts` and verify `links.endpoint` against `GameDataURL.baseURL`.
 
-Within `plusjade/source-sports`, the three-way split says where a change goes.
-The checklist above predates the source-val migration; this is the current one
-for that val:
+Within a source val, the split below says where a change goes. It is written
+against `plusjade/source-sports`, the val every other source was remixed from,
+and applies unchanged to each of them — substitute the source's own definition
+file for `sportsSource.ts` (`wnbaSource.ts`, and so on). The checklist above
+predates the source-val migration; this is the current one:
 
 - Protocol shape — a route, an envelope, a status code, the item guard, what a
   descriptor advertises: `sdk/`. It applies to every source, so it must not
@@ -863,5 +1016,10 @@ for that val:
 - How it gets and phrases its data — adapters, selection, storage, item text:
   `lib/`.
 - Auth or a non-protocol route: `rpc.ts`, the only file that knows both halves.
+- Work on a clock rather than on a request — a scheduled ingest or refresh: an
+  `interval` file at the val root, calling into `lib/` directly rather than back
+  through `rpc.ts`. `source-wnba/refresh.ts` is the reference. The cron
+  expression is not in the file; it is set out of band with
+  `write_interval_settings` and is evaluated in **UTC** with no DST handling.
 
 After a server contract change, build the iOS app/widget and verify a representative endpoint response. After a presentation-only Swift change, do not touch Val Town merely because the widget consumes remote data.
