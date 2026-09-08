@@ -106,9 +106,9 @@ Canonical parent tables are `bunches`, `bunch_codes`, `devices`, `sources`,
 | `lib/presentation.ts` | Presentation defaults, stored JSON parsing, form validation |
 | `lib/deviceTokenStore.ts`, `lib/push.ts` | Token lifecycle and best-effort device notification (`notifyDevice`) |
 | `lib/guards.ts` | Domain-free runtime guards |
-| `render/pageShell.ts` | Browser styles, semantic hierarchy, navigation and shared form/table rules |
+| `render/pageShell.ts` | Browser styles, semantic hierarchy, navigation and shared form/table rules; mobile-first, with `min-width: 40em` blocks adding the wide layout |
 | `render/deviceHtml.tsx`, `render/sourceHtml.tsx`, `render/bunchHtml.tsx` | Device settings/preview, source explorer, enrollment views |
-| `render/rootHtml.ts`, `render/dataTable.tsx` | HTML root and shared tables |
+| `render/rootHtml.ts`, `render/dataTable.tsx` | HTML root and shared tables; `Cell` carries the `data-label` and ARIA role the stacked phone layout depends on |
 
 Browser work follows `AGENTS.md`: native semantic HTML, compact data-dense views,
 shared `pageShell` styles, existing breadcrumbs/config navigation. React is not
