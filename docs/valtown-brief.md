@@ -2,6 +2,57 @@
 
 Read this before inspecting or changing the Val Town backend. It is a local map of the parts of `plusjade/sports-today` that matter to this repository, updated on 2026-09-06, so routine iOS work should not require rediscovering the remote project through repeated MCP calls.
 
+## Shared source SDK — Moon and Women's FIBA (2026-09-08)
+
+`plusjade/source-sdk` is the public, dependency-free source SDK val. Start with
+its [creator guide](https://www.val.town/x/plusjade/source-sdk/code/README.md).
+It has no HTTP entrypoint, credentials, storage access or schedules. Its public
+entrypoint is `mod.ts`; `sdk/` holds the three implementation modules.
+
+Moon and Women's FIBA now import the same immutable SDK snapshot:
+
+```ts
+import { accept, reject, defineSource, serveSource, type Item }
+  from "https://esm.town/v/plusjade/source-sdk@3-main/mod.ts";
+```
+
+Snapshot **3** is the SDK val's main revision, not a wire protocol version.
+Its three runtime modules are byte-identical to the former vendored copies;
+the public entrypoint re-exports their existing functions/types. Relative imports
+resolve inside the pinned snapshot. Later SDK main edits improve documentation
+and comments; deployed consumers deliberately keep their tested runtime pin.
+All imports in one source should use the same revision. Adopt an SDK update by
+replacing that URL on a source branch, running its checks, then merging once.
+Avoid unversioned imports in deployed sources while the SDK is evolving.
+
+`source-moon` and `source-wfiba` (merged at main **9** and **38**) removed their vendored
+SDK modules and duplicate SDK docs. FIBA also removed `tools/sdk-check.ts`;
+shared protocol conformance now lives in `source-sdk/tools/sdk-check.ts` and
+exercises the public entrypoint. Source checks remain `source-moon/check.ts`
+and `source-wfiba/tools/source-contract-check.ts`. Source READMEs link to the
+central guide. Empty `sdk/` directories were then removed from main as cleanup.
+SDK `examples/rpc.ts` is a complete authenticated starter,
+stored as a script for copying into a new source as an HTTP file.
+
+Authentication, SQLite, settings policy, ingestion and source HTTP mounts remain
+source-owned. Registration and device assignment remain parent-owned. The SDK
+executes in the importing source, not through an extra HTTP hop. No parent,
+iOS, registry, assignment, endpoint, credential or schedule changes were needed.
+NFL, CFB, WNBA and retired Sports remain on their existing vendored copies;
+only Moon and Women's FIBA were migrated in this task.
+
+Validation: the shared SDK boundary/conformance suite passed. All **32**
+read-only parity requests matched the previous deployed source snapshots in
+status, body and cache header (11 Moon, 21 FIBA). Moon's contract/storage checks
+and FIBA's **39 assertions** passed, including disposable write/readback and
+cleanup. After one merge per source, authenticated deployed HTTP descriptors
+and reads returned 200; unauthenticated descriptors returned 401. Moon returned
+one item; the tested FIBA selection was empty, with nonempty behavior covered
+by fixtures. Temporary import, parity and HTTP probes were removed. No iOS
+build was run because neither the wire contract nor Swift changed.
+
+The historical vendoring statements below are superseded for these two sources.
+
 ## Current boundary — Sports retired (2026-09-07)
 
 `plusjade/sports-today` now composes only explicitly assigned source instances.
