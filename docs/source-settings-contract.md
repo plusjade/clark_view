@@ -63,8 +63,9 @@ Device settings routes and rendering have no source-kind dispatch, field-name
 knowledge, or sports catalog import. Another source supporting this profile
 needs only a registered pointer and its descriptor/validation/read implementation.
 
-Prototype starter-feed defaults and operator ingestion/catalog/coverage adapters
-still refer to Sports/Moon instance IDs. Removing those is separate from settings
-forms. Immutable releases, descriptor caching, schema migrations, and agent ACLs
-remain deferred.
-
+The parent has no starter-feed default or provider-specific ingestion/catalog/
+coverage adapters. Unassigned devices receive an empty feed, and operators write
+directly to source vals. The legacy iOS status route still projects an optional
+teams diagnostic; settings forms and feed composition remain source-agnostic.
+Immutable releases, descriptor caching, schema migrations, and agent ACLs remain
+deferred.
