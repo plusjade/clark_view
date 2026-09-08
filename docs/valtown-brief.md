@@ -100,6 +100,123 @@ Migration snapshots remain in parent SQLite as `sources_before_val_boundary` and
 The old sibling is no longer a supported rollback destination. The current
 source deployments remain mutable; immutable publication is still future work.
 
+## WNBA split into `source-wnba` (2026-09-07)
+
+`plusjade/source-wnba` is deployed on `main`, remixed from the pruned
+`source-cfb` with its database copied. Public code/public app access.
+HTTP entry `rpc.ts`, file ID `01a07de5-f2ca-7358-a270-26c8bacce23f`, endpoint
+`https://plusjade--01a07de5f2ca7358a27026c8bacce23f.web.val.run`.
+Parent registry row **7**, bunch **1**, name **WNBA**, kind/source key `wnba`.
+`SOURCE_WNBA_V1_TOKEN` is configured in source and parent; the registry stores
+the live descriptor's settings schema.
+
+`wnbaSource.ts` and `lib/wnbaFeed.ts` replace their CFB counterparts. Catalog,
+game reads, coverage and ingestion are restricted to WNBA. Settings export all
+15 existing team choices and `intradayFilter`; SDK files are unchanged.
+`teamCode` accepts Sleeper's nested `{team: code}` WNBA shape and the flat codes
+read from SQLite, rejecting non-string codes. The only write remains
+`sleeper.refresh`, integer days 1–31. Reads do not fetch upstream.
+
+Validation: 39 contract assertions pass on deployed main, including nested and
+malformed team normalization; SDK conformance passes. All 40 pre-refresh feed
+comparisons with Sports matched (empty, Fever, Sparks, both, all teams across
+intraday filtering and four offsets). These were empty-data comparisons.
+A disposable nested-team fixture passed SQLite write/read and idempotent upsert
+checks and was removed. Parent descriptor, settings validation, empty WNBA
+schema-v2 composition and mixed NFL composition pass. Temporary scripts were
+removed; one `wnba-only` branch was merged once.
+
+**Current data limitation:** the live refresh succeeded but Sleeper returned
+zero WNBA games for September 6–14, 2026. The cache has zero WNBA rows, so the
+feed is empty; live upstream normalization could not be exercised on that
+window. No alternate provider or schedule was added. Refresh remains manual.
+Existing device assignments and Sports remain unchanged. Copied unrelated
+data/schema and inherited environment keys remain dormant, as in CFB/NFL;
+deployed authentication uses only the WNBA credential. No iOS changes needed.
+
+## CFB split into `source-cfb` (2026-09-07)
+
+`plusjade/source-cfb` is deployed on `main`, remixed from the pruned,
+production-verified `source-nfl` with its database copied. Public code/public
+app access. HTTP entry `rpc.ts`, file ID
+`01a07dd8-7b2c-778e-9b98-1f67aa94b955`, endpoint
+`https://plusjade--01a07dd87b2c778e9b981f67aa94b955.web.val.run`.
+Parent registry row **6**, bunch **1**, name **CFB**, kind/source key `cfb`.
+`SOURCE_CFB_V1_TOKEN` is configured in source and parent; the registry stores
+the live settings schema snapshot.
+
+`cfbSource.ts` and `lib/cfbFeed.ts` replace their NFL counterparts. Catalog,
+game reads, coverage and ingestion are restricted to CFB. The SDK is unchanged.
+Settings preserve the existing curated **USC Trojans and UCLA Bruins** selection
+(`trojans`, `bruins`), plus `intradayFilter`; this is not a full college roster.
+The only write is `sleeper.refresh`, accepting integer days 1–31. Reads use
+indexed per-game SQLite storage, next-game union/dedupe and client-day bounds.
+
+Validation: 37 contract assertions pass on deployed main; SDK conformance
+passes. All 32 pre-refresh CFB/Sports feed comparisons matched across selections,
+intraday filtering and offsets. Sleeper's 80-game September 12 response confirmed
+flat team codes. A live 7-day refresh fetched/stored 90 CFB games, skipped zero;
+the copied cache holds 166 CFB games with no missing team codes. Parent descriptor,
+settings validation, CFB-only and mixed NFL/CFB schema-v2 composition passed,
+including `6:` IDs, Unix seconds and chronological ordering. Temporary check
+scripts were removed. Work used one `cfb-only` branch and one merge.
+
+Existing assignments and Sports remain unchanged. Refresh is manual, with no
+schedule added; parent operator defaults still target Sports source 1. Copied
+non-CFB rows/schema remain dormant, as in NFL; no destructive cleanup was
+attempted. Inherited environment keys remain, but deployed authentication uses
+only the new CFB credential. No iOS changes or Xcode checks were needed.
+
+## NFL split into `source-nfl` (2026-09-07)
+
+`plusjade/source-nfl` is deployed on `main`, remixed from `source-sports`
+with its database copied. Public code / public app access; bearer authentication
+uses `SOURCE_NFL_V1_TOKEN`, independently configured in source and parent.
+HTTP entry `rpc.ts`, file ID `01a07d9f-d1a7-75dc-86db-eb178f2b25b1`, endpoint
+`https://plusjade--01a07d9fd1a775dc86dbeb178f2b25b1.web.val.run`.
+Parent registry row **5**, bunch **1**, name **NFL**, kind/source key `nfl`.
+Its stored settings snapshot includes the live descriptor's complete schema.
+
+`nflSource.ts` exports the unchanged SDK protocol with 32 NFL team choices
+(existing slugs, `const`/`title`/`x-group`), `intradayFilter`, and settings
+validation. Only `sleeper.refresh` is advertised as a write. The NFL feed uses
+indexed `cached_games` queries, each selected team's next game, union/dedupe,
+client-day boundaries, and the existing item/status rendering. No read fetches
+upstream. Refresh uses Sleeper's Eastern-day window, including yesterday for
+clients west of Eastern; it explicitly rejects non-NFL games before storage.
+
+Pruned files: `sportsSource.ts`, `lib/sportsFeed.ts`, `lib/fiba.ts`,
+`lib/sourceCache.ts`, `lib/params.ts`, and `tools/catalog-check.ts`.
+Added `nflSource.ts` and `lib/nflFeed.ts`. Removed FIBA routes, cache writes,
+ESPN status mappings, nested non-NFL team handling, and runtime schema setup.
+The copied database already supplies the schema and indexes. Catalog reads,
+game reads, coverage, and ingestion are restricted to NFL. `sdk/` is unchanged.
+
+Validation: 37 NFL contract/pure-behavior assertions pass on deployed main;
+SDK conformance passes; 32 NFL/Sports item comparisons were identical before
+refresh. Live `sleeper.refresh` with 7 days fetched/stored 16 NFL games and
+skipped none. The database now holds 16 NFL games; foreign-key check is clean.
+Parent integration verified authenticated descriptor/validation, schema-v2
+composition with `5:` item IDs, Moon interleaving, source index/show and the
+device add-source picker/form with all 32 choices and `settingsRevision`.
+Checks did not change device assignments; temporary scripts were removed.
+No iOS changes or Xcode checks: the wire contract is unchanged.
+
+Remaining operational details:
+
+- No scheduled refresh was added. NFL statuses remain as of the last refresh;
+  operators must call this source's `sleeper.refresh` directly. The parent's
+  existing operator adapter still targets Sports source 1.
+- Sports continues to serve NFL and existing assignments are unchanged. This
+  split makes NFL independently selectable; assignment migration is separate.
+- Automatic approval review rejected the proposed database cleanup transaction
+  (non-NFL row deletion, `source_cache` drop, and unused score-column drops).
+  No part of it ran. Copied non-NFL data and unused score columns remain dormant;
+  removal needs separate approval. They are not reachable through this source.
+- Remix also inherited the original environment variables. Only
+  `SOURCE_NFL_V1_TOKEN` is used by deployed NFL code. MCP has no delete-env-var
+  operation; inherited credentials remain a web-UI cleanup item.
+
 ## Women's FIBA split into `source-wfiba` (2026-09-07)
 
 The first per-league source split. `plusjade/source-wfiba` serves the 2026 FIBA
