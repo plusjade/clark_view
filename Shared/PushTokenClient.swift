@@ -7,8 +7,8 @@
 
 import Foundation
 
-/// Mirrors WidgetKit's push token lifecycle to the server. Uploads are fire-and-forget:
-/// timeline refreshes remain the reliability path when registration or delivery fails.
+/// Mirrors WidgetKit token changes to the server and records registration outcomes
+/// separately from timeline fetches, which can succeed without push registration.
 enum PushTokenClient {
     private struct Upload: Encodable {
         let device: String
@@ -18,8 +18,24 @@ enum PushTokenClient {
         let active: Bool
     }
 
+    static var registrationStatus: String {
+        defaults.string(forKey: "widgetPushRegistration") ?? "No WidgetKit token callback recorded"
+    }
+
+    private static var defaults: UserDefaults {
+        UserDefaults(suiteName: DeviceIdentity.appGroupID) ?? .standard
+    }
+
+    private static func record(_ message: String) {
+        defaults.set(message, forKey: "widgetPushRegistration")
+    }
+
     static func updateWidgetToken(device: String, token: Data, active: Bool) async {
-        guard let environment = PushEnvironment.current else { return }
+        record("WidgetKit token received; registering…")
+        guard let environment = PushEnvironment.current else {
+            record("Token received; signing environment could not be read")
+            return
+        }
         let hexToken = token.map { String(format: "%02x", $0) }.joined()
         var request = URLRequest(url: GameDataURL.baseURL.appendingPathComponent("device/token"))
         request.httpMethod = "POST"
@@ -31,6 +47,21 @@ enum PushTokenClient {
             environment: environment,
             active: active
         ))
-        _ = try? await URLSession.shared.data(for: request)
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse else {
+                record("Token upload returned an invalid response")
+                return
+            }
+            if (200..<300).contains(http.statusCode) {
+                let action = active ? "Registered" : "Removed"
+                let time = Date().formatted(date: .omitted, time: .standard)
+                record("\(action) (\(environment)) at \(time)")
+            } else {
+                record("Token upload failed: HTTP \(http.statusCode)")
+            }
+        } catch {
+            record("Token upload failed: \(error.localizedDescription)")
+        }
     }
 }

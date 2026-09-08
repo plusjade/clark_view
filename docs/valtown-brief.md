@@ -279,7 +279,7 @@ and uploads it with the last observed alert permission to `/device/notifications
 `device_alert_tokens` is keyed by install/environment, independent of widget tokens. See
 [push-notifications.md](push-notifications.md) for setup and remaining integration.
 Parent APNs
-uses push type `widgets`, extension topic suffix `.push-type.widgets`, and
+uses push type `widgets`, containing-app topic `plusjade.clark-view.push-type.widgets`, and
 `{"aps":{"content-changed":true}}`. Embedded signing profiles determine the environment; App Store builds without
 profiles use production, and simulators use sandbox. Server delivery prefers widget tokens with a legacy app-background
 fallback. Push is opportunistic; it neither refreshes source data nor replaces
@@ -425,3 +425,8 @@ identities, ownership, contracts, verification entrypoints and actionable gotcha
 Date time-sensitive observations. Remove superseded guidance rather than layering
 another override above it; omit per-task branch names, file-deletion inventories,
 assertion counts and routine validation narratives.
+
+Widget verification on 2026-09-08: sandbox APNs accepted a WidgetKit push at
+19:42:02 UTC after correcting the topic to the containing app bundle ID plus
+`.push-type.widgets`. Device timeline refresh confirmation is pending. The widget
+must be added to the Home Screen before testing; pairing alone does not register it.

@@ -18,7 +18,7 @@ delivery are still unverified.
 | Channel | Token | APNs push type | Topic | Payload |
 | --- | --- | --- | --- | --- |
 | Visible alert | Containing app | `alert` | `plusjade.clark-view` | `aps.alert`, optional `aps.sound` |
-| Widget refresh | WidgetKit | `widgets` | `plusjade.clark-view.ClarkViewWidget.push-type.widgets` | `aps.content-changed: true` |
+| Widget refresh | WidgetKit | `widgets` | `plusjade.clark-view.push-type.widgets` | `aps.content-changed: true` |
 
 Alert permission does not control WidgetKit refreshes. A visible push does not
 itself reload the widget. Send both requests when an event needs both effects.
@@ -109,3 +109,8 @@ arbitrary announcement endpoint.
 - [Console testing](https://developer.apple.com/documentation/usernotifications/testing-notifications-using-the-push-notification-console)
 - [WidgetKit pushes](https://developer.apple.com/documentation/widgetkit/updating-widgets-with-widgetkit-push-notifications)
 - [Create an Apple service key](https://developer.apple.com/help/account/keys/create-a-private-key/)
+
+Widget verification on 2026-09-08: sandbox APNs accepted a WidgetKit push at
+19:42:02 UTC after correcting the topic to the containing app bundle ID plus
+`.push-type.widgets`. Device timeline refresh confirmation is pending. The widget
+must be added to the Home Screen before testing; pairing alone does not register it.

@@ -121,6 +121,7 @@ private struct DiagnosticsView: View {
             TimelineView(.periodic(from: .now, by: 1)) { _ in
                 let refresh = WidgetRefreshDiagnostics.snapshot
                 VStack(alignment: .leading, spacing: 6) {
+                    row("Widget Push", PushTokenClient.registrationStatus)
                     row("Requested", displayDate(refresh.lastRequestedAt))
                     row("Last Attempt", displayDate(refresh.lastAttemptedAt))
                     row("Last Success", displayDate(refresh.lastSucceededAt))
