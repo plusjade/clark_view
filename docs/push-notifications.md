@@ -12,8 +12,8 @@ The existing widget extension independently uploads its WidgetKit token to
 `POST /device/token`. On September 8, 2026, all three APNs credentials were
 configured in `sports-today`. The server's `tools/apns-credentials-check.ts`
 passed identifier-format, private-key import, and P-256 signing checks without
-exposing secrets. Sandbox alert and widget delivery were subsequently verified on September 8.
-Production authentication and delivery remain unverified.
+exposing secrets. Sandbox alert and widget delivery were verified on September 8, and production
+authentication and delivery were verified end to end thereafter.
 
 | Channel | Token | APNs push type | Topic | Payload |
 | --- | --- | --- | --- | --- |
@@ -122,6 +122,16 @@ arbitrary announcement endpoint.
 - Add the widget to the Home Screen before testing; pairing alone does not
   register a WidgetKit token. After a reinstall/merge, verify the current
   install-to-device mapping before selecting a token for a test.
-- Remaining: install a TestFlight build and repeat both alert and widget tests
-  with production tokens and credentials. Event-triggered notification policy
-  is a separate product brief; no automatic rules are enabled.
+- Production alert and widget delivery were subsequently confirmed end to end, so
+  both APNs environments are now proven.
+
+## Event reminders
+
+Automatic reminders are live. `sports-today` queues one notification per upcoming
+event per device and sends a visible alert a configurable time beforehand, default
+one hour. It uses the alert channel only; a reminder does not refresh the widget.
+
+Delivery is gated by the parent's `REMINDERS_ENABLED` variable. While it is unset the
+jobs still run and the queue still drains, recording what each row would have sent
+without contacting APNs. See the parent's `docs/event-reminders.md` for the queue
+model, the sizing rule and the configuration.
