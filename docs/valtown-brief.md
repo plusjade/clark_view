@@ -15,7 +15,7 @@ The widget displays server-composed temporal items.
 
 ```text
 Browser → sports-today → bunches, devices, source registry, assignments
-App     → sports-today /pair, /config/status/:deviceId
+App     → sports-today /pair, /devices/status/:installId
 Widget  → sports-today /config/resolve
                          → device assignments + source pointers
                          → authenticated HTTP reads of assigned source vals
@@ -130,8 +130,8 @@ a reason to add a component library or client-side JavaScript.
 | `GET /devices/resolve` | Alias using the same `composeDeviceFeed` path |
 | `POST /pair` | App sends `{code,device}`. Success 200 `{ok:true,deviceId}`; unknown code 404; expired code 422. Swift requires only `ok`. Codes are six characters and reusable for 30 minutes. |
 | `POST /devices/register` | Same enrollment with optional `name` |
-| `GET /config/status/:deviceId` | App diagnostics using the install UUID, not an integer row ID. Unknown install returns `{deviceId,paired:false}`. Registered response includes registration/name/source diagnostics; optional sports/teams projection is compatibility-only. |
-| `GET /devices/status/:installId` | New-model registration/source-settings diagnostics |
+| `GET /config/status/:deviceId` | Legacy diagnostics using the install UUID, not an integer row ID. Unknown install returns `{deviceId,paired:false}`. Registered response includes registration/name/source diagnostics; optional sports/teams projection is compatibility-only. |
+| `GET /devices/status/:installId` | App registration/source diagnostics: `{deviceId,registered,name,sources:[{kind,settings}]}`; unknown install omits name/sources and returns `registered:false`. Kind is nonunique metadata; settings are source-owned JSON. |
 | `POST /device/token` | `{device,token,kind:"widget",environment:"sandbox"\|"production",active}`; `active:false` removes the token. Legacy omitted fields support old app-background tokens. Registration may precede pairing. |
 | `GET /` | Always HTML, including query-bearing URLs; links to `/bunches`, `/devices`, `/sources` |
 | `/devices/:id` | Integer-ID browser resource, name edit, assignment and presentation subpages |

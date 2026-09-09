@@ -1,155 +1,58 @@
-//
-//  ContentView.swift
-//  clark_view
-//
-//  Created by Jade Dominguez on 8/18/26.
-//
-
 import SwiftUI
 import WidgetKit
 
+/// Coordinates setup; permission and diagnostic screens own their respective controls.
 struct ContentView: View {
+    @Environment(NotificationSettings.self) private var notifications
+    @Environment(\.scenePhase) private var scenePhase
     @State private var isPaired = DeviceIdentity.isPaired
+    @State private var showsDiagnostics = false
 
     var body: some View {
-        if isPaired {
-            PairedView(onUnpaired: {
-                DeviceIdentity.isPaired = false
-                isPaired = false
-            })
-        } else {
-            PairingView(onPaired: { isPaired = true })
-                .task {
-                    // A registration can succeed even if its response never reaches the app.
-                    if let status = await DeviceStatusClient.fetch(device: DeviceIdentity.deviceID), status.paired {
-                        DeviceIdentity.isPaired = true
-                        isPaired = true
-                        WidgetCenter.shared.reloadTimelines(ofKind: WidgetKind.main)
+        NavigationStack {
+            Group {
+                if isPaired {
+                    NotificationSettingsView()
+                } else {
+                    PairingView(onPaired: { isPaired = true })
+                }
+            }
+            .navigationTitle("Clark View")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Diagnostics", systemImage: "stethoscope") {
+                        showsDiagnostics = true
                     }
                 }
-        }
-    }
-}
-
-private struct PairedView: View {
-    let onUnpaired: () -> Void
-
-    @State private var status: DeviceStatusClient.DeviceStatus?
-    @State private var isLoading = false
-
-    var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 48))
-                .foregroundStyle(.green)
-            Text("This device is paired")
-                .font(.headline)
-            Text("Manage teams and favorites from the link set up in the browser.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
-
-            Button {
-                WidgetRefreshDiagnostics.recordManualRequest()
-                WidgetFocusStore.requireNetworkRefresh()
-                WidgetCenter.shared.reloadTimelines(ofKind: WidgetKind.main)
-            } label: {
-                Label("Request Widget Refresh", systemImage: "arrow.clockwise")
             }
-            .buttonStyle(.bordered)
-
-            DiagnosticsView(status: status, isLoading: isLoading, onRefresh: refresh)
-            NotificationSettingsView()
+            .sheet(isPresented: $showsDiagnostics) {
+                NavigationStack {
+                    DiagnosticsView()
+                        .toolbar {
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button("Done") { showsDiagnostics = false }
+                            }
+                        }
+                }
+            }
+            .task { await refresh() }
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { Task { await refresh() } }
+            }
         }
-        .padding()
-        .task { await refresh() }
     }
 
     private func refresh() async {
-        isLoading = true
-        let fetched = await DeviceStatusClient.fetch(device: DeviceIdentity.deviceID)
-        status = fetched
-        isLoading = false
-        // Only an explicit `paired: false` from the server corrects the local
-        // cache — a failed fetch (network blip) comes back nil and must not
-        // be treated the same, or a transient error would bounce someone back
-        // to the pairing screen.
-        if let fetched, !fetched.paired {
-            onUnpaired()
-        }
-    }
-}
-
-/// Prototype-level, not user-facing polish: raw fields off `/config/status`,
-/// straight from the server, so it's obvious when what's stored doesn't match
-/// what's expected — no reformatting that could itself hide a drift.
-private struct DiagnosticsView: View {
-    let status: DeviceStatusClient.DeviceStatus?
-    let isLoading: Bool
-    let onRefresh: () async -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("Diagnostics")
-                    .font(.caption.bold())
-                Spacer()
-                Button {
-                    Task { await onRefresh() }
-                } label: {
-                    if isLoading {
-                        ProgressView()
-                    } else {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                }
-                .disabled(isLoading)
-            }
-
-            if let status {
-                row("Device ID", status.deviceId)
-                row("Device Name", status.name ?? "—")
-                row("Source", status.activeSource ?? "—")
-                row("Sports", displayList(status.sports))
-                row("Teams", displayList(status.teams))
-            } else if !isLoading {
-                Text("Couldn't load status")
-                    .foregroundStyle(.secondary)
-            }
-
-            TimelineView(.periodic(from: .now, by: 1)) { _ in
-                let refresh = WidgetRefreshDiagnostics.snapshot
-                VStack(alignment: .leading, spacing: 6) {
-                    row("Widget Push", PushTokenClient.registrationStatus)
-                    row("Requested", displayDate(refresh.lastRequestedAt))
-                    row("Last Attempt", displayDate(refresh.lastAttemptedAt))
-                    row("Last Success", displayDate(refresh.lastSucceededAt))
-                    row("Last Result", refresh.resultDescription)
-                }
-            }
-        }
-        .font(.system(.footnote, design: .monospaced))
-        .padding(10)
-        .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func displayList(_ values: [String]?) -> String {
-        guard let values, !values.isEmpty else { return "(all)" }
-        return values.joined(separator: ", ")
-    }
-
-    private func displayDate(_ date: Date?) -> String {
-        date?.formatted(date: .abbreviated, time: .standard) ?? "—"
-    }
-
-    private func row(_ label: String, _ value: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Text(label)
-                .foregroundStyle(.secondary)
-                .frame(width: 100, alignment: .leading)
-            Text(value)
+        await notifications.refresh()
+        // A failed fetch must not erase pairing; a lost pairing response can be recovered here.
+        let pairingAtStart = isPaired
+        guard let status = await DeviceStatusClient.fetch(device: DeviceIdentity.deviceID),
+              isPaired == pairingAtStart else { return }
+        DeviceIdentity.isPaired = status.paired
+        isPaired = status.paired
+        if status.paired && !pairingAtStart {
+            WidgetCenter.shared.reloadTimelines(ofKind: WidgetKind.main)
         }
     }
 }

@@ -8,8 +8,7 @@
 import SwiftUI
 import WidgetKit
 
-/// The one screen the receiver ever needs: enter the 6-character code shown in
-/// whoever-set-up-your-teams's browser (`POST /pair`), then this device is done.
+/// Pairs the device before handing off to notification setup.
 struct PairingView: View {
     var onPaired: () -> Void
 
@@ -18,40 +17,52 @@ struct PairingView: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        VStack(spacing: 16) {
-            Text("Enter Pairing Code")
-                .font(.title2.bold())
-            Text("Ask whoever set up your teams for the 6-character code from their screen.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+        ScrollView {
+            VStack(spacing: 24) {
+                Image(systemName: "link")
+                    .font(.system(size: 48))
+                    .foregroundStyle(.tint)
+                    .accessibilityHidden(true)
 
-            TextField("ABC123", text: $code)
-                .textInputAutocapitalization(.characters)
-                .autocorrectionDisabled()
-                .multilineTextAlignment(.center)
-                .font(.system(.title, design: .monospaced))
-                .textFieldStyle(.roundedBorder)
-                .onSubmit(submit)
-
-            if let errorMessage {
-                Text(errorMessage)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
-            }
-
-            Button(action: submit) {
-                if isSubmitting {
-                    ProgressView()
-                } else {
-                    Text("Pair")
-                        .frame(maxWidth: .infinity)
+                VStack(spacing: 12) {
+                    Text("Enter Pairing Code")
+                        .font(.title2.bold())
+                    Text("Get the code from your helper.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
                 }
+
+                TextField("ABC123", text: $code)
+                    .textInputAutocapitalization(.characters)
+                    .autocorrectionDisabled()
+                    .multilineTextAlignment(.center)
+                    .font(.system(.title, design: .monospaced))
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityLabel("Pairing code")
+                    .onSubmit(submit)
+
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                }
+
+                Button(action: submit) {
+                    HStack {
+                        if isSubmitting { ProgressView() }
+                        Text("Pair")
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(code.isEmpty || isSubmitting)
             }
-            .buttonStyle(.borderedProminent)
-            .disabled(code.isEmpty || isSubmitting)
+            .frame(maxWidth: 420)
+            .padding(24)
+            .padding(.top, 40)
+            .frame(maxWidth: .infinity)
         }
-        .padding()
     }
 
     private func submit() {
