@@ -62,6 +62,8 @@ Credential names are references only; their values must never enter this repo.
 | 5 | `plusjade/source-nfl` / `nfl` | `01a07d9f-d1a7-75dc-86db-eb178f2b25b1` | `SOURCE_NFL_V1_TOKEN` |
 | 6 | `plusjade/source-cfb` / `cfb` | `01a07dd8-7b2c-778e-9b98-1f67aa94b955` | `SOURCE_CFB_V1_TOKEN` |
 | 7 | `plusjade/source-wnba` / `wnba` | `01a07de5-f2ca-7358-a270-26c8bacce23f` | `SOURCE_WNBA_V1_TOKEN` |
+| 8 | `plusjade/source-lunar` / `lunar` | `bf3ab8aa-ab9f-11f1-a75e-1607ee4eb77e` | `SOURCE_LUNAR_V1_TOKEN` |
+| 9 | `plusjade/source-gtb` / `gtb` | `c169c7a2-ac1b-11f1-80ba-1607ee4eb77e` | `SOURCE_GTB_V1_TOKEN` |
 
 Cached endpoints, in the same order:
 
@@ -70,6 +72,8 @@ Cached endpoints, in the same order:
 - NFL: `https://plusjade--01a07d9fd1a775dc86dbeb178f2b25b1.web.val.run`
 - CFB: `https://plusjade--01a07dd87b2c778e9b981f67aa94b955.web.val.run`
 - WNBA: `https://plusjade--01a07de5f2ca7358a27026c8bacce23f.web.val.run`
+- Lunar: `https://plusjade--bf3ab8aaab9f11f1a75e1607ee4eb77e.web.val.run`
+- GTB: `https://plusjade--c169c7a2ac1b11f180ba1607ee4eb77e.web.val.run`
 
 ## Parent model and code map
 
