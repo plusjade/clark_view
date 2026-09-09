@@ -325,6 +325,15 @@ reminder lead, so watch the oldest `devices.reminders_built_at` as the fleet gro
 best-effort; it is an offset, not a timezone, so quiet hours need an IANA identifier from
 the app before they can be correct. Details in the parent's `docs/event-reminders.md`.
 
+**Parent timestamp convention: ISO-8601 UTC text matching `Date.toISOString()`.** Every
+table stores times this way; `device_alert_tokens.last_test_at` is the one remaining
+epoch-integer column. The format is fixed-width, so string comparison is chronological
+comparison and `notification_queue` compares times in SQL without conversion. The `T`
+separator is load-bearing: SQLite's `datetime()` emits a space and `'T'` sorts above
+`' '`, so a mixed column orders wrongly and silently. Write times through the store's
+`NOW_UTC`/`isoFromUnix`, never `datetime()` or `unixepoch()`. Item timestamps on the
+source protocol and widget wire remain Unix seconds — a separate contract.
+
 ## Source operations and freshness
 
 Reads use stored data; refreshing a widget does not ingest upstream events.
