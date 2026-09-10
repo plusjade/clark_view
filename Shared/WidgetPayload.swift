@@ -46,7 +46,7 @@ struct WidgetPayload: Decodable {
 struct WidgetItem: Decodable, Identifiable {
     let id: String
     /// The matchup title, pre-combined by the server as "<team1> @ <team2>". Rendered large/bold
-    /// (see `ItemHeroCard`/`ItemBlockView` in ClarkViewWidget.swift) — can wrap to 2 lines.
+    /// (see `BeaconHeroCard`/`BeaconItemBlockView` in BeaconWidgetTemplate.swift) — can wrap to 2 lines.
     let mainText: String
     /// Broadcast/availability info, e.g. "Channel 7 · local broadcast, not on any streaming app".
     /// Rendered small/dim beneath `mainText`, not at the same weight — can run long, wraps to 2 lines.

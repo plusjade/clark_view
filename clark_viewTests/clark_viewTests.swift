@@ -126,21 +126,6 @@ struct clark_viewTests {
         #expect(WidgetPresentation(payload: payload.presentation) == .defaultPresentation)
     }
 
-    @Test func deprecatedStandardTemplateStillDecodes() throws {
-        let payload = try decodePayload(presentation: """
-        {
-          "version": 2,
-          "template": "standard-v1",
-          "rootSurface": {
-            "light": "#14213D",
-            "dark": "#261447"
-          }
-        }
-        """)
-
-        #expect(WidgetPresentation(payload: payload.presentation).template == .standardV1)
-    }
-
     @Test func widgetRefreshDiagnosticsDescribeLatestOutcome() {
         let first = Date(timeIntervalSince1970: 100)
         let second = Date(timeIntervalSince1970: 200)

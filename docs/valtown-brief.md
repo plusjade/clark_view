@@ -250,9 +250,9 @@ choices remain visible until explicitly removed. Reads still validate settings.
   roots. It also emits deprecated `eyebrow:"NEXT"`; Swift ignores unknown keys.
 - Presentation version 2 selects a whole widget-family template, not dimensions.
   Root colors are opaque `#RRGGBB`. Malformed/missing presentation, unknown versions
-  or templates (including retired `system-v1`) fall back without losing valid items.
-  Invalid individual root colors fall back independently. `standard-v1` remains
-  supported in Swift but deprecated and unavailable in the browser editor.
+  or templates (including retired `system-v1` and `standard-v1`) fall back without
+  losing valid items. Invalid individual root colors fall back independently.
+  `standard-v1` was removed from Swift; unrecognized template strings fall back to Beacon.
 - Preserve fields compatibly. Removal or repurposing requires coordinated schema
   versioning, Swift model/decoder, parent/source, preview fixture and test changes.
 
@@ -262,7 +262,7 @@ choices remain visible until explicitly removed. Reads still validate settings.
 | --- | --- |
 | [GameDataURL.swift](../Shared/GameDataURL.swift) | Base URL and resolver query; its old redirect comment is stale |
 | [WidgetPayload.swift](../Shared/WidgetPayload.swift), [WidgetPresentation.swift](../Shared/WidgetPresentation.swift) | Wire decoding and presentation fallback |
-| [ClarkViewWidget.swift](../ClarkViewWidget/ClarkViewWidget.swift) | Fetch/cache, preview fixtures, hourly timeline, template dispatch, legacy layout |
+| [ClarkViewWidget.swift](../ClarkViewWidget/ClarkViewWidget.swift) | Fetch/cache, preview fixtures, hourly timeline, entry view |
 | [BeaconWidgetTemplate.swift](../ClarkViewWidget/BeaconWidgetTemplate.swift), [BeaconWidgetFocusLayouts.swift](../ClarkViewWidget/BeaconWidgetFocusLayouts.swift) | Default layout and focus transition |
 | [WidgetFocusStore.swift](../Shared/WidgetFocusStore.swift), [FocusWidgetItemIntent.swift](../ClarkViewWidget/FocusWidgetItemIntent.swift) | Shared local focus and short interaction-cache window |
 | [DeviceIdentity.swift](../Shared/DeviceIdentity.swift) | Per-install UUID in `group.plusjade.clark-view`; local paired flag is copy-only |
@@ -277,8 +277,9 @@ for the last decoded App Group payload; explicit refresh clears that window.
 Ordinary network/decoding failure currently returns an empty payload, not stale
 cached content. Distinguish failed fetches from successful empty feeds in diagnostics.
 
-Beacon has no refresh button; manual refresh lives in the app. The deprecated
-standard template retains one. Reload requests ask WidgetKit for a timeline and
+Beacon has no refresh button; manual refresh lives in the app only (the
+on-widget refresh button and its `RefreshWidgetIntent` were removed with the
+retired standard template). Reload requests ask WidgetKit for a timeline and
 do not guarantee immediate execution. The normal timeline requests an hourly
 refresh. Native accented/vibrant appearances remain system-owned; Beacon respects
 Reduce Motion and Reduce Transparency. Consult Swift for geometry, not this brief.

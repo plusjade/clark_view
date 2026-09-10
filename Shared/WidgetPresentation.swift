@@ -48,8 +48,6 @@ struct WidgetRootSurfacePayload: Decodable {
 /// framework and can be unit tested by the containing app.
 struct WidgetPresentation: Equatable {
     enum Template: String, Equatable {
-        /// Retained as a rendering reference while the server no longer selects it.
-        case standardV1 = "standard-v1"
         case beacon = "beacon"
     }
 
@@ -72,15 +70,11 @@ struct WidgetPresentation: Equatable {
             return
         }
 
-        let resolvedTemplate = payload.template.flatMap(Template.init(rawValue:))
+        template = payload.template.flatMap(Template.init(rawValue:))
             ?? Self.defaultPresentation.template
-        let fallback = resolvedTemplate == .beacon
-            ? Self.defaultPresentation.rootSurface
-            : RootSurfacePalette(light: .black, dark: .black)
-        template = resolvedTemplate
         rootSurface = RootSurfacePalette(
-            light: payload.rootSurface?.light.flatMap(WidgetSRGBColor.init(hex:)) ?? fallback.light,
-            dark: payload.rootSurface?.dark.flatMap(WidgetSRGBColor.init(hex:)) ?? fallback.dark
+            light: payload.rootSurface?.light.flatMap(WidgetSRGBColor.init(hex:)) ?? Self.defaultPresentation.rootSurface.light,
+            dark: payload.rootSurface?.dark.flatMap(WidgetSRGBColor.init(hex:)) ?? Self.defaultPresentation.rootSurface.dark
         )
     }
 
