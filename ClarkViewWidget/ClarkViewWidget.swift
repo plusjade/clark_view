@@ -215,8 +215,9 @@ extension Color {
 }
 
 /// Per-item day eyebrow, computed client-side from `startsAt` against the device's local
-/// calendar — same rationale as `timeParts` below. Falls back to an abbreviated month/day
-/// (e.g. "AUG 16") once a date is neither today nor tomorrow.
+/// calendar — same rationale as the clock time in `BeaconDateTimeView`: only the device
+/// knows its own calendar and locale. Falls back to an abbreviated month/day (e.g. "AUG 16")
+/// once a date is neither today nor tomorrow.
 ///
 /// "TMRW", not "TOMORROW": the rail's fixed width means a longer string only fits via
 /// `minimumScaleFactor`, which is an accessibility regression (shrinks the one word that
