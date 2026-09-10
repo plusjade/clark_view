@@ -138,7 +138,8 @@ a reason to add a component library or client-side JavaScript.
 | `/devices/:id/sources/new`, `/devices/:id/sources`, `/devices/:id/sources/:assignmentId` | Choose an eligible instance, then add/edit descriptor-driven settings; deletion uses POST to the assignment's `/delete` route |
 | `/devices/:id/presentation`, `/devices/:id/preview` | Edit device presentation; preview the same composition as the resolver |
 | `/devices/:id/merge` | Move a reinstalled app's install ID onto the device it replaces; the chosen target survives and the origin row is deleted |
-| `/sources`, `/sources/:id` | Read-only registry explorer, implementing endpoint, schema, attached devices |
+| `/sources`, `/sources/:id` | Read-only registry explorer; the resource redirects to `/sources/:id/overview` |
+| `/sources/:id/overview`, `/sources/:id/diagnostics`, `/sources/:id/settings`, `/sources/:id/devices` | Standalone resource tabs for metadata, stored coverage, schema, and attached devices |
 | `/bunches`, `/bunches/new`, `/bunches/:id`, `/bunches/:id/pair`, `/bunches/:id/codes` | Enrollment administration and pairing-code creation |
 | `POST /internal/reminders/{build,drain}` | Reminder jobs behind `REMINDERS_TOKEN` bearer auth; unset returns 401. Drain accepts an optional row `id`, keeping an external scheduler swappable for the cron. |
 
@@ -344,6 +345,19 @@ contract from dictating the schema.
 Reads use stored data; refreshing a widget does not ingest upstream events.
 No automatic ingestion schedules were recorded for these sources.
 
+All five active sources expose authenticated `GET /diagnostics` (deployed
+2026-09-09). Each source's `diagnostics.ts` maps its own storage to
+`{diagnosticsVersion:1,sourceKey,scope:"stored",totalItems,earliestTimestamp,latestTimestamp,lastIngestedAt}`.
+Event bounds are Unix seconds; empty sources return zero and null bounds.
+The parent validates this optional response in `lib/sourceDiagnostics.ts` and
+fetches it through `lib/sourceDiagnosticsClient.ts` only on the Diagnostics tab.
+It never guesses source tables or counts a filtered `/v1/read` response as total
+coverage. Unsupported/unavailable diagnostics mean unknown, not zero; stored
+bounds do not establish complete coverage or current event statuses. The page
+shows span, latest-event horizon, ingest time, and check time without caching.
+See parent `docs/source-diagnostics.md`; read-only checks are parent
+`tools/source-diagnostics-check.ts` and each source's `diagnostics-check.ts`.
+
 | Source | Settings / storage | Write and known operational limits |
 | --- | --- | --- |
 | Moon | Exactly `{}`; `full_moons(date_key,payload,fetched_at)` | `cache.put` with `{source:"moon",dateKey,payload}`. Curated 13-event 2026 dataset ends Dec 24; seed the next year manually before exhaustion. Payload has `peakTime`, `name`, `isBlueMoon`. |
@@ -365,11 +379,44 @@ gender, roster and date buckets before using it beyond the 2026 tournament.
 The UTC date filter assumes events belong to the requested bucket; the ingest
 runner reports off-bucket events. Status stays frozen until another ingest.
 
-Last recorded FIBA coverage (2026-09-07) was 24 group-stage games with Sep 8–14
-empty pending bracket publication. WNBA refresh returned zero games for Sep 6–14.
-These are observations, not current guarantees or proof of correct nonempty
-upstream handling. Inspect coverage and representative stored/provider data for
-freshness tasks; avoid silently adding a provider or schedule.
+FIBA coverage verified 2026-09-09 UTC: 34 games across eight dates, Sep 4–13.
+A manual capture from the official [FIBA tournament schedule](https://www.fiba.basketball/en/events/fiba-womens-basketball-world-cup-2026/games)
+added Sep 8 (2 final), Sep 9 (2 scheduled), Sep 10 (4 quarterfinals), and Sep 13
+(2 medal-game placeholders), through `games.ingest` with ESPN-compatible envelopes.
+The source retains provenance and inputs in `tools/fiba-snapshot-20260909.json`.
+FIBA rows use stable `fiba-2026-game-{official game number}` IDs. The authenticated
+read returned all four quarterfinals with correct Unix-second timestamps.
+
+For manual FIBA refreshes, the tournament-specific games page is a proven
+computer-use fallback. On 2026-09-09, web search found the official schedule,
+final-phase announcement, and schedule PDF, but the games page's text extraction
+exposed date controls without the fixtures. Selecting dates in the browser
+exposed official game numbers, resolved teams, bracket labels, final statuses,
+and start times or explicit TBDs. This was enough to qualify the ingest inputs;
+the global `/en/games` page was unnecessary. Browser times were client-local
+(Pacific in this run); cross-check against FIBA's explicit GMT times before
+forming UTC timestamps. The PDF also confirmed that semifinal time slots were
+not yet assigned to individual pairings.
+
+This establishes a useful fallback, not that computer use is easier than an
+accessible API: no alternative FIBA API was discovered or tested in that run.
+For another bounded manual refresh, start with these known official pages and
+use the browser when text extraction omits fixtures. Investigate a structured
+provider separately if recurring ingestion is needed; retain provenance and
+never infer participants or assign a published time slot to a TBD pairing.
+
+Coverage is still incomplete: Sep 12 semifinal games #33/#34 have TBD start-time
+assignments (published slots 14:30 or 18:00 UTC) and were not ingested. Undecided
+opponents retain bracket labels, which do not match favorite-team codes until
+resolved; medal placeholders do not yet appear in team-filtered feeds. Broadcasts
+were unverified and left null. Refresh participants and statuses after each round.
+
+The operator reported ESPN has no schedules after Sep 9. **Do not blindly rerun
+the ESPN ingest over FIBA-backed dates:** empty or incomplete payloads replace
+and erase the stored date. Use FIBA to verify the complete date before writing.
+Stored coverage bounds alone do not establish complete tournament coverage.
+WNBA's last recorded refresh returned zero games for Sep 6–14; that observation
+is not a current guarantee or proof of correct nonempty upstream handling.
 
 ## Bounded remote workflow and verification
 
