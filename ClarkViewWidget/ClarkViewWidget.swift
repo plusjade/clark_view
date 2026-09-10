@@ -72,16 +72,19 @@ private enum WidgetDataService {
     }
 
     /// Same fixture, but item 1 (primary) has no caption, so the not-yet-started branch formats
-    /// its `timestamp` instead of showing "LIVE" — lets the large layout's primary card preview
+    /// its `startsAt` instead of showing "LIVE" — lets the large layout's primary card preview
     /// an actual time.
     static var mockPayloadUpcoming: WidgetPayload {
         (try? JSONDecoder.widgetPayload.decode(WidgetPayload.self, from: mockJSON(primaryCaption: nil, primaryEmphasized: false))) ?? .empty
     }
 
-    /// Timestamps are relative to `.now` (not hardcoded epoch values) so the fixture always
+    /// Start times are relative to `.now` (not hardcoded epoch values) so the fixture always
     /// exercises all three `dayLabel` states — today/tomorrow/future — regardless of when the
     /// preview is opened. "Deterministic" (see `mockPayload` above) means offline, not
     /// fixed-clock.
+    ///
+    /// Item 4 carries a one-second window, the shape an instantaneous event (a moon peak)
+    /// takes on the wire, so a decoded preview payload is never all hours-long items.
     ///
     /// Item 1 (primary) is pinned 2 hours out from whenever the preview opens, guaranteeing a
     /// not-yet-started time regardless of `primaryCaption` — so switching to
@@ -105,7 +108,7 @@ private enum WidgetDataService {
         let captionJSON = primaryCaption.map { "\"\($0)\"" } ?? "null"
         return Data("""
         {
-          "schemaVersion": 2,
+          "schemaVersion": 3,
           "presentation": {
             "version": 2,
             "template": "beacon",
@@ -118,17 +121,26 @@ private enum WidgetDataService {
             {
               "id": "1", "mainText": "Fever @ Wings",
               "subText": "ESPN 263 · DirecTV",
-              "caption": \(captionJSON), "emphasized": \(primaryEmphasized), "timestamp": \(primaryTS)
+              "caption": \(captionJSON), "emphasized": \(primaryEmphasized),
+              "startsAt": \(primaryTS), "expiresAt": \(primaryTS + 7200)
             },
             {
               "id": "2", "mainText": "Valkyries @ Sparks",
               "subText": "AMZN · Prime Video",
-              "caption": null, "emphasized": false, "timestamp": \(tomorrowTS)
+              "caption": null, "emphasized": false,
+              "startsAt": \(tomorrowTS), "expiresAt": \(tomorrowTS + 7200)
             },
             {
               "id": "3", "mainText": "Storm @ Mercury",
               "subText": "NBA TV · League Pass",
-              "caption": null, "emphasized": false, "timestamp": \(futureTS)
+              "caption": null, "emphasized": false,
+              "startsAt": \(futureTS), "expiresAt": \(futureTS + 7200)
+            },
+            {
+              "id": "4", "mainText": "Full Moon",
+              "subText": "Harvest Moon",
+              "caption": "PEAK", "emphasized": false,
+              "startsAt": \(futureTS), "expiresAt": \(futureTS + 1)
             }
           ]
         }
@@ -137,7 +149,7 @@ private enum WidgetDataService {
 }
 
 private extension WidgetPayload {
-    static let empty = WidgetPayload(schemaVersion: 2, items: [])
+    static let empty = WidgetPayload(schemaVersion: 3, items: [])
 }
 
 private extension JSONDecoder {
@@ -188,10 +200,10 @@ struct Provider: TimelineProvider {
                 payload: payload,
                 focusedItemID: WidgetFocusStore.focusedItemID
             )
-            // Data doesn't change fast enough to justify burning the refresh budget more often
-            // than this; retune if items start/finish mid-refresh-window.
-            let nextRefresh = Calendar.current.date(byAdding: .minute, value: 60, to: .now)
-            completion(Timeline(entries: [entry], policy: .after(nextRefresh ?? .now.addingTimeInterval(3600))))
+            // The next moment any item's wording can change is one of its own bounds, so the
+            // reload is asked for then rather than an hour later. Absent a bound in the next
+            // hour this is still the hourly refresh it always was.
+            completion(Timeline(entries: [entry], policy: .after(nextRefreshDate(for: payload))))
         }
     }
 }
@@ -202,7 +214,7 @@ extension Color {
     }
 }
 
-/// Per-item day eyebrow, computed client-side from `timestamp` against the device's local
+/// Per-item day eyebrow, computed client-side from `startsAt` against the device's local
 /// calendar — same rationale as `timeParts` below. Falls back to an abbreviated month/day
 /// (e.g. "AUG 16") once a date is neither today nor tomorrow.
 ///
@@ -276,11 +288,13 @@ struct ClarkViewWidget: Widget {
     WidgetEntry(date: .now, payload: WidgetDataService.mockPayload)
     WidgetEntry(date: .now, payload: WidgetDataService.mockPayloadUpcoming)
     WidgetEntry(date: .now, payload: .empty)
-    WidgetEntry(date: .now, payload: WidgetPayload(schemaVersion: 2, items: [
+    WidgetEntry(date: .now, payload: WidgetPayload(schemaVersion: 3, items: [
         WidgetItem(
             id: "long", mainText: "A very long event title with multiple participants",
             subText: "An extended source and broadcast description",
-            caption: nil, emphasized: false, timestamp: .now.addingTimeInterval(86_400)
+            caption: nil, emphasized: false,
+            startsAt: .now.addingTimeInterval(86_400),
+            expiresAt: .now.addingTimeInterval(86_400 + 7_200)
         )
     ]))
 }

@@ -100,8 +100,8 @@ Canonical parent tables are `bunches`, `bunch_codes`, `devices`, `sources`,
   assignments and moving an attached source. Moving a device into another bunch clears
   its previous assignments. A valid bunch code is the enrollment/move path; membership
   is not a full agent ACL system.
-- The legacy `priority` column is inert. Composition orders by timestamp, then source
-  ID and source-local item ID. No current form sets priority.
+- The legacy `priority` column is inert. Composition orders by item start time, then
+  source ID and source-local item ID. No current form sets priority.
 - Source pointers are trusted parent configuration; device settings cannot override
   destinations. Item IDs become `<source-id>:<local-id>`, remaining stable across a
   compatible endpoint change.
@@ -176,7 +176,9 @@ is the parent/iOS display contract. Neither is an SDK deployment revision.
 No install identity, pairing data, presentation, or widget dimensions go to a source.
 `null` offset preserves its default timezone behavior. Every item is temporal and uses
 the widget's literal item keys. Validate responses at the seam, including identity,
-duplicate IDs and finite Unix-second timestamps.
+duplicate IDs, and a finite Unix-second window whose expiry is strictly after its
+start and within a plausible span (the span rule is what catches a bound written in
+milliseconds).
 
 The shared SDK is `plusjade/source-sdk`, public and dependency-free, with no HTTP
 entry, storage, credentials, or schedules. See its
@@ -185,7 +187,7 @@ active source must import its public entrypoint at a tested immutable pin:
 
 ```ts
 import { accept, reject, defineSource, serveSource, type Item }
-  from "https://esm.town/v/plusjade/source-sdk@3-main/mod.ts";
+  from "https://esm.town/v/plusjade/source-sdk@12-main/mod.ts";
 ```
 
 Use one revision throughout a source; update pins on a branch, run checks, then
@@ -222,13 +224,15 @@ kind or a field named `teams`. Full vocabulary and save semantics:
 
 ```json
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "items": [{
     "id": "5:example-event",
     "mainText": "Away @ Home",
     "subText": "Network · availability",
     "caption": null,
     "emphasized": false,
+    "startsAt": 1788044400,
+    "expiresAt": 1788055200,
     "timestamp": 1788044400
   }],
   "presentation": {
@@ -241,11 +245,28 @@ kind or a field named `teams`. Full vocabulary and save semantics:
 
 - Source-owned text and emphasis are display decisions, not raw sports data. The
   parent sorts; Swift renders array order without sorting. No scores/live clock.
-- `timestamp` is Unix **seconds**, decoded with `.secondsSince1970`. Never send
-  milliseconds or shift the instant by the client's offset. Swift derives the local
-  day label and, when `caption` is null, the local clock time.
-- Sports use `LIVE` with emphasis and `END` without it. Moon uses `PEAK` to avoid
-  implying the astronomical instant is local moonrise or a viewing recommendation.
+- **An item is a window, not an instant.** `startsAt` and `expiresAt` are Unix
+  **seconds**, both required, `expiresAt` strictly greater; Swift decodes them with
+  `.secondsSince1970`. Never send milliseconds or shift the instant by the client's
+  offset. Swift derives the local day label from `startsAt` and, when `caption` is
+  null, the local clock time.
+- **`expiresAt` is an estimate and is never displayed**, on any surface. A source
+  publishes a typical duration, so a long event reads as expired while still running;
+  that is the accepted cost of deriving lifecycle from the clock instead of an ingest.
+  The client uses it for *timing* — `nextRefreshDate(for:after:)` schedules the
+  timeline reload on the next bound — never for *wording*.
+- An instantaneous event (Moon's peak) publishes a **one-second window**, never a null
+  bound: a nullable expiry classifies as already-expired under `now > null` in JS and
+  vanishes from `expires_at > :now` in SQL, both silently.
+- Schema 3 added the window. `timestamp` still ships as a duplicate of `startsAt` for
+  builds that predate it, and Swift falls back to it; drop both once those builds are
+  gone. A source still publishing only `timestamp` is upgraded by the parent to a
+  one-second window rather than rejected — neither parent nor client may invent a
+  duration.
+- Sports use `LIVE` with emphasis and `END` without it, chosen by the source from the
+  item's phase. Moon uses `PEAK` to avoid implying the astronomical instant is local
+  moonrise or a viewing recommendation. The protocol's phase vocabulary
+  (`upcoming | current | expired`) is state, never display text.
 - Parent adds `presentation` from the device, defaulting to Beacon with white/black
   roots. It also emits deprecated `eyebrow:"NEXT"`; Swift ignores unknown keys.
 - Presentation version 2 selects a whole widget-family template, not dimensions. Root
@@ -311,14 +332,24 @@ compares times without conversion. The `T` separator is load-bearing: SQLite's
 and silently — and because SQLite coerces a number written to a TEXT column, an
 epoch-integer write lands as a string sorting below every real date. Retyping a column
 requires rebuilding the table; both migrations are idempotent and detect the old type.
-Item timestamps on the source protocol and widget wire remain Unix seconds. That wire
-field is where the epoch habit came from; converting at the storage boundary keeps the
+Item bounds on the source protocol and widget wire remain Unix seconds. That wire
+contract is where the epoch habit came from; converting at the storage boundary keeps the
 contract from dictating the schema.
 
 ## Source operations and freshness
 
 Reads use stored data; refreshing a widget does not ingest upstream events. No
 automatic ingestion schedules are configured for these sources.
+
+**Lifecycle no longer waits on ingest.** Each source derives its caption from
+`phase(item, now)` over the item's own window at read time, so a game that kicked off
+five minutes ago reads `LIVE` with no ingest in between. A stored `final` status still
+wins over the estimated expiry — knowing an event ended beats estimating that it did —
+but a stale `scheduled` no longer freezes the display. The same phase drives each
+source's `intradayFilter` ("hide a game as soon as it ends"), so the filter and the
+caption can no longer disagree. Default durations are source-owned named constants
+(`NFL_TYPICAL_GAME_SECONDS` and siblings); neither the SDK nor the parent may supply
+one.
 
 All five active sources expose authenticated `GET /diagnostics`. Each source's
 `diagnostics.ts` maps its own storage to

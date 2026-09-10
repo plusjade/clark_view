@@ -158,22 +158,84 @@ struct clark_viewTests {
         #expect(success.resultDescription == "Succeeded")
     }
 
-    private func decodePayload(presentation: String? = nil) throws -> WidgetPayload {
+    @Test func itemsDecodeTheirWindow() throws {
+        let payload = try decodePayload()
+        let item = try #require(payload.items.first)
+
+        #expect(item.startsAt == Date(timeIntervalSince1970: 1788044400))
+        #expect(item.expiresAt == Date(timeIntervalSince1970: 1788051600))
+    }
+
+    /// A build can outlive a server rollback, so the pre-window shape still has to render.
+    /// With no expiry the item is instantaneous rather than given an invented duration.
+    @Test func legacyTimestampItemStillDecodes() throws {
+        let payload = try decodePayload(items: """
+        {
+          "id": "1", "mainText": "Fever @ Wings", "subText": "ESPN",
+          "caption": null, "emphasized": false, "timestamp": 1788044400
+        }
+        """)
+        let item = try #require(payload.items.first)
+
+        #expect(item.startsAt == Date(timeIntervalSince1970: 1788044400))
+        #expect(item.expiresAt == Date(timeIntervalSince1970: 1788044401))
+    }
+
+    /// The instantaneous case, Moon-shaped: a one-second window is a real window, and the
+    /// refresh lands on its bounds like any other.
+    @Test func instantaneousItemSchedulesRefreshOnItsOwnBounds() throws {
+        let peak = Date(timeIntervalSince1970: 1788044400)
+        let payload = try decodePayload(items: """
+        {
+          "id": "3:moon", "mainText": "Full Moon", "subText": "Harvest Moon",
+          "caption": "PEAK", "emphasized": false,
+          "startsAt": 1788044400, "expiresAt": 1788044401
+        }
+        """)
+        let item = try #require(payload.items.first)
+        #expect(item.expiresAt.timeIntervalSince(item.startsAt) == 1)
+
+        // Far out: the next bound wins, but never past the hourly floor.
+        let early = peak.addingTimeInterval(-7200)
+        #expect(nextRefreshDate(for: payload, after: early) == early.addingTimeInterval(3600))
+        // Inside the last hour: exactly the start.
+        let close = peak.addingTimeInterval(-600)
+        #expect(nextRefreshDate(for: payload, after: close) == peak)
+        // Between the bounds, the expiry is under the one-minute floor, so the floor wins.
+        #expect(nextRefreshDate(for: payload, after: peak) == peak.addingTimeInterval(60))
+        // Past both bounds there is nothing to wait for but the hourly refresh.
+        let after = peak.addingTimeInterval(10)
+        #expect(nextRefreshDate(for: payload, after: after) == after.addingTimeInterval(3600))
+    }
+
+    @Test func emptyFeedFallsBackToTheHourlyRefresh() {
+        let now = Date(timeIntervalSince1970: 1788044400)
+        let payload = WidgetPayload(schemaVersion: 3, items: [])
+
+        #expect(nextRefreshDate(for: payload, after: now) == now.addingTimeInterval(3600))
+    }
+
+    private func decodePayload(
+        presentation: String? = nil,
+        items: String = """
+        {
+          "id": "1",
+          "mainText": "Fever @ Wings",
+          "subText": "ESPN",
+          "caption": null,
+          "emphasized": false,
+          "startsAt": 1788044400,
+          "expiresAt": 1788051600,
+          "timestamp": 1788044400
+        }
+        """
+    ) throws -> WidgetPayload {
         let presentationField = presentation.map { "\"presentation\": \($0)," } ?? ""
         let data = Data("""
         {
-          "schemaVersion": 2,
+          "schemaVersion": 3,
           \(presentationField)
-          "items": [
-            {
-              "id": "1",
-              "mainText": "Fever @ Wings",
-              "subText": "ESPN",
-              "caption": null,
-              "emphasized": false,
-              "timestamp": 1788044400
-            }
-          ]
+          "items": [\(items)]
         }
         """.utf8)
         let decoder = JSONDecoder()
