@@ -297,6 +297,11 @@ gates sending: while unset the queue still drains and records what each row woul
 sent, which is the intended dry-run posture before enabling. The correctness constraint
 is coverage, not latency — every device must be built at least once inside its own
 reminder lead, so watch the oldest `devices.reminders_built_at` as the fleet grows.
+The drain has the opposite constraint: `MAX_LATENESS_SECONDS` must exceed the drain
+cadence plus scheduler slack, or a row coming due just after a tick is voided `TooLate`
+instead of sent. **Val Town cron is not punctual** — a `:35` tick was observed firing at
+`:40` (2026-09-10) — so the cap is 30 minutes against a 15-minute cadence, and the check
+asserts the relationship rather than the number. Retune cadence and cap together.
 `devices.last_tz_offset_seconds` is captured from the resolver's `tz`, conditionally and
 best-effort; it is an offset, not a timezone, so quiet hours need an IANA identifier from
 the app before they can be correct. Details in the parent's `docs/event-reminders.md`.
