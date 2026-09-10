@@ -10,13 +10,16 @@ Clark View is widget-first: the containing app handles pairing and diagnostics, 
 
 ## Documenting decisions
 
-When work produces something a future agent should know, route it at the moment of the urge to write it down — don't default to editing an orientation doc's prose:
+When work produces information a future agent needs, route it by its purpose and useful lifetime:
 
-1. **Changes what to do, and stays true going forward** (a rule, invariant, trap) → a dateless line in the relevant orientation doc's constraints/gotchas section (e.g. `docs/valtown-brief.md`'s "Gotchas and deliberately unfinished work").
-2. **Explains why a decision was made, but doesn't itself change future behavior** → one line in [`docs/CHANGELOG.md`](docs/CHANGELOG.md): what (one clause) + why (one clause), dated, append-only, never edited afterward.
-3. **Just "I did X, it worked," with no forward relevance** → the commit message. Nowhere else.
+1. **Current ownership, contracts, procedures, or constraints** → update the relevant orientation section in place; remove superseded guidance. Use the contracts section for contracts and the gotchas section for traps, rather than accumulating everything under gotchas.
+2. **Significant decisions and their rationale** → one concise, dated entry in [`docs/CHANGELOG.md`](docs/CHANGELOG.md): what + why, with an evidence or implementation pointer when useful. Preserve historical meaning; record reversals as new entries. Typo and broken-link corrections are allowed.
+3. **Consequential temporary state or unresolved operational work** → an existing issue, operational record, or explicitly scoped status section in the relevant doc. Include the observation date, evidence pointer, and recheck or closure condition. Update or close it when resolved; do not turn an old observation into a permanent claim by removing its date.
+4. **Routine work and passing validation with no forward relevance** → the commit message. Nowhere else.
 
-If something is both — retiring a component, say — it's tier 2 at the moment it happens and tier 1 forever after: split it. The orientation doc states the standing constraint dateless ("X is retired, not a rollback target"); the changelog carries the dated why. Never write the same sentence in both places.
+Keep enough rationale beside a standing constraint to explain its scope and failure mode; put the historical decision narrative in the decision log. A retirement may need both a current constraint ("X is retired, not a rollback target") and a dated decision entry explaining why. Avoid duplicating the narrative.
+
+Dates, actors, and counts are clues to purpose, not exclusion rules. Preserve pointers to the owning code, diagnostics, and checks when trimming historical results: future agents still need the cheapest way to establish current behavior.
 
 ## Build & test
 

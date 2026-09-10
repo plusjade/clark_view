@@ -1,19 +1,16 @@
 # Changelog
 
-Append-only record of *why* decisions were made. Never a statement of current
-behavior — for that, verify against the code or the orientation docs in `docs/`.
-Newest entries on top. One line per entry: what (one clause) + why (one clause) +
-an optional pointer. Never edit a past entry; if a decision is later reversed, add a
-new entry instead. See AGENTS.md for when something belongs here versus in an
-orientation doc versus only in the commit message.
+Record of significant decisions and *why* they were made. Entries describe decisions
+at the time; verify current behavior against the owning code, live diagnostics when
+relevant, and orientation docs in `docs/`.
+Newest entries on top. Use one concise, dated entry: what + why, with an optional
+pointer. Preserve historical meaning; record reversals as new entries. Typo and
+broken-link corrections are allowed. See [AGENTS.md](../AGENTS.md#documenting-decisions)
+for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-09-10
 
-- Removed `docs/catalog-model.md`, `docs/catalog-schema.sql`,
-  `docs/source-val-migration.sql`, and `docs/val-based-sources-plan.md`; rewrote
-  `docs/valtown-brief.md` and `docs/push-notifications.md` around durable rules
-  instead of dated narrative. Why: orientation docs were accreting verification
-  play-by-plays and completed-migration logs because there was nowhere else to put
-  them, producing stale-but-still-trusted claims; that content now belongs here
-  (if it carries a reusable rationale) or nowhere (if it was pure verification
-  chatter with no forward relevance — that already lives in commit history).
+- Added scoped operational evidence and preserved verification pointers in documentation
+  routing because removing provenance can make temporary observations look permanent.
+- Consolidated current guidance and introduced decision routing because completed
+  migration narratives were being mistaken for current system behavior.

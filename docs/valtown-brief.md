@@ -2,14 +2,15 @@
 
 Read this before using Val Town MCP tools or changing the iOS/server boundary.
 
-**Maintenance rule — read before editing this file.** This is a map of the current
-state of the system, not a deployment log. If a sentence you're about to add contains
-a date, an actor ("the operator reported…", "the user confirmed…"), or an event
-count, it doesn't belong here — see AGENTS.md's documentation-routing rule: the *why*
-goes in [`docs/CHANGELOG.md`](CHANGELOG.md), and only the durable, dateless rule or
-gotcha (if any) stays in this file. Update a section in place rather than layering a
-new revision note on top of an old one. Treat everything below as a snapshot to
-verify when it's actually relevant to the task, not as re-confirmed fact.
+**Maintenance rule — read before editing this file.** Update current ownership,
+contracts, procedures, and constraints in their relevant sections; remove superseded
+guidance. Keep the short rationale needed to explain a constraint's scope and failure
+mode. Route decision history and consequential operational evidence using
+[AGENTS.md](../AGENTS.md#documenting-decisions). Temporary observations need a scoped
+status section with a date, evidence pointer, and recheck or closure condition;
+removing a date does not make a claim durable. Preserve verification pointers when
+trimming old results. Treat cached system facts as snapshots to verify when relevant
+to the task, not as re-confirmed fact.
 
 ## Start here: ownership and request flow
 
@@ -149,8 +150,8 @@ reason to add a component library or client-side JavaScript.
 | `/devices/:id/merge` | Move a reinstalled app's install ID onto the device it replaces; the chosen target survives and the origin row is deleted |
 | `/sources`, `/sources/:id` | Read-only registry explorer; the resource redirects to `/sources/:id/overview` |
 | `/sources/:id/overview`, `/sources/:id/diagnostics`, `/sources/:id/settings`, `/sources/:id/devices` | Standalone resource tabs for metadata, stored coverage, schema, and attached devices |
-| `/bunches`, `/bunches/new`, `/bunches/:id`, `/bunches/:id/pair`, `/bunches/:id/codes` | Enrollment administration and pairing-code creation |
 | `POST /internal/reminders/{build,drain}` | Reminder jobs behind `REMINDERS_TOKEN` bearer auth; unset returns 401. Drain accepts an optional row `id`, keeping an external scheduler swappable for the cron. |
+| `/bunches`, `/bunches/new`, `/bunches/:id`, `/bunches/:id/pair`, `/bunches/:id/codes` | Enrollment administration and pairing-code creation |
 
 Resolver diagnostics include `x-device-feed-provider: source-registry-v1`,
 `x-effective-source-count`, and `x-effective-sources` (e.g. `3:moon,5:nfl`). Zero
@@ -286,3 +287,167 @@ uploads it with the last observed alert permission to
 `/device/notifications/register`. See [push-notifications.md](push-notifications.md)
 for setup, the token/topic contract, and current verification status — don't restate
 those facts here.
+
+Event reminders run in the parent: `crons/buildReminders.ts` queues one
+`notification_queue` row per upcoming feed item per device, and
+`crons/drainReminders.ts` sends each row as a visible alert once `send_after` passes.
+Alert channel only; a reminder does not refresh the widget. `UNIQUE(device_id,item_id,rule)`
+plus a compare-and-swap claim make delivery at-most-once under overlapping runs and
+repeated triggers, so an abandoned claim is failed rather than retried. `REMINDERS_ENABLED`
+gates sending: while unset the queue still drains and records what each row would have
+sent, which is the intended dry-run posture before enabling. The correctness constraint
+is coverage, not latency — every device must be built at least once inside its own
+reminder lead, so watch the oldest `devices.reminders_built_at` as the fleet grows.
+`devices.last_tz_offset_seconds` is captured from the resolver's `tz`, conditionally and
+best-effort; it is an offset, not a timezone, so quiet hours need an IANA identifier from
+the app before they can be correct. Details in the parent's `docs/event-reminders.md`.
+
+**Parent timestamp convention: ISO-8601 UTC text matching `Date.toISOString()`.** Every
+stored time now follows it, `device_alert_tokens.last_test_at` included (a never-tested
+registration is NULL, not a sentinel). `lib/time.ts` owns the format, `NOW_UTC`, and the
+conversion helpers; write stored times through it and never `datetime()` or `unixepoch()`.
+The format is fixed-width, so string comparison is chronological comparison and SQL
+compares times without conversion. The `T` separator is load-bearing: SQLite's
+`datetime()` emits a space and `'T'` sorts above `' '`, so a mixed column orders wrongly
+and silently — and because SQLite coerces a number written to a TEXT column, an
+epoch-integer write lands as a string sorting below every real date. Retyping a column
+requires rebuilding the table; both migrations are idempotent and detect the old type.
+Item timestamps on the source protocol and widget wire remain Unix seconds. That wire
+field is where the epoch habit came from; converting at the storage boundary keeps the
+contract from dictating the schema.
+
+## Source operations and freshness
+
+Reads use stored data; refreshing a widget does not ingest upstream events. No
+automatic ingestion schedules are configured for these sources.
+
+All five active sources expose authenticated `GET /diagnostics`. Each source's
+`diagnostics.ts` maps its own storage to
+`{diagnosticsVersion:1,sourceKey,scope:"stored",totalItems,earliestTimestamp,latestTimestamp,lastIngestedAt}`.
+Event bounds are Unix seconds; empty sources return zero and null bounds. The parent
+validates this optional response in `lib/sourceDiagnostics.ts` and fetches it through
+`lib/sourceDiagnosticsClient.ts` only on the Diagnostics tab. It never guesses source
+tables or counts a filtered `/v1/read` response as total coverage. **Unsupported or
+unavailable diagnostics mean unknown, not zero** — stored bounds never establish
+complete coverage or current event statuses on their own.
+See the parent's `docs/source-diagnostics.md`; verification entrypoints are the
+parent's `tools/source-diagnostics-check.ts` and each source's `diagnostics-check.ts`.
+
+| Source | Settings / storage | Write and known operational limits |
+| --- | --- | --- |
+| Moon | Exactly `{}`; `full_moons(date_key,payload,fetched_at)` | `cache.put` with `{source:"moon",dateKey,payload}`. Curated dataset with a finite horizon; seed the next year manually before it runs out. Payload has `peakTime`, `name`, `isBlueMoon`. |
+| Women's FIBA | 16 stable nation slugs plus `intradayFilter`; indexed `wfiba_games`, independent roster in `wfiba_teams` | `games.ingest` with `{dateKey,payload}`. Each date replaces its rows authoritatively. Off-platform `tools/ingest.ts` fetches ESPN; `GET /coverage` diagnoses storage. |
+| NFL | 32 team choices plus `intradayFilter`; indexed `cached_games` | `sleeper.refresh` with integer `{days:1..31}`; NFL-only normalization/storage |
+| CFB | Curated `trojans`/`bruins` choices plus `intradayFilter`; indexed `cached_games` | Same refresh operation, CFB-only; not a full college roster |
+| WNBA | 15 choices plus `intradayFilter`; indexed `cached_games` | Same refresh operation, WNBA-only; accepts Sleeper nested `{team:code}` and stored flat codes |
+
+Sports sources use per-team next-game union/deduplication and client-day bounds.
+Sleeper refresh uses Eastern-day windows, including yesterday for clients west of
+Eastern. `tz` is offset **seconds**, not minutes or an IANA timezone name.
+
+FIBA's ESPN scoreboard endpoint is
+`site.api.espn.com/apis/site/v2/sports/basketball/fiba/scoreboard?dates=YYYYMMDD`.
+
+**FIBA ingestion gotchas:**
+
+- If Val Town egress to ESPN is blocked, fetch off-platform (a local script or a
+  browser) and write directly to the source via `games.ingest`. See the scoped
+  observation below before treating this workaround as necessary.
+- Each `games.ingest` call for a date **replaces that date's rows authoritatively**.
+  Do not rerun the ESPN ingest blindly over an already hand-verified date: an empty or
+  incomplete payload erases what's stored — it does not merge.
+- League 53 is a reused ESPN tournament bucket, not a permanent women's-FIBA feed —
+  revalidate competition, gender, roster and date buckets before reusing it beyond the
+  tournament it was set up for.
+- ESPN's coverage can end before a tournament does. When it does, the official FIBA
+  tournament schedule site is a working fallback for manual capture — its text
+  extraction can omit fixtures hidden behind date controls, so drive it with a browser
+  instead, and cross-check displayed times against the site's explicit GMT times (the
+  page itself renders client-local). Never infer participants or assign a concrete
+  time to a TBD pairing; retain provenance for anything captured this way.
+
+### Operational observation: ESPN egress
+
+The pre-cleanup brief recorded HTTP 403 from Val Town to the ESPN endpoint, including
+with a browser User-Agent, last checked 2026-09-07. Evidence pointer:
+`git show eb93ce0^:docs/valtown-brief.md`, "Source operations and freshness".
+This observation was recovered from documentation history, not re-tested here. When
+changing the ingestion path or diagnosing access, recheck with a read-only request
+from the intended runtime; update or close this observation if access changes. The
+stored-data replacement constraint above still applies regardless of fetch location.
+
+## Verification loops
+
+Classify the change using the ownership map above before touching anything remote.
+Local layout work needs no remote calls; source work needs the source's own README;
+protocol/authoring work needs the SDK guide.
+
+Remote workflow: start from the cached identities in this file (use
+`val_town_get_val_detail` only if branch/ownership/access is actually in question);
+list files once at the needed directory, then read only the implicated modules. Use
+targeted `val_town_replace_in_file`, or `val_town_update_file` for a mostly-rewritten
+file; keep route wiring in `main.ts`. For multi-file/contract work, use one branch per
+affected val, verify, then merge once per val. Verify representative deployed HTTP
+with `val_town_fetch_val_endpoint` against `main.ts` (parent) or `rpc.ts` (source) and
+the intended pathname/search — **a root-page fetch does not substitute for testing the
+actual changed route.**
+
+Inspect checks before running them: some create fixtures, and code branches share
+SQLite. Locate parent settings/boundary checks under `tools/` when needed.
+
+Per domain, what to run and what a false pass looks like:
+
+| Domain | Run | False pass to watch for |
+| --- | --- | --- |
+| Composition | Both resolver aliases and the browser preview; empty/unassigned and assigned mixed-source fixtures; namespaced IDs, ordering, ties, diagnostics, source failure, malformed output | A successful *empty* response doesn't prove an assigned source actually works — check `x-effective-sources` |
+| Source | Authenticated descriptor/read, auth rejection, settings/write guards, nonempty fixtures, timezone edges, source-specific selection. Moon's `check.ts`, other sources' `tools/source-contract-check.ts`, shared SDK `tools/sdk-check.ts` | Diagnostics reporting "unavailable" means unknown coverage, not zero |
+| Settings | Add/edit/clear round trips, removed choices, stale fingerprint, invalid/unavailable source responses, no persistence on failure | — |
+| Widget contract | Decode a representative composed response with Swift; update preview fixtures/tests; build app and widget for contract changes (`xcodebuild -project clark_view.xcodeproj -scheme clark_view build`/`test`); run SwiftLint | — |
+| Push | Verify token environment/topic and actual delivery separately per environment | APNs *accepting* a request is not proof a banner appeared — use console delivery logs; a simulator build proves nothing about real APNs delivery |
+| Reminders | `tools/reminder-check.ts`: due predicate, single-claim delivery, cancellation, lateness guards, disabled dry run; disposable fixtures, no APNs requests | A disabled run exercises queue processing without proving APNs delivery; the builder still writes live queue state |
+| Browser | `/` and any query-bearing root must remain HTML | — |
+
+Do not use production writes as casual smoke tests. Enrollment, assignments, names,
+tokens, ingest and schema operations mutate state — use scoped disposable fixtures and
+clean them up, accounting for shared SQLite even on branches. Prefer read-only route
+diagnostics, then narrow, parameterized `val_town_sqlite_execute` queries with
+`mode:"read"` and the exact owning val database. Do not put install IDs, capability
+IDs, pairing codes, APNs tokens or secret values into chat, logs, fixtures or this
+repository.
+
+For a blank/stale widget, trace in order: app refresh diagnostics → resolver
+status/body and effective sources → assignments/settings → source read/coverage →
+ingestion. A push/reload cannot repair an empty assignment or a stale source cache.
+
+## Gotchas and deliberately unfinished work
+
+Keep these constraints; use Git/Val Town history for change lists and old probes.
+
+- **Retired paths are not fallback options.** `sports-today-device-feed` has no
+  HTTP/interval/email entrypoints and is not a supported rollback target.
+  `source-sports` is retained but unregistered. An earlier shared per-competition
+  catalog design (`catalog_competitions`/`catalog_teams` living in the device-feed
+  val) was replaced by each source owning its own team list — do not reintroduce a
+  shared catalog table. No NBA replacement exists. The parent has no
+  `/ingest/:source/:dateKey`, `/moon`, `/messages`, or root JSON/PNG representation.
+- **Compare absolute instants at timezone boundaries.** A retired Sports FIBA
+  implementation scanned UTC buckets using a client-local date floor, dropping valid
+  games at UTC+14. Women's FIBA queries absolute instants and has a regression check.
+  Moon retains its own date-selection semantics; a timezone redesign requires
+  source-specific fixtures, not a blanket shift of timestamps.
+- **Do not replay completed token backfills.** `INSERT OR IGNORE` only skips rows
+  still present, so replaying a backfill after a dead-token cleanup can resurrect
+  retired tokens. `tools/device-token-check.ts` guards schema initialization and
+  widget token preference; preserve that behavior when changing token persistence.
+- **Snapshots are not live state.** Parent `sources_before_val_boundary` and
+  `device_sources_before_val_boundary` are recovery data, not registries. Copied
+  non-league data/schema remain dormant in remixed sources. Historical row counts or
+  passing empty parity probes do not establish current coverage.
+- **Remixes can retain credentials.** Unused inherited keys can remain in a remixed
+  val; there is no delete-env operation in the current MCP tooling. Do not assume
+  cleanup of copied secrets happened, or bundle it into an unrelated change.
+- **Deferred:** immutable source publication/activation, agent ACLs, advanced
+  sharing/subscriptions, partial-feed degradation, automated ingestion, and next-year
+  Moon seeding, per-source reminder leads, reminder quiet hours (requires an IANA
+  timezone from the app), and widget refresh alongside reminder alerts. Implement
+  these only when the task actually calls for them.
