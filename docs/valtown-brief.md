@@ -19,22 +19,22 @@ diagnostics/manual reload. A browser helper configures sources. The widget displ
 server-composed temporal items.
 
 ```text
-Browser → sports-today → bunches, devices, source registry, assignments
-App     → sports-today /pair, /devices/status/:installId
-Widget  → sports-today /config/resolve
+Browser → app-clarkview → bunches, devices, source registry, assignments
+App     → app-clarkview /pair, /devices/status/:installId
+Widget  → app-clarkview /config/resolve
                          → device assignments + source pointers
                          → authenticated HTTP reads of assigned source vals
                          → validate items, sort, attach presentation → widget v2
 Source ingest → implementing source's /v1/write → that val's SQLite
-sports-today → best-effort APNs → WidgetKit → normal resolver fetch
+app-clarkview → best-effort APNs → WidgetKit → normal resolver fetch
 ```
 
 | Concern | Owner / first place to inspect |
 | --- | --- |
 | Layout, family limits, local date/time, empty state, interaction, reload scheduling | This repository: `ClarkViewWidget/` and `Shared/` |
-| Enrollment, registry pointers, assignments, browser forms, composition, presentation configuration, push delivery | `plusjade/sports-today` (the parent) |
+| Enrollment, registry pointers, assignments, browser forms, composition, presentation configuration, push delivery | `plusjade/app-clarkview` (the parent) |
 | Team vocabulary, selection, event/status/broadcast text, upstream normalization, storage, ingestion | The implementing `plusjade/source-*` val |
-| Generic source protocol and item validation | `plusjade/source-sdk`; some sources still vendor the SDK |
+| Generic source protocol and item validation | `plusjade/source-sdk`, imported by every active source |
 | Widget wire fields or their meaning | Coordinate source output, parent composition, Swift decoding, fixtures, and tests |
 
 Do not put source-domain policy in Swift or source-specific dispatch in the parent's
@@ -58,7 +58,7 @@ is kept as a pure helper so it can move later if that changes.
 
 ## Stable deployment identities
 
-The parent is `plusjade/sports-today`, branch `main`, public code/public app access.
+The parent is `plusjade/app-clarkview`, branch `main`, public code/public app access.
 Its HTTP entry is **`main.ts`**, file ID **`f0eeffb8-9a93-11f1-9bb6-1607ee4eb77e`**,
 endpoint **`https://plusjade--f0eeffb89a9311f19bb61607ee4eb77e.web.val.run/`**.
 [ServerURL.swift](../Shared/ServerURL.swift) owns the same iOS base URL.
@@ -180,17 +180,16 @@ duplicate IDs and finite Unix-second timestamps.
 
 The shared SDK is `plusjade/source-sdk`, public and dependency-free, with no HTTP
 entry, storage, credentials, or schedules. See its
-[creator guide](https://www.val.town/x/plusjade/source-sdk/code/README.md). Moon and
-Women's FIBA import its public entrypoint at a tested immutable pin:
+[creator guide](https://www.val.town/x/plusjade/source-sdk/code/README.md). Every
+active source must import its public entrypoint at a tested immutable pin:
 
 ```ts
 import { accept, reject, defineSource, serveSource, type Item }
   from "https://esm.town/v/plusjade/source-sdk@3-main/mod.ts";
 ```
 
-NFL, CFB and WNBA still vendor their SDK — do not assume editing the shared val
-updates them. Use one revision throughout a source; update pins on a branch, run
-checks, then merge.
+Use one revision throughout a source; update pins on a branch, run checks, then
+merge.
 
 Source implementation boundaries:
 
@@ -423,13 +422,11 @@ ingestion. A push/reload cannot repair an empty assignment or a stale source cac
 
 Keep these constraints; use Git/Val Town history for change lists and old probes.
 
-- **Retired paths are not fallback options.** `sports-today-device-feed` has no
-  HTTP/interval/email entrypoints and is not a supported rollback target.
-  `source-sports` is retained but unregistered. An earlier shared per-competition
-  catalog design (`catalog_competitions`/`catalog_teams` living in the device-feed
-  val) was replaced by each source owning its own team list — do not reintroduce a
-  shared catalog table. No NBA replacement exists. The parent has no
-  `/ingest/:source/:dateKey`, `/moon`, `/messages`, or root JSON/PNG representation.
+- **No shared catalog table.** An earlier shared per-competition catalog design
+  (`catalog_competitions`/`catalog_teams`) was replaced by each source owning its own
+  team list — do not reintroduce a shared catalog table. No NBA replacement exists.
+  The parent has no `/ingest/:source/:dateKey`, `/moon`, `/messages`, or root JSON/PNG
+  representation.
 - **Compare absolute instants at timezone boundaries.** A retired Sports FIBA
   implementation scanned UTC buckets using a client-local date floor, dropping valid
   games at UTC+14. Women's FIBA queries absolute instants and has a regression check.

@@ -79,7 +79,7 @@ is shared. Xcode development builds need a separate sandbox key:
 the same live server; missing credentials return `MissingCredentials:sandbox` or
 `MissingCredentials:production`, with **no cross-environment fallback**.
 
-[Configure environment variables](https://www.val.town/x/plusjade/sports-today/environment-variables).
+[Configure environment variables](https://www.val.town/x/plusjade/app-clarkview/environment-variables).
 Never place private key contents in source or logs.
 
 ## Server registration and self-test
@@ -126,7 +126,7 @@ APNs acceptance alone is insufficient.
 
 ## Event reminders
 
-Automatic reminders are live. `sports-today` queues one notification per upcoming
+Automatic reminders are live. `app-clarkview` queues one notification per upcoming
 event per device and sends a visible alert a configurable time beforehand, default
 one hour. It uses the alert channel only; a reminder does not refresh the widget.
 

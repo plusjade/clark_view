@@ -6,7 +6,7 @@ SwiftUI iOS app with a WidgetKit extension. App target `clark_view`, bundle id `
 
 Four targets: `clark_view` (app), `ClarkViewWidgetExtension` (widget), `clark_viewTests` (unit tests), and `clark_viewUITests` (UI tests).
 
-Clark View is widget-first: the containing app handles pairing and diagnostics, while the user-facing experience lives in `ClarkViewWidget`. Its server API and browser-managed configuration are hosted by the Val Town project `plusjade/sports-today`. Before using Val Town MCP tools or changing the iOS/server boundary, read [`docs/valtown-brief.md`](docs/valtown-brief.md); it maps ownership boundaries, endpoint identities, route/payload contracts, per-domain verification loops, and known gotchas.
+Clark View is widget-first: the containing app handles pairing and diagnostics, while the user-facing experience lives in `ClarkViewWidget`. Its server API and browser-managed configuration are hosted by the Val Town project `plusjade/app-clarkview`. Before using Val Town MCP tools or changing the iOS/server boundary, read [`docs/valtown-brief.md`](docs/valtown-brief.md); it maps ownership boundaries, endpoint identities, route/payload contracts, per-domain verification loops, and known gotchas.
 
 ## Documenting decisions
 
