@@ -42,7 +42,7 @@ The parent is `plusjade/sports-today`, branch `main`, public code/public app
 access. Its HTTP entry is **`main.ts`**, file ID
 **`f0eeffb8-9a93-11f1-9bb6-1607ee4eb77e`**, endpoint
 **`https://plusjade--f0eeffb89a9311f19bb61607ee4eb77e.web.val.run/`**.
-[GameDataURL.swift](../Shared/GameDataURL.swift) owns the same iOS base URL.
+[ServerURL.swift](../Shared/ServerURL.swift) owns the same iOS base URL.
 
 **Preserve the HTTP file's identity: update it in place; do not delete, recreate,
 or rename it.** Endpoint identity follows the file ID, not its name. When
@@ -260,7 +260,7 @@ choices remain visible until explicitly removed. Reads still validate settings.
 
 | Local file | Role |
 | --- | --- |
-| [GameDataURL.swift](../Shared/GameDataURL.swift) | Base URL and resolver query; its old redirect comment is stale |
+| [ServerURL.swift](../Shared/ServerURL.swift) | Base URL and resolver query |
 | [WidgetPayload.swift](../Shared/WidgetPayload.swift), [WidgetPresentation.swift](../Shared/WidgetPresentation.swift) | Wire decoding and presentation fallback |
 | [ClarkViewWidget.swift](../ClarkViewWidget/ClarkViewWidget.swift) | Fetch/cache, preview fixtures, hourly timeline, entry view |
 | [BeaconWidgetTemplate.swift](../ClarkViewWidget/BeaconWidgetTemplate.swift), [BeaconWidgetFocusLayouts.swift](../ClarkViewWidget/BeaconWidgetFocusLayouts.swift) | Default layout and focus transition |
@@ -491,8 +491,11 @@ Keep these constraints; use Git/Val Town history for change lists and old probes
   records design intent and migration steps; [catalog-model.md](catalog-model.md)
   describes the earlier multi-competition catalog. Neither overrides the current
   ownership map. `lib/deviceFeedClient.ts`, parent `lib/catalog.ts`, and parent
-  `lib/resolver.ts` were removed. Swift's Games-oriented names/comments do not
-  imply a current server Games model or a resolver redirect.
+  `lib/resolver.ts` were removed. The Games-oriented Swift names this note used
+  to warn about (`GameDataURL`, `GamesEntry`, `GameDataService`) were renamed to
+  source-agnostic ones (`ServerURL`, `WidgetEntry`, `WidgetDataService`); any
+  remaining sports-flavored wording in comments is illustrative, not a hardcoded
+  assumption.
 - **Compare absolute instants at timezone boundaries.** Retired Sports FIBA
   scanned UTC buckets using a client-local date floor, dropping valid games at
   UTC+14. Women's FIBA queries absolute instants and has a regression check.

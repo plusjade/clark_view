@@ -10,7 +10,7 @@ import WidgetKit
 import SwiftUI
 import UIKit
 
-private enum GameDataService {
+private enum WidgetDataService {
     private static let cachedPayloadKey = "latestWidgetPayload"
     private static let defaults = UserDefaults(suiteName: DeviceIdentity.appGroupID) ?? .standard
 
@@ -24,7 +24,7 @@ private enum GameDataService {
         let pixelWidth = Int((context.displaySize.width * scale).rounded())
         let pixelHeight = Int((context.displaySize.height * scale).rounded())
         let request = URLRequest(
-            url: GameDataURL.resolveURL(
+            url: ServerURL.resolveURL(
                 device: DeviceIdentity.deviceID,
                 pixelWidth: pixelWidth,
                 pixelHeight: pixelHeight,
@@ -148,7 +148,7 @@ private extension JSONDecoder {
     }()
 }
 
-struct GamesEntry: TimelineEntry {
+struct WidgetEntry: TimelineEntry {
     let date: Date
     let payload: WidgetPayload
     let focusedItemID: String?
@@ -161,14 +161,14 @@ struct GamesEntry: TimelineEntry {
 }
 
 struct Provider: TimelineProvider {
-    func placeholder(in context: Context) -> GamesEntry {
-        GamesEntry(date: .now, payload: .empty)
+    func placeholder(in context: Context) -> WidgetEntry {
+        WidgetEntry(date: .now, payload: .empty)
     }
 
-    func getSnapshot(in context: Context, completion: @escaping (GamesEntry) -> Void) {
+    func getSnapshot(in context: Context, completion: @escaping (WidgetEntry) -> Void) {
         Task {
-            let payload = await GameDataService.fetchPayload(context: context)
-            completion(GamesEntry(
+            let payload = await WidgetDataService.fetchPayload(context: context)
+            completion(WidgetEntry(
                 date: .now,
                 payload: payload,
                 focusedItemID: WidgetFocusStore.focusedItemID
@@ -176,16 +176,16 @@ struct Provider: TimelineProvider {
         }
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<GamesEntry>) -> Void) {
+    func getTimeline(in context: Context, completion: @escaping (Timeline<WidgetEntry>) -> Void) {
         Task {
-            let payload = await GameDataService.fetchPayload(context: context)
-            let entry = GamesEntry(
+            let payload = await WidgetDataService.fetchPayload(context: context)
+            let entry = WidgetEntry(
                 date: .now,
                 payload: payload,
                 focusedItemID: WidgetFocusStore.focusedItemID
             )
             // Data doesn't change fast enough to justify burning the refresh budget more often
-            // than this; retune if games start/finish mid-refresh-window.
+            // than this; retune if items start/finish mid-refresh-window.
             let nextRefresh = Calendar.current.date(byAdding: .minute, value: 60, to: .now)
             completion(Timeline(entries: [entry], policy: .after(nextRefresh ?? .now.addingTimeInterval(3600))))
         }
@@ -233,8 +233,8 @@ struct ClarkViewWidget: Widget {
         StaticConfiguration(kind: kind, provider: Provider()) { entry in
             ClarkViewWidgetEntryView(entry: entry)
         }
-        .configurationDisplayName("Games")
-        .description("Shows upcoming games for your paired teams.")
+        .configurationDisplayName("Clark View")
+        .description("Shows upcoming items from your paired sources.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
         .contentMarginsDisabled()
         .pushHandler(ClarkViewWidgetPushHandler.self)
@@ -244,18 +244,18 @@ struct ClarkViewWidget: Widget {
 #Preview(as: .systemSmall) {
     ClarkViewWidget()
 } timeline: {
-    GamesEntry(date: .now, payload: GameDataService.mockPayload)
-    GamesEntry(date: .now, payload: .empty)
+    WidgetEntry(date: .now, payload: WidgetDataService.mockPayload)
+    WidgetEntry(date: .now, payload: .empty)
 }
 
 #Preview(as: .systemMedium) {
     ClarkViewWidget()
 } timeline: {
-    GamesEntry(date: .now, payload: GameDataService.mockPayload)
+    WidgetEntry(date: .now, payload: WidgetDataService.mockPayload)
 }
 
 #Preview(as: .systemLarge) {
     ClarkViewWidget()
 } timeline: {
-    GamesEntry(date: .now, payload: GameDataService.mockPayloadUpcoming)
+    WidgetEntry(date: .now, payload: WidgetDataService.mockPayloadUpcoming)
 }

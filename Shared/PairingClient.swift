@@ -30,7 +30,7 @@ enum PairingClient {
     }
 
     static func pair(code: String, device: String) async -> Outcome {
-        var request = URLRequest(url: GameDataURL.baseURL.appendingPathComponent("pair"))
+        var request = URLRequest(url: ServerURL.baseURL.appendingPathComponent("pair"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try? JSONEncoder().encode(["code": code, "device": device])

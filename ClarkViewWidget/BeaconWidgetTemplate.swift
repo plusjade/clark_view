@@ -7,8 +7,6 @@ import AppIntents
 import SwiftUI
 import WidgetKit
 
-/// The standard template's composition expressed without measured scaling. Semantic text
-/// styles stay at their system-resolved sizes while the established visual hierarchy remains.
 struct BeaconWidgetTemplate: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency

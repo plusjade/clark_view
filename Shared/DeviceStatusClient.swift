@@ -64,7 +64,7 @@ enum DeviceStatusClient {
     }
 
     static func fetch(device: String) async -> DeviceStatus? {
-        let url = GameDataURL.baseURL.appendingPathComponent("devices/status/\(device)")
+        let url = ServerURL.baseURL.appendingPathComponent("devices/status/\(device)")
         let request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
         guard let (data, response) = try? await URLSession.shared.data(for: request),
               let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {

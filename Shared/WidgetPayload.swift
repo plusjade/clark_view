@@ -45,18 +45,20 @@ struct WidgetPayload: Decodable {
 
 struct WidgetItem: Decodable, Identifiable {
     let id: String
-    /// The matchup title, pre-combined by the server as "<team1> @ <team2>". Rendered large/bold
+    /// The primary title, e.g. a matchup pre-combined by the server as "<team1> @ <team2>" for a
+    /// sports source, or a comparable one-line summary from another source. Rendered large/bold
     /// (see `BeaconHeroCard`/`BeaconItemBlockView` in BeaconWidgetTemplate.swift) — can wrap to 2 lines.
     let mainText: String
-    /// Broadcast/availability info, e.g. "Channel 7 · local broadcast, not on any streaming app".
+    /// Secondary detail, e.g. "Channel 7 · local broadcast, not on any streaming app".
     /// Rendered small/dim beneath `mainText`, not at the same weight — can run long, wraps to 2 lines.
     let subText: String
-    /// Pre-formatted status word ("LIVE", "END"). Nil means the game hasn't started —
+    /// Pre-formatted status word ("LIVE", "END"). Nil means the item hasn't started —
     /// the client falls back to formatting `timestamp` as a local start time instead.
     let caption: String?
     /// Render `caption` in the attention color (vs. the default dim treatment) — e.g. true
-    /// for "LIVE". A view instruction, not a game-status flag: it's read literally, with no
-    /// string-matching against `caption`'s wording, so the server owns this decision outright.
+    /// for "LIVE". A view instruction, not a status flag derived from the item itself: it's read
+    /// literally, with no string-matching against `caption`'s wording, so the server owns this
+    /// decision outright.
     let emphasized: Bool
     /// Unix epoch seconds, UTC. Also drives the per-item "TODAY"/"TOMORROW"/"AUG 16" day
     /// label (see `dayLabel(for:)` in ClarkViewWidget.swift) — same locale-formatting rationale

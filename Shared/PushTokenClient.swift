@@ -37,7 +37,7 @@ enum PushTokenClient {
             return
         }
         let hexToken = token.map { String(format: "%02x", $0) }.joined()
-        var request = URLRequest(url: GameDataURL.baseURL.appendingPathComponent("device/token"))
+        var request = URLRequest(url: ServerURL.baseURL.appendingPathComponent("device/token"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try? JSONEncoder().encode(Upload(

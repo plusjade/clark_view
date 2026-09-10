@@ -14,7 +14,7 @@ enum AlertPushClient {
             throw Failure(message: "Couldn't determine the signed APNs environment.")
         }
         let path = "device/notifications/" + (test ? "test" : "register")
-        var request = URLRequest(url: GameDataURL.baseURL.appendingPathComponent(path))
+        var request = URLRequest(url: ServerURL.baseURL.appendingPathComponent(path))
         request.httpMethod = "POST"
         request.timeoutInterval = 20
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
