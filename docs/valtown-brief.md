@@ -326,13 +326,18 @@ best-effort; it is an offset, not a timezone, so quiet hours need an IANA identi
 the app before they can be correct. Details in the parent's `docs/event-reminders.md`.
 
 **Parent timestamp convention: ISO-8601 UTC text matching `Date.toISOString()`.** Every
-table stores times this way; `device_alert_tokens.last_test_at` is the one remaining
-epoch-integer column. The format is fixed-width, so string comparison is chronological
-comparison and `notification_queue` compares times in SQL without conversion. The `T`
-separator is load-bearing: SQLite's `datetime()` emits a space and `'T'` sorts above
-`' '`, so a mixed column orders wrongly and silently. Write times through the store's
-`NOW_UTC`/`isoFromUnix`, never `datetime()` or `unixepoch()`. Item timestamps on the
-source protocol and widget wire remain Unix seconds — a separate contract.
+stored time now follows it, `device_alert_tokens.last_test_at` included (a never-tested
+registration is NULL, not a sentinel). `lib/time.ts` owns the format, `NOW_UTC`, and the
+conversion helpers; write stored times through it and never `datetime()` or `unixepoch()`.
+The format is fixed-width, so string comparison is chronological comparison and SQL
+compares times without conversion. The `T` separator is load-bearing: SQLite's
+`datetime()` emits a space and `'T'` sorts above `' '`, so a mixed column orders wrongly
+and silently — and because SQLite coerces a number written to a TEXT column, an
+epoch-integer write lands as a string sorting below every real date. Retyping a column
+requires rebuilding the table; both migrations are idempotent and detect the old type.
+Item timestamps on the source protocol and widget wire remain Unix seconds. That wire
+field is where the epoch habit came from; converting at the storage boundary keeps the
+contract from dictating the schema.
 
 ## Source operations and freshness
 
