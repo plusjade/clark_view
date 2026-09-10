@@ -74,7 +74,7 @@ Cached endpoints, in the same order:
 ## Parent model and code map
 
 Canonical parent tables are `bunches`, `bunch_codes`, `devices`, `sources`,
-`device_sources`, and `device_push_tokens`. Sources own their data separately.
+`device_sources`, `device_push_tokens`, and `notification_queue`. Sources own their data separately.
 
 - `sources` is a bunch-owned instance registry: `id`, `bunch_id`, `name`,
   `endpoint`, `remote_source_key`, `contract_version`, `credential_ref`, plus
@@ -110,6 +110,9 @@ Canonical parent tables are `bunches`, `bunch_codes`, `devices`, `sources`,
 | `lib/bunchStore.ts` | Bunch administration, reusable 30-minute codes, registration |
 | `lib/presentation.ts` | Presentation defaults, stored JSON parsing, form validation |
 | `lib/deviceTokenStore.ts`, `lib/push.ts` | Token lifecycle and best-effort device notification (`notifyDevice`) |
+| `lib/reminderStore.ts` | `notification_queue` ledger, device reminder columns, claim and settlement |
+| `lib/reminderBuilder.ts`, `lib/reminderDrainer.ts` | Queue events from composed feeds; send due reminders as alerts |
+| `crons/buildReminders.ts`, `crons/drainReminders.ts` | The two reminder schedules |
 | `lib/guards.ts` | Domain-free runtime guards |
 | `render/pageShell.ts` | Browser styles, semantic hierarchy, navigation and shared form/table rules |
 | `render/deviceHtml.tsx`, `render/sourceHtml.tsx`, `render/bunchHtml.tsx` | Device settings/preview, source explorer, enrollment views |
@@ -137,6 +140,7 @@ a reason to add a component library or client-side JavaScript.
 | `/devices/:id/merge` | Move a reinstalled app's install ID onto the device it replaces; the chosen target survives and the origin row is deleted |
 | `/sources`, `/sources/:id` | Read-only registry explorer, implementing endpoint, schema, attached devices |
 | `/bunches`, `/bunches/new`, `/bunches/:id`, `/bunches/:id/pair`, `/bunches/:id/codes` | Enrollment administration and pairing-code creation |
+| `POST /internal/reminders/{build,drain}` | Reminder jobs behind `REMINDERS_TOKEN` bearer auth; unset returns 401. Drain accepts an optional row `id`, keeping an external scheduler swappable for the cron. |
 
 Resolver diagnostics include `x-device-feed-provider: source-registry-v1`,
 `x-effective-source-count`, and `x-effective-sources` (e.g. `3:moon,5:nfl`).
@@ -304,8 +308,36 @@ import, and signing in the server runtime without printing secrets. Sandbox
 alert delivery was confirmed by the user. A sandbox widget push accepted at
 20:50:27 UTC on 2026-09-08 produced matching Last Attempt/Last Success timestamps
 on the phone, without a manual reload or visible notification permission.
-Production authentication and delivery remain unverified. Token
+Production authentication and delivery were subsequently verified end to end. Token
 storage is independent of pairing, not tied to retired configs.
+
+Event reminders run in the parent: `crons/buildReminders.ts` queues one
+`notification_queue` row per upcoming feed item per device, and
+`crons/drainReminders.ts` sends each row as a visible alert once `send_after` passes.
+Alert channel only; a reminder does not refresh the widget. `UNIQUE(device_id,item_id,rule)`
+plus a compare-and-swap claim make delivery at-most-once under overlapping runs and
+repeated triggers, so an abandoned claim is failed rather than retried. `REMINDERS_ENABLED`
+gates sending: while unset the queue still drains and records what each row would have
+sent, which is the intended dry-run posture before enabling. The correctness constraint
+is coverage, not latency — every device must be built at least once inside its own
+reminder lead, so watch the oldest `devices.reminders_built_at` as the fleet grows.
+`devices.last_tz_offset_seconds` is captured from the resolver's `tz`, conditionally and
+best-effort; it is an offset, not a timezone, so quiet hours need an IANA identifier from
+the app before they can be correct. Details in the parent's `docs/event-reminders.md`.
+
+**Parent timestamp convention: ISO-8601 UTC text matching `Date.toISOString()`.** Every
+stored time now follows it, `device_alert_tokens.last_test_at` included (a never-tested
+registration is NULL, not a sentinel). `lib/time.ts` owns the format, `NOW_UTC`, and the
+conversion helpers; write stored times through it and never `datetime()` or `unixepoch()`.
+The format is fixed-width, so string comparison is chronological comparison and SQL
+compares times without conversion. The `T` separator is load-bearing: SQLite's
+`datetime()` emits a space and `'T'` sorts above `' '`, so a mixed column orders wrongly
+and silently — and because SQLite coerces a number written to a TEXT column, an
+epoch-integer write lands as a string sorting below every real date. Retyping a column
+requires rebuilding the table; both migrations are idempotent and detect the old type.
+Item timestamps on the source protocol and widget wire remain Unix seconds. That wire
+field is where the epoch habit came from; converting at the storage boundary keeps the
+contract from dictating the schema.
 
 ## Source operations and freshness
 
@@ -376,6 +408,10 @@ Tests should prove the boundary being changed:
   Use `xcodebuild -project clark_view.xcodeproj -scheme clark_view build` and
   the corresponding `test` command with an available destination as needed.
   Unit tests use Swift Testing; UI tests use XCTest. Run SwiftLint for Swift edits.
+- Reminders: `tools/reminder-check.ts` covers the due predicate, single-claim
+  delivery, cancellation, lateness guards and the disabled dry run with disposable
+  fixtures and no APNs requests. Running `crons/buildReminders.ts` directly is a safe
+  live rehearsal while `REMINDERS_ENABLED` is unset.
 - Browser root: `/` and a query-bearing root must remain HTML. Native push:
   separately verify token environment/topic and actual delivery; an HTTP feed
   success or simulator build does not establish APNs delivery.
@@ -428,8 +464,9 @@ Keep these constraints; use Git/Val Town history for change lists and old probes
   cleanup was previously rejected by automatic approval review and did not run.
   Do not assume cleanup happened or bundle it into an unrelated change.
 - **Deferred:** immutable source publication/activation, agent ACLs, advanced
-  sharing/subscriptions, partial-feed degradation, automated ingestion and
-  next-year Moon seeding. Implement these only when the task calls for them.
+  sharing/subscriptions, partial-feed degradation, automated ingestion,
+  next-year Moon seeding, per-source reminder leads, reminder quiet hours (blocked on
+  an IANA timezone from the app), and widget refresh alongside a reminder alert. Implement these only when the task calls for them.
 
 When maintaining this brief, update the relevant section in place. Keep endpoint
 identities, ownership, contracts, verification entrypoints and actionable gotchas.
