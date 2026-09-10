@@ -6,7 +6,17 @@ SwiftUI iOS app with a WidgetKit extension. App target `clark_view`, bundle id `
 
 Four targets: `clark_view` (app), `ClarkViewWidgetExtension` (widget), `clark_viewTests` (unit tests), and `clark_viewUITests` (UI tests).
 
-Clark View is widget-first: the containing app handles pairing and diagnostics, while the user-facing sports experience lives in `ClarkViewWidget`. Its server API and browser-managed configuration are hosted by the Val Town project `plusjade/sports-today`. Before using Val Town MCP tools or changing the iOS/server boundary, read [`docs/valtown-brief.md`](docs/valtown-brief.md); it caches the endpoint identity, route and payload contracts, ownership boundaries, and the bounded MCP workflow intended to prevent redundant remote reads.
+Clark View is widget-first: the containing app handles pairing and diagnostics, while the user-facing experience lives in `ClarkViewWidget`. Its server API and browser-managed configuration are hosted by the Val Town project `plusjade/sports-today`. Before using Val Town MCP tools or changing the iOS/server boundary, read [`docs/valtown-brief.md`](docs/valtown-brief.md); it maps ownership boundaries, endpoint identities, route/payload contracts, per-domain verification loops, and known gotchas.
+
+## Documenting decisions
+
+When work produces something a future agent should know, route it at the moment of the urge to write it down — don't default to editing an orientation doc's prose:
+
+1. **Changes what to do, and stays true going forward** (a rule, invariant, trap) → a dateless line in the relevant orientation doc's constraints/gotchas section (e.g. `docs/valtown-brief.md`'s "Gotchas and deliberately unfinished work").
+2. **Explains why a decision was made, but doesn't itself change future behavior** → one line in [`docs/CHANGELOG.md`](docs/CHANGELOG.md): what (one clause) + why (one clause), dated, append-only, never edited afterward.
+3. **Just "I did X, it worked," with no forward relevance** → the commit message. Nowhere else.
+
+If something is both — retiring a component, say — it's tier 2 at the moment it happens and tier 1 forever after: split it. The orientation doc states the standing constraint dateless ("X is retired, not a rollback target"); the changelog carries the dated why. Never write the same sentence in both places.
 
 ## Build & test
 
