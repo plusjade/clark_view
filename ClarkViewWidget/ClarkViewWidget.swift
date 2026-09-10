@@ -166,6 +166,10 @@ struct Provider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (WidgetEntry) -> Void) {
+        if context.isPreview {
+            completion(WidgetEntry(date: .now, payload: WidgetDataService.mockPayload))
+            return
+        }
         Task {
             let payload = await WidgetDataService.fetchPayload(context: context)
             completion(WidgetEntry(
@@ -218,11 +222,17 @@ func dayLabel(for date: Date) -> String {
 }
 
 struct ClarkViewWidgetEntryView: View {
+    @Environment(\.widgetFamily) private var family
+
     let entry: Provider.Entry
 
     var body: some View {
-        let presentation = WidgetPresentation(payload: entry.payload.presentation)
-        BeaconWidgetTemplate(entry: entry, presentation: presentation)
+        if family == .accessoryRectangular {
+            BeaconLockScreenView(entry: entry)
+        } else {
+            let presentation = WidgetPresentation(payload: entry.payload.presentation)
+            BeaconWidgetTemplate(entry: entry, presentation: presentation)
+        }
     }
 }
 
@@ -235,7 +245,7 @@ struct ClarkViewWidget: Widget {
         }
         .configurationDisplayName("Clark View")
         .description("Shows upcoming items from your paired sources.")
-        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryRectangular])
         .contentMarginsDisabled()
         .pushHandler(ClarkViewWidgetPushHandler.self)
     }
@@ -258,4 +268,19 @@ struct ClarkViewWidget: Widget {
     ClarkViewWidget()
 } timeline: {
     WidgetEntry(date: .now, payload: WidgetDataService.mockPayloadUpcoming)
+}
+
+#Preview("Lock Screen", as: .accessoryRectangular) {
+    ClarkViewWidget()
+} timeline: {
+    WidgetEntry(date: .now, payload: WidgetDataService.mockPayload)
+    WidgetEntry(date: .now, payload: WidgetDataService.mockPayloadUpcoming)
+    WidgetEntry(date: .now, payload: .empty)
+    WidgetEntry(date: .now, payload: WidgetPayload(schemaVersion: 2, items: [
+        WidgetItem(
+            id: "long", mainText: "A very long event title with multiple participants",
+            subText: "An extended source and broadcast description",
+            caption: nil, emphasized: false, timestamp: .now.addingTimeInterval(86_400)
+        )
+    ]))
 }

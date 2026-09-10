@@ -10,6 +10,9 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-09-10
 
+- Added a rectangular Lock Screen proof of concept using the existing widget identity
+  and provider, plus Beacon's shared date/status view, to keep layout iteration local
+  without introducing another feed or refresh path. See [iteration guide](lock-screen-widget.md).
 - Added scoped operational evidence and preserved verification pointers in documentation
   routing because removing provenance can make temporary observations look permanent.
 - Consolidated current guidance and introduced decision routing because completed

@@ -439,10 +439,6 @@ Keep these constraints; use Git/Val Town history for change lists and old probes
   still present, so replaying a backfill after a dead-token cleanup can resurrect
   retired tokens. `tools/device-token-check.ts` guards schema initialization and
   widget token preference; preserve that behavior when changing token persistence.
-- **Snapshots are not live state.** Parent `sources_before_val_boundary` and
-  `device_sources_before_val_boundary` are recovery data, not registries. Copied
-  non-league data/schema remain dormant in remixed sources. Historical row counts or
-  passing empty parity probes do not establish current coverage.
 - **Remixes can retain credentials.** Unused inherited keys can remain in a remixed
   val; there is no delete-env operation in the current MCP tooling. Do not assume
   cleanup of copied secrets happened, or bundle it into an unrelated change.

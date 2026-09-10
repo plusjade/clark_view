@@ -245,10 +245,11 @@ private struct BeaconFocusButtonStyle: ButtonStyle {
     }
 }
 
-private struct BeaconDateTimeView: View {
+struct BeaconDateTimeView: View {
     enum Style {
         case primary
         case secondary
+        case accessory
     }
 
     let item: WidgetItem
@@ -264,6 +265,7 @@ private struct BeaconDateTimeView: View {
         switch style {
         case .primary: return .system(.title2, design: .default, weight: .bold)
         case .secondary: return .system(.subheadline, design: .default, weight: .semibold)
+        case .accessory: return .system(.subheadline, design: .default, weight: .semibold)
         }
     }
 
@@ -272,7 +274,7 @@ private struct BeaconDateTimeView: View {
             .font(font)
             .monospacedDigit()
             .lineLimit(1)
-            .foregroundStyle(.tint)
+            .foregroundStyle(style == .accessory ? AnyShapeStyle(.primary) : AnyShapeStyle(.tint))
             .widgetAccentable()
     }
 }
