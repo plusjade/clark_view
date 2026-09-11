@@ -257,8 +257,8 @@ struct BeaconDateTimeView: View {
 
     private var label: String {
         let detail = item.caption
-            ?? item.timestamp.formatted(date: .omitted, time: .shortened)
-        return "\(dayLabel(for: item.timestamp)) · \(detail)"
+            ?? item.startsAt.formatted(date: .omitted, time: .shortened)
+        return "\(dayLabel(for: item.startsAt)) · \(detail)"
     }
 
     private var font: Font {
