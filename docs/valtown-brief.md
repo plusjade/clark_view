@@ -94,12 +94,15 @@ Canonical parent tables are `bunches`, `bunch_codes`, `devices`, `sources`,
 - A reinstall pairs into a new row; `/devices/:id/merge` resolves that by moving the
   live install ID onto the configured device and deleting the origin row. Adoption
   preserves the target's row ID, name, assignments, presentation and page; the retired
-  install ID's push/alert token rows are dropped. Nothing copies assignments forward,
-  so the bunch triggers never fire.
-- `device_sources` stores instance IDs and JSON settings. Triggers reject cross-bunch
-  assignments and moving an attached source. Moving a device into another bunch clears
-  its previous assignments. A valid bunch code is the enrollment/move path; membership
-  is not a full agent ACL system.
+  install ID's push/alert token rows are dropped. Nothing copies assignments forward.
+- `device_sources` stores instance IDs and JSON settings independently of bunch
+  membership. Moving a device or source between bunches preserves assignments;
+  source selection and attachment do not require matching bunches. Foreign keys,
+  unique device/source pairs, and settings validation still apply. A valid bunch
+  code is the enrollment/move path; membership is not an assignment ACL.
+  The obsolete bunch triggers are retired by the parent's idempotent
+  `tools/remove-assignment-bunch-constraints.ts`; do not recreate them. Verify with
+  `tools/assignment-bunch-check.ts`, which cleans up its disposable fixtures.
 - The legacy `priority` column is inert. Composition orders by item start time, then
   source ID and source-local item ID. No current form sets priority.
 - Source pointers are trusted parent configuration; device settings cannot override
@@ -144,9 +147,10 @@ reason to add a component library or client-side JavaScript.
 | `GET /devices/status/:installId` | App registration/source diagnostics: `{deviceId,registered,name,sources:[{kind,settings}]}`; unknown install omits name/sources and returns `registered:false`. Kind is nonunique metadata; settings are source-owned JSON. |
 | `POST /device/token` | `{device,token,kind:"widget",environment:"sandbox"\|"production",active}`; `active:false` removes the token. Legacy omitted fields support old app-background tokens. Registration may precede pairing. |
 | `GET /` | Always HTML, including query-bearing URLs; links to `/bunches`, `/devices`, `/sources` |
-| `/devices/:id` | Integer-ID browser resource, name edit, assignment and presentation subpages |
+| `/devices/:id` | Integer-ID browser resource; default Preview tab shows resolver composition with the device name heading |
+| `/devices/:id/settings` | Device info, name edit (GET/POST), and entry to merge functionality |
 | `/devices/:id/sources/new`, `/devices/:id/sources`, `/devices/:id/sources/:assignmentId` | Choose an eligible instance, then add/edit descriptor-driven settings; deletion uses POST to the assignment's `/delete` route |
-| `/devices/:id/presentation`, `/devices/:id/preview` | Edit device presentation; preview the same composition as the resolver |
+| `/devices/:id/sources`, `/devices/:id/presentation` | Dedicated assignment index (GET) and presentation editor; device tabs are Preview, Sources, Presentation, Settings. The former `/devices/:id/preview` route is removed. |
 | `/devices/:id/merge` | Move a reinstalled app's install ID onto the device it replaces; the chosen target survives and the origin row is deleted |
 | `/sources`, `/sources/:id` | Read-only registry explorer; the resource redirects to `/sources/:id/overview` |
 | `/sources/:id/overview`, `/sources/:id/diagnostics`, `/sources/:id/settings`, `/sources/:id/devices` | Standalone resource tabs for metadata, stored coverage, schema, and attached devices |
@@ -386,6 +390,10 @@ FIBA's ESPN scoreboard endpoint is
 - Each `games.ingest` call for a date **replaces that date's rows authoritatively**.
   Do not rerun the ESPN ingest blindly over an already hand-verified date: an empty or
   incomplete payload erases what's stored — it does not merge.
+- Preserve the `fiba-2026-game-{official game number}` IDs on manually seeded
+  knockout games when switching providers. The source's
+  `tools/espn-snapshot-20260912.json` records the verified ESPN-to-FIBA mapping;
+  the unchanged `tools/ingest.ts` does not apply it or guard incomplete responses.
 - League 53 is a reused ESPN tournament bucket, not a permanent women's-FIBA feed —
   revalidate competition, gender, roster and date buckets before reusing it beyond the
   tournament it was set up for.
@@ -396,15 +404,32 @@ FIBA's ESPN scoreboard endpoint is
   page itself renders client-local). Never infer participants or assign a concrete
   time to a TBD pairing; retain provenance for anything captured this way.
 
-### Operational observation: ESPN egress
+### Operational status: Women's FIBA — 2026-09-12
 
-The pre-cleanup brief recorded HTTP 403 from Val Town to the ESPN endpoint, including
-with a browser User-Agent, last checked 2026-09-07. Evidence pointer:
-`git show eb93ce0^:docs/valtown-brief.md`, "Source operations and freshness".
-This observation was recovered from documentation history, not re-tested here. When
-changing the ingestion path or diagnosing access, recheck with a read-only request
-from the intended runtime; update or close this observation if access changes. The
-stored-data replacement constraint above still applies regardless of fetch location.
+The unchanged `tools/ingest.ts` failed in Val Town before any write with
+`ESPN 403 for 2026-09-04` (evaluation `01a09666-9e55-7069-92bc-7307b4d4d729`).
+A separate Sep 12 fetch also returned 403 there, while local requests returned
+HTTP 200 with both semifinals. ESPN's earlier coverage gap after Sep 9 has closed;
+network access and bracket completeness are separate checks.
+
+An off-platform ESPN capture ingested Sep 12's two semifinals and refreshed Sep 9–10
+through `games.ingest`, preserving FIBA game IDs. Storage has 36 games across nine
+dates; the authenticated read returned France–Germany at 14:30 UTC and Spain–USA
+at 18:00 UTC. Evidence and inputs live in the source's
+`tools/espn-snapshot-20260912.json`; its README owns the detailed refresh procedure.
+No computer use was needed. **Still open:** Sep 13 ESPN returned TBD-vs-TBD entries,
+so existing medal placeholders were retained. Recheck after semifinals, ingest
+confirmed participants, and verify team-filtered reads before closing this status.
+
+For unattended ingestion, test ESPN access from the intended scheduler host first.
+The local success supports an external scheduled fetch/write path; no unattended
+host has been verified or configured. A direct Val Town cron currently hits the same
+403. Before scheduling, add complete-date validation, protection against unexpected
+coverage/participant regressions, stable-ID mapping, and visible failures. A browser
+fallback is not inherently incompatible with cron: Val Town documents
+[remote browser execution](https://docs.val.town/guides/browser-automation/kernel),
+but FIBA extraction through that service remains untested and needs configuration.
+Recheck the egress observation when changing runtimes; update it if access changes.
 
 ## Verification loops
 
