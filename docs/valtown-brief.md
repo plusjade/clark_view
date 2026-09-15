@@ -105,6 +105,14 @@ Canonical parent tables are `bunches`, `bunch_codes`, `devices`, `sources`,
   `tools/assignment-bunch-check.ts`, which cleans up its disposable fixtures.
 - The legacy `priority` column is inert. Composition orders by item start time, then
   source ID and source-local item ID. No current form sets priority.
+- Assignment `enabled` is a non-null 0/1 flag: Live (1, default) contributes to
+  resolvers, browser Feed, and reminders; Disabled (0) retains settings and stays
+  editable with an isolated Source preview. Add can explicitly choose Disabled.
+  State controls work without source availability. Both resolver aliases use
+  `getDeviceFeedConfiguration`; delivery also checks queued reminders' source state.
+  Parent `docs/source-participation.md` owns semantics, migration, and verification;
+  `tools/enable-device-sources.ts` provisions the column before deploying readers,
+  and `tools/source-state-check.ts` checks the boundary with disposable fixtures.
 - Source pointers are trusted parent configuration; device settings cannot override
   destinations. Item IDs become `<source-id>:<local-id>`, remaining stable across a
   compatible endpoint change.
@@ -155,10 +163,10 @@ a standalone jump-off screen.
 | `GET /devices/status/:installId` | App registration/source diagnostics: `{deviceId,registered,name,sources:[{kind,settings}]}`; unknown install omits name/sources and returns `registered:false`. Kind is nonunique metadata; settings are source-owned JSON. |
 | `POST /device/token` | `{device,token,kind:"widget",environment:"sandbox"\|"production",active}`; `active:false` removes the token. Legacy omitted fields support old app-background tokens. Registration may precede pairing. |
 | `GET /` | Always HTML, including query-bearing URLs; links to `/bunches`, `/devices`, `/sources` |
-| `/devices/:id` | Integer-ID browser resource; default Preview tab shows resolver composition; the header gallery identifies the device |
+| `/devices/:id` | Integer-ID browser resource; default Feed tab shows live-source composition; the header gallery identifies the device |
 | `/devices/:id/settings` | Device info, name edit (GET/POST), and entry to merge functionality |
-| `/devices/:id/sources/new`, `/devices/:id/sources`, `/devices/:id/sources/:assignmentId` | Choose an eligible instance, then add/edit descriptor-driven settings; deletion uses POST to the assignment's `/delete` route |
-| `/devices/:id/sources`, `/devices/:id/presentation` | Dedicated assignment index (GET) and presentation editor; device tabs are Preview, Sources, Presentation, Settings. The former `/devices/:id/preview` route is removed. |
+| `/devices/:id/sources/new`, `/devices/:id/sources`, `/devices/:id/sources/:assignmentId` | Add/edit descriptor-driven settings, Live/Disabled state, and isolated saved-settings Source preview; state changes POST to `/state`, deletion to `/delete` |
+| `/devices/:id/sources`, `/devices/:id/presentation` | Dedicated assignment index (GET) and presentation editor; device tabs are Feed, Sources, Presentation, Settings. The former `/devices/:id/preview` route is removed. |
 | `/devices/:id/merge` | Move a reinstalled app's install ID onto the device it replaces; the chosen target survives and the origin row is deleted |
 | `/sources`, `/sources/:id` | Read-only registry explorer; the resource redirects to `/sources/:id/overview` |
 | `/sources/:id/overview`, `/sources/:id/diagnostics`, `/sources/:id/settings`, `/sources/:id/devices` | Standalone resource tabs for metadata, stored coverage, schema, and attached devices |
@@ -281,6 +289,15 @@ kind or a field named `teams`. Full vocabulary and save semantics:
   (`upcoming | current | expired`) is state, never display text.
 - Parent adds `presentation` from the device, defaulting to Beacon with white/black
   roots. It also emits deprecated `eyebrow:"NEXT"`; Swift ignores unknown keys.
+- Device presentation stores `intradayFilter` (default false), edited as **Hide
+  expired items**. `composeDeviceItems` applies `expiresAt > now` after validation
+  and composition with one clock snapshot across sources. Both resolvers, preview,
+  and reminder composition use it. This server-only setting is omitted from the
+  native presentation envelope; no Swift contract change is needed. Off retains
+  all returned candidates, without changing source coverage or refilling selection.
+  Parent `docs/intraday-filter.md` owns semantics and the completed source cutover;
+  `tools/intraday-filter-check.ts` verifies the seam and editor round trips, while
+  `tools/source-intraday-cutover-check.ts` verifies live source contracts and assignments.
 - Presentation version 2 selects a whole widget-family template, not dimensions. Root
   colors are opaque `#RRGGBB`. Malformed/missing presentation, unknown versions or
   templates (including retired `system-v1` and `standard-v1`) fall back without losing
@@ -355,11 +372,14 @@ automatic ingestion schedules are configured for these sources.
 
 **Lifecycle no longer waits on ingest.** Each source derives its caption from
 `phase(item, now)` over the item's own window at read time, so a game that kicked off
-five minutes ago reads `LIVE` with no ingest in between. A stored `final` status still
-wins over the estimated expiry — knowing an event ended beats estimating that it did —
-but a stale `scheduled` no longer freezes the display. The same phase drives each
-source's `intradayFilter` ("hide a game as soon as it ends"), so the filter and the
-caption can no longer disagree. Default durations are source-owned named constants
+five minutes ago reads `LIVE` with no ingest in between. Stored status no longer
+overrides the published window: an early-finished game remains current until its
+estimated expiry. This keeps captions and device visibility on one temporal rule
+without inventing an end timestamp. NFL, CFB, WNBA and Women's FIBA accept only
+`teams`; the retired source `intradayFilter` key is rejected, with no compatibility
+path. Sources return selected expired candidates; device presentation owns filtering.
+See the parent's `docs/intraday-filter.md` for the contract and cutover checks.
+Default durations are source-owned named constants
 (`NFL_TYPICAL_GAME_SECONDS` and siblings); neither the SDK nor the parent may supply
 one.
 
@@ -378,10 +398,10 @@ parent's `tools/source-diagnostics-check.ts` and each source's `diagnostics-chec
 | Source | Settings / storage | Write and known operational limits |
 | --- | --- | --- |
 | Moon | Exactly `{}`; `full_moons(date_key,payload,fetched_at)` | `cache.put` with `{source:"moon",dateKey,payload}`. Curated dataset with a finite horizon; seed the next year manually before it runs out. Payload has `peakTime`, `name`, `isBlueMoon`. |
-| Women's FIBA | 16 stable nation slugs plus `intradayFilter`; indexed `wfiba_games`, independent roster in `wfiba_teams` | `games.ingest` with `{dateKey,payload}`. Each date replaces its rows authoritatively. Off-platform `tools/ingest.ts` fetches ESPN; `GET /coverage` diagnoses storage. |
-| NFL | 32 team choices plus `intradayFilter`; indexed `cached_games` | `sleeper.refresh` with integer `{days:1..31}`; NFL-only normalization/storage |
-| CFB | Curated `trojans`/`bruins` choices plus `intradayFilter`; indexed `cached_games` | Same refresh operation, CFB-only; not a full college roster |
-| WNBA | 15 choices plus `intradayFilter`; indexed `cached_games` | Same refresh operation, WNBA-only; accepts Sleeper nested `{team:code}` and stored flat codes |
+| Women's FIBA | 16 stable nation slugs; indexed `wfiba_games`, independent roster in `wfiba_teams` | `games.ingest` with `{dateKey,payload}`. Each date replaces its rows authoritatively. Off-platform `tools/ingest.ts` fetches ESPN; `GET /coverage` diagnoses storage. |
+| NFL | 32 team choices; indexed `cached_games` | `sleeper.refresh` with integer `{days:1..31}`; NFL-only normalization/storage |
+| CFB | Curated `trojans`/`bruins` choices; indexed `cached_games` | Same refresh operation, CFB-only; not a full college roster |
+| WNBA | 15 choices; indexed `cached_games` | Same refresh operation, WNBA-only; accepts Sleeper nested `{team:code}` and stored flat codes |
 
 Sports sources use per-team next-game union/deduplication and client-day bounds.
 Sleeper refresh uses Eastern-day windows, including yesterday for clients west of

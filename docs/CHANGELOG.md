@@ -10,6 +10,30 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-09-15
 
+- Added Live/Disabled assignment participation while retaining settings, renamed the
+  aggregate view Feed, and added isolated saved-settings Source previews. Avoided
+  staging because it implies draft configuration that a single settings object
+  cannot provide. Both resolvers and reminders honor the live selection; queued
+  reminders recheck participation before delivery. Parent
+  `docs/source-participation.md` and `tools/source-state-check.ts` own the semantics
+  and verification. Browser composition uses the device's last reported offset.
+
+- Completed source `intradayFilter` retirement: removed schemas, parser fields,
+  filtering branches and dead status normalization from NFL/CFB/WNBA/WFIBA; removed
+  eight assignment keys and four schema snapshot properties while preserving device
+  presentation. Unknown keys now fail outright. Removed the early-final override so
+  captions and device visibility agree on the published window, accepting estimated
+  expiry instead of fabricating an end timestamp. Source snapshots: NFL 18, CFB 15,
+  WNBA 16, WFIBA 53; parent 345. Parent `tools/source-intraday-cutover-check.ts`
+  verifies the live contract and `tools/remove-source-intraday.ts` owns the cleanup.
+
+- Added device presentation `intradayFilter` at the parent's shared item composition
+  seam (main snapshot 344). Expiry visibility is device policy over source-owned
+  temporal windows, so one predicate now covers resolvers, preview, and reminders.
+  Default remains off and the native wire is unchanged. Source-setting removal is
+  a separate aggressive cutover with no adapter; parent `docs/intraday-filter.md`
+  records the remaining early-final and stored-key cleanup requirements.
+
 - Replaced the shared browser header's Devices/Sources links with Home and a
   horizontally scrolling device gallery, making device switching direct on phones
   while retaining the root jump-off page. Parent `render/pageShell.ts` owns the
