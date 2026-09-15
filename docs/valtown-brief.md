@@ -135,6 +135,14 @@ Browser work follows `AGENTS.md`: native semantic HTML, compact data-dense views
 shared `pageShell` styles, existing breadcrumbs/config navigation. React is not a
 reason to add a component library or client-side JavaScript.
 
+The shared browser header links Home to `/` and displays an alphabetically ordered,
+horizontally scrolling device gallery. `main.ts` fills `pageShell`'s gallery slot
+only in HTML responses; JSON routes do not load navigation data. Device pages and
+their subpages mark the current device. Device views omit headings that repeat the
+device name or selected tab, and omit the All devices breadcrumb. Action pages
+retain their headings; Merge shares the Settings tab navigation. Browser tab titles retain device names. The root remains
+a standalone jump-off screen.
+
 ## HTTP contracts used by iOS and the browser
 
 | Method / route | Behavior |
@@ -147,7 +155,7 @@ reason to add a component library or client-side JavaScript.
 | `GET /devices/status/:installId` | App registration/source diagnostics: `{deviceId,registered,name,sources:[{kind,settings}]}`; unknown install omits name/sources and returns `registered:false`. Kind is nonunique metadata; settings are source-owned JSON. |
 | `POST /device/token` | `{device,token,kind:"widget",environment:"sandbox"\|"production",active}`; `active:false` removes the token. Legacy omitted fields support old app-background tokens. Registration may precede pairing. |
 | `GET /` | Always HTML, including query-bearing URLs; links to `/bunches`, `/devices`, `/sources` |
-| `/devices/:id` | Integer-ID browser resource; default Preview tab shows resolver composition with the device name heading |
+| `/devices/:id` | Integer-ID browser resource; default Preview tab shows resolver composition; the header gallery identifies the device |
 | `/devices/:id/settings` | Device info, name edit (GET/POST), and entry to merge functionality |
 | `/devices/:id/sources/new`, `/devices/:id/sources`, `/devices/:id/sources/:assignmentId` | Choose an eligible instance, then add/edit descriptor-driven settings; deletion uses POST to the assignment's `/delete` route |
 | `/devices/:id/sources`, `/devices/:id/presentation` | Dedicated assignment index (GET) and presentation editor; device tabs are Preview, Sources, Presentation, Settings. The former `/devices/:id/preview` route is removed. |

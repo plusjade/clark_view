@@ -10,6 +10,12 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-09-15
 
+- Replaced the shared browser header's Devices/Sources links with Home and a
+  horizontally scrolling device gallery, making device switching direct on phones
+  while retaining the root jump-off page. Parent `render/pageShell.ts` owns the
+  styling and escaped markup; `main.ts` supplies navigation data for HTML only
+  (parent main snapshot 338).
+
 - Decoupled device/source assignments from bunch membership. The old
   `device_bunch_move` trigger silently deleted configuration on a bunch change;
   removed it and related cross-bunch guards, including source selection/attachment
