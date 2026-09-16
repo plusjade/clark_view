@@ -8,6 +8,19 @@ pointer. Preserve historical meaning; record reversals as new entries. Typo and
 broken-link corrections are allowed. See [AGENTS.md](../AGENTS.md#documenting-decisions)
 for routing current guidance, operational evidence, and routine validation.
 
+## 2026-09-16
+
+- Migrated `plusjade/source-cfb` from the inherited mixed-sport millisecond cache to
+  a CFB-only `cfb_games` table with explicit `starts_at`/`expires_at` Unix-second
+  windows. Sleeper's `start_time` is now converted only at the upstream adapter, so
+  persistence, selection, diagnostics, and source-protocol output share one temporal
+  model. Historical mixed-sport/cache data was intentionally removed because the
+  source has no historical-data requirement.
+- Added the active `weekly-refresh.ts` interval to refresh a rolling seven-day CFB
+  window every week. Bounded fetch waves and per-request timeouts were retained after
+  an initial manual run exceeded the Val Town gateway timeout; the subsequent run
+  stored 75 valid events and the deployed contract and diagnostics checks passed.
+
 ## 2026-09-15
 
 - Added Live/Disabled assignment participation while retaining settings, renamed the

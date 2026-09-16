@@ -75,7 +75,6 @@ their values must never enter this repo.
 
 | Instance ID | Val / source key | HTTP file ID | Endpoint | Credential |
 | --- | --- | --- | --- | --- |
-| 3 | `plusjade/source-moon` / `moon` | `2f093378-aaec-11f1-932c-1607ee4eb77e` | `https://plusjade--2f093378aaec11f1932c1607ee4eb77e.web.val.run` | `SOURCE_MOON_V1_TOKEN` |
 | 4 | `plusjade/source-wfiba` / `wfiba` | `01a07d73-0d02-703f-be73-09449008031e` | `https://plusjade--01a07d730d02703fbe7309449008031e.web.val.run` | `SOURCE_WFIBA_V1_TOKEN` |
 | 5 | `plusjade/source-nfl` / `nfl` | `01a07d9f-d1a7-75dc-86db-eb178f2b25b1` | `https://plusjade--01a07d9fd1a775dc86dbeb178f2b25b1.web.val.run` | `SOURCE_NFL_V1_TOKEN` |
 | 6 | `plusjade/source-cfb` / `cfb` | `01a07dd8-7b2c-778e-9b98-1f67aa94b955` | `https://plusjade--01a07dd87b2c778e9b981f67aa94b955.web.val.run` | `SOURCE_CFB_V1_TOKEN` |
@@ -367,8 +366,10 @@ contract from dictating the schema.
 
 ## Source operations and freshness
 
-Reads use stored data; refreshing a widget does not ingest upstream events. No
-automatic ingestion schedules are configured for these sources.
+Reads use stored data; refreshing a widget does not ingest upstream events. CFB is
+the one source with automatic ingestion: `weekly-refresh.ts` runs every seven days
+and refreshes its rolling seven-day Sleeper window. The other sources have no
+automatic ingestion schedules.
 
 **Lifecycle no longer waits on ingest.** Each source derives its caption from
 `phase(item, now)` over the item's own window at read time, so a game that kicked off
@@ -400,12 +401,19 @@ parent's `tools/source-diagnostics-check.ts` and each source's `diagnostics-chec
 | Moon | Exactly `{}`; `full_moons(date_key,payload,fetched_at)` | `cache.put` with `{source:"moon",dateKey,payload}`. Curated dataset with a finite horizon; seed the next year manually before it runs out. Payload has `peakTime`, `name`, `isBlueMoon`. |
 | Women's FIBA | 16 stable nation slugs; indexed `wfiba_games`, independent roster in `wfiba_teams` | `games.ingest` with `{dateKey,payload}`. Each date replaces its rows authoritatively. Off-platform `tools/ingest.ts` fetches ESPN; `GET /coverage` diagnoses storage. |
 | NFL | 32 team choices; indexed `cached_games` | `sleeper.refresh` with integer `{days:1..31}`; NFL-only normalization/storage |
-| CFB | Curated `trojans`/`bruins` choices; indexed `cached_games` | Same refresh operation, CFB-only; not a full college roster |
+| CFB | Curated `trojans`/`bruins` choices; indexed `cfb_games` with `starts_at`/`expires_at` Unix seconds | `sleeper.refresh` with integer `{days:1..31}`; the active `weekly-refresh.ts` interval runs it with seven days; not a full college roster |
 | WNBA | 15 choices; indexed `cached_games` | Same refresh operation, WNBA-only; accepts Sleeper nested `{team:code}` and stored flat codes |
 
 Sports sources use per-team next-game union/deduplication and client-day bounds.
 Sleeper refresh uses Eastern-day windows, including yesterday for clients west of
 Eastern. `tz` is offset **seconds**, not minutes or an IANA timezone name.
+
+CFB converts Sleeper's `start_time` milliseconds at the upstream adapter and stores
+the resulting `starts_at`/`expires_at` seconds as the source's canonical event
+window. Reads pass those stored bounds through to source-protocol items; they do not
+reconstruct expiry in the view layer. Its refresh fetches date buckets in bounded
+waves with per-request timeouts so a slow upstream response cannot hold the weekly
+interval open indefinitely.
 
 FIBA's ESPN scoreboard endpoint is
 `site.api.espn.com/apis/site/v2/sports/basketball/fiba/scoreboard?dates=YYYYMMDD`.
@@ -524,7 +532,8 @@ Keep these constraints; use Git/Val Town history for change lists and old probes
   val; there is no delete-env operation in the current MCP tooling. Do not assume
   cleanup of copied secrets happened, or bundle it into an unrelated change.
 - **Deferred:** immutable source publication/activation, agent ACLs, advanced
-  sharing/subscriptions, partial-feed degradation, automated ingestion, and next-year
+  sharing/subscriptions, partial-feed degradation, automated ingestion for sources
+  other than CFB, and next-year
   Moon seeding, per-source reminder leads, reminder quiet hours (requires an IANA
   timezone from the app), and widget refresh alongside reminder alerts. Implement
   these only when the task actually calls for them.
