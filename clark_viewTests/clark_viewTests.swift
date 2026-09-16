@@ -181,13 +181,13 @@ struct clark_viewTests {
         #expect(item.expiresAt == Date(timeIntervalSince1970: 1788044401))
     }
 
-    /// The instantaneous case, Moon-shaped: a one-second window is a real window, and the
+    /// The instantaneous case: a one-second window is a real window, and the
     /// refresh lands on its bounds like any other.
     @Test func instantaneousItemSchedulesRefreshOnItsOwnBounds() throws {
         let peak = Date(timeIntervalSince1970: 1788044400)
         let payload = try decodePayload(items: """
         {
-          "id": "3:moon", "mainText": "Full Moon", "subText": "Harvest Moon",
+          "id": "3:peak", "mainText": "Eclipse Peak", "subText": "Total eclipse",
           "caption": "PEAK", "emphasized": false,
           "startsAt": 1788044400, "expiresAt": 1788044401
         }

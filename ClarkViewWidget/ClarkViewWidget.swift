@@ -83,7 +83,7 @@ private enum WidgetDataService {
     /// preview is opened. "Deterministic" (see `mockPayload` above) means offline, not
     /// fixed-clock.
     ///
-    /// Item 4 carries a one-second window, the shape an instantaneous event (a moon peak)
+    /// Item 4 carries a one-second window, the shape of an instantaneous event,
     /// takes on the wire, so a decoded preview payload is never all hours-long items.
     ///
     /// Item 1 (primary) is pinned 2 hours out from whenever the preview opens, guaranteeing a
@@ -137,8 +137,8 @@ private enum WidgetDataService {
               "startsAt": \(futureTS), "expiresAt": \(futureTS + 7200)
             },
             {
-              "id": "4", "mainText": "Full Moon",
-              "subText": "Harvest Moon",
+              "id": "4", "mainText": "Eclipse Peak",
+              "subText": "Total eclipse",
               "caption": "PEAK", "emphasized": false,
               "startsAt": \(futureTS), "expiresAt": \(futureTS + 1)
             }

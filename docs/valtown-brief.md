@@ -79,6 +79,8 @@ their values must never enter this repo.
 | 5 | `plusjade/source-nfl` / `nfl` | `01a07d9f-d1a7-75dc-86db-eb178f2b25b1` | `https://plusjade--01a07d9fd1a775dc86dbeb178f2b25b1.web.val.run` | `SOURCE_NFL_V1_TOKEN` |
 | 6 | `plusjade/source-cfb` / `cfb` | `01a07dd8-7b2c-778e-9b98-1f67aa94b955` | `https://plusjade--01a07dd87b2c778e9b981f67aa94b955.web.val.run` | `SOURCE_CFB_V1_TOKEN` |
 | 7 | `plusjade/source-wnba` / `wnba` | `01a07de5-f2ca-7358-a270-26c8bacce23f` | `https://plusjade--01a07de5f2ca7358a27026c8bacce23f.web.val.run` | `SOURCE_WNBA_V1_TOKEN` |
+| 8 | `plusjade/source-lunar` / `lunar` | `bf3ab8aa-ab9f-11f1-a75e-1607ee4eb77e` | `https://plusjade--bf3ab8aaab9f11f1a75e1607ee4eb77e.web.val.run` | `SOURCE_LUNAR_V1_TOKEN` |
+| 9 | `plusjade/source-gtb` / `gtb` | `c169c7a2-ac1b-11f1-80ba-1607ee4eb77e` | `https://plusjade--c169c7a2ac1b11f180ba1607ee4eb77e.web.val.run` | `SOURCE_GTB_V1_TOKEN` |
 
 ## Parent model and code map
 
@@ -173,7 +175,7 @@ a standalone jump-off screen.
 | `/bunches`, `/bunches/new`, `/bunches/:id`, `/bunches/:id/pair`, `/bunches/:id/codes` | Enrollment administration and pairing-code creation |
 
 Resolver diagnostics include `x-device-feed-provider: source-registry-v1`,
-`x-effective-source-count`, and `x-effective-sources` (e.g. `3:moon,5:nfl`). Zero
+`x-effective-source-count`, and `x-effective-sources` (e.g. `5:nfl,6:cfb`). Zero
 assignments produce count `0` and an empty effective-sources header. **A successful
 empty response alone does not prove an assigned source works** — check the headers.
 
@@ -217,7 +219,7 @@ Source implementation boundaries:
 - SDK (`sdk/`, exported by `mod.ts`): domain-free types, definition, protocol serving
   and guards. Must not depend on host-val code. Capabilities derive from implemented
   writes; dispatch accepts own properties only.
-- `moonSource.ts`, `wfibaSource.ts`, `nflSource.ts`, etc.: definition, settings policy
+- `lunarSource.ts`, `wfibaSource.ts`, `nflSource.ts`, etc.: definition, settings policy
   and write operations. `parseSettings` may read storage and pass resolved context to
   `read`; keep it free of mutation and avoid reading the catalog twice.
 - Source `lib/`: domain adapters, selection, persistence and item text.
@@ -274,7 +276,7 @@ kind or a field named `teams`. Full vocabulary and save semantics:
   that is the accepted cost of deriving lifecycle from the clock instead of an ingest.
   The client uses it for *timing* — `nextRefreshDate(for:after:)` schedules the
   timeline reload on the next bound — never for *wording*.
-- An instantaneous event (Moon's peak) publishes a **one-second window**, never a null
+- An instantaneous event publishes a **one-second window**, never a null
   bound: a nullable expiry classifies as already-expired under `now > null` in JS and
   vanishes from `expires_at > :now` in SQL, both silently.
 - Schema 3 added the window. `timestamp` still ships as a duplicate of `startsAt` for
@@ -283,8 +285,8 @@ kind or a field named `teams`. Full vocabulary and save semantics:
   one-second window rather than rejected — neither parent nor client may invent a
   duration.
 - Sports use `LIVE` with emphasis and `END` without it, chosen by the source from the
-  item's phase. Moon uses `PEAK` to avoid implying the astronomical instant is local
-  moonrise or a viewing recommendation. The protocol's phase vocabulary
+  item's phase. An instantaneous astronomical source may use `PEAK` to avoid implying
+  the event is a local rise time or viewing recommendation. The protocol's phase vocabulary
   (`upcoming | current | expired`) is state, never display text.
 - Parent adds `presentation` from the device, defaulting to Beacon with white/black
   roots. It also emits deprecated `eyebrow:"NEXT"`; Swift ignores unknown keys.
@@ -366,9 +368,9 @@ contract from dictating the schema.
 
 ## Source operations and freshness
 
-Reads use stored data; refreshing a widget does not ingest upstream events. CFB is
-the one source with automatic ingestion: `weekly-refresh.ts` runs every seven days
-and refreshes its rolling seven-day Sleeper window. The other sources have no
+Reads use stored data; refreshing a widget does not ingest upstream events. CFB and
+WNBA ingest automatically: each source has an interval that runs every seven days and
+refreshes its rolling seven-day Sleeper window. The other sports sources have no
 automatic ingestion schedules.
 
 **Lifecycle no longer waits on ingest.** Each source derives its caption from
@@ -384,7 +386,7 @@ Default durations are source-owned named constants
 (`NFL_TYPICAL_GAME_SECONDS` and siblings); neither the SDK nor the parent may supply
 one.
 
-All five active sources expose authenticated `GET /diagnostics`. Each source's
+The four sports sources expose authenticated `GET /diagnostics`. Each source's
 `diagnostics.ts` maps its own storage to
 `{diagnosticsVersion:1,sourceKey,scope:"stored",totalItems,earliestTimestamp,latestTimestamp,lastIngestedAt}`.
 Event bounds are Unix seconds; empty sources return zero and null bounds. The parent
@@ -398,22 +400,21 @@ parent's `tools/source-diagnostics-check.ts` and each source's `diagnostics-chec
 
 | Source | Settings / storage | Write and known operational limits |
 | --- | --- | --- |
-| Moon | Exactly `{}`; `full_moons(date_key,payload,fetched_at)` | `cache.put` with `{source:"moon",dateKey,payload}`. Curated dataset with a finite horizon; seed the next year manually before it runs out. Payload has `peakTime`, `name`, `isBlueMoon`. |
 | Women's FIBA | 16 stable nation slugs; indexed `wfiba_games`, independent roster in `wfiba_teams` | `games.ingest` with `{dateKey,payload}`. Each date replaces its rows authoritatively. Off-platform `tools/ingest.ts` fetches ESPN; `GET /coverage` diagnoses storage. |
 | NFL | 32 team choices; indexed `cached_games` | `sleeper.refresh` with integer `{days:1..31}`; NFL-only normalization/storage |
 | CFB | Curated `trojans`/`bruins` choices; indexed `cfb_games` with `starts_at`/`expires_at` Unix seconds | `sleeper.refresh` with integer `{days:1..31}`; the active `weekly-refresh.ts` interval runs it with seven days; not a full college roster |
-| WNBA | 15 choices; indexed `cached_games` | Same refresh operation, WNBA-only; accepts Sleeper nested `{team:code}` and stored flat codes |
+| WNBA | 15 choices; indexed `wnba_games` with `starts_at`/`expires_at` Unix seconds | `sleeper.refresh` with integer `{days:1..31}`; the active `refresh.ts` interval runs it with seven days; accepts Sleeper nested `{team:code}` |
 
 Sports sources use per-team next-game union/deduplication and client-day bounds.
 Sleeper refresh uses Eastern-day windows, including yesterday for clients west of
 Eastern. `tz` is offset **seconds**, not minutes or an IANA timezone name.
 
-CFB converts Sleeper's `start_time` milliseconds at the upstream adapter and stores
-the resulting `starts_at`/`expires_at` seconds as the source's canonical event
-window. Reads pass those stored bounds through to source-protocol items; they do not
-reconstruct expiry in the view layer. Its refresh fetches date buckets in bounded
-waves with per-request timeouts so a slow upstream response cannot hold the weekly
-interval open indefinitely.
+CFB and WNBA convert Sleeper's `start_time` milliseconds at their upstream adapters
+and store the resulting `starts_at`/`expires_at` seconds as the source's canonical
+event window. WNBA also flattens Sleeper's nested team values at that boundary. Reads
+pass stored bounds through to source-protocol items; they do not reconstruct expiry
+in the view layer. Both refreshes fetch date buckets in bounded waves with per-request
+timeouts so a slow upstream response cannot hold the weekly interval open indefinitely.
 
 FIBA's ESPN scoreboard endpoint is
 `site.api.espn.com/apis/site/v2/sports/basketball/fiba/scoreboard?dates=YYYYMMDD`.
@@ -491,7 +492,7 @@ Per domain, what to run and what a false pass looks like:
 | Domain | Run | False pass to watch for |
 | --- | --- | --- |
 | Composition | Both resolver aliases and the browser preview; empty/unassigned and assigned mixed-source fixtures; namespaced IDs, ordering, ties, diagnostics, source failure, malformed output | A successful *empty* response doesn't prove an assigned source actually works — check `x-effective-sources` |
-| Source | Authenticated descriptor/read, auth rejection, settings/write guards, nonempty fixtures, timezone edges, source-specific selection. Moon's `check.ts`, other sources' `tools/source-contract-check.ts`, shared SDK `tools/sdk-check.ts` | Diagnostics reporting "unavailable" means unknown coverage, not zero |
+| Source | Authenticated descriptor/read, auth rejection, settings/write guards, nonempty fixtures, timezone edges, source-specific selection. Source-owned checks and shared SDK `tools/sdk-check.ts` | Diagnostics reporting "unavailable" means unknown coverage, not zero |
 | Settings | Add/edit/clear round trips, removed choices, stale fingerprint, invalid/unavailable source responses, no persistence on failure | — |
 | Widget contract | Decode a representative composed response with Swift; update preview fixtures/tests; build app and widget for contract changes (`xcodebuild -project clark_view.xcodeproj -scheme clark_view build`/`test`); run SwiftLint | — |
 | Push | Verify token environment/topic and actual delivery separately per environment | APNs *accepting* a request is not proof a banner appeared — use console delivery logs; a simulator build proves nothing about real APNs delivery |
@@ -517,12 +518,12 @@ Keep these constraints; use Git/Val Town history for change lists and old probes
 - **No shared catalog table.** An earlier shared per-competition catalog design
   (`catalog_competitions`/`catalog_teams`) was replaced by each source owning its own
   team list — do not reintroduce a shared catalog table. No NBA replacement exists.
-  The parent has no `/ingest/:source/:dateKey`, `/moon`, `/messages`, or root JSON/PNG
+  The parent has no `/ingest/:source/:dateKey`, `/messages`, or root JSON/PNG
   representation.
 - **Compare absolute instants at timezone boundaries.** A retired Sports FIBA
   implementation scanned UTC buckets using a client-local date floor, dropping valid
   games at UTC+14. Women's FIBA queries absolute instants and has a regression check.
-  Moon retains its own date-selection semantics; a timezone redesign requires
+  Each non-sports source retains its own date-selection semantics; a timezone redesign requires
   source-specific fixtures, not a blanket shift of timestamps.
 - **Do not replay completed token backfills.** `INSERT OR IGNORE` only skips rows
   still present, so replaying a backfill after a dead-token cleanup can resurrect
@@ -533,7 +534,6 @@ Keep these constraints; use Git/Val Town history for change lists and old probes
   cleanup of copied secrets happened, or bundle it into an unrelated change.
 - **Deferred:** immutable source publication/activation, agent ACLs, advanced
   sharing/subscriptions, partial-feed degradation, automated ingestion for sources
-  other than CFB, and next-year
-  Moon seeding, per-source reminder leads, reminder quiet hours (requires an IANA
-  timezone from the app), and widget refresh alongside reminder alerts. Implement
-  these only when the task actually calls for them.
+  other than CFB and WNBA, per-source reminder leads, reminder quiet hours (requires
+  an IANA timezone from the app), and widget refresh alongside reminder alerts.
+  Implement these only when the task actually calls for them.

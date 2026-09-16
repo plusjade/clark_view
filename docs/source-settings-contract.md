@@ -28,8 +28,8 @@ All labels are escaped by React. Legacy descriptor `options` is not consumed:
 the choice-to-property binding is inside `settingsSchema`.
 
 A source may provide a static schema or an async `settingsSchema()` function.
-Sports builds choices from its catalog in one descriptor request. Moon publishes
-the empty object schema. No source data tables need changing.
+Sports builds choices from its catalog in one descriptor request. Sources with no
+settings publish the empty object schema. No source data tables need changing.
 
 ## Saving
 

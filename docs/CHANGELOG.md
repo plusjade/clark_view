@@ -10,6 +10,12 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-09-16
 
+- Retired parent registry ID 3 and its obsolete astronomical-event source. The
+  parent had no remaining device assignments or reminder rows for that ID, so the
+  stale registry pointer and source-specific operational checks were removed rather
+  than introducing a compatibility path. Generic one-second instantaneous-item
+  coverage remains in the parent and Swift tests.
+
 - Migrated `plusjade/source-cfb` from the inherited mixed-sport millisecond cache to
   a CFB-only `cfb_games` table with explicit `starts_at`/`expires_at` Unix-second
   windows. Sleeper's `start_time` is now converted only at the upstream adapter, so
@@ -20,6 +26,14 @@ for routing current guidance, operational evidence, and routine validation.
   window every week. Bounded fetch waves and per-request timeouts were retained after
   an initial manual run exceeded the Val Town gateway timeout; the subsequent run
   stored 75 valid events and the deployed contract and diagnostics checks passed.
+- Migrated `plusjade/source-wnba` to the same explicit-window storage model in a
+  WNBA-only `wnba_games` table. Nested Sleeper team values and millisecond starts are
+  normalized only at ingestion, while selection, diagnostics, and protocol reads use
+  stored Unix-second bounds. The legacy 30-row cache was intentionally discarded.
+- Changed WNBA's existing hourly `refresh.ts` interval to a weekly seven-day refresh;
+  bounded fetch waves and request timeouts keep the scheduled run finite. The initial
+  sync stored 25 games with valid two-hour windows, and the deployed 50-assertion
+  contract check and diagnostics check passed.
 
 ## 2026-09-15
 
