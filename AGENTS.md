@@ -52,6 +52,17 @@ xcodebuild -project clark_view.xcodeproj -scheme clark_view test
 
 Unit tests (`clark_viewTests`) use the **Swift Testing** framework (`import Testing`, `@Test`, `#expect`) — not XCTest. UI tests (`clark_viewUITests`) use XCTest (`XCUIApplication`) as usual.
 
+## Tests
+
+Checks are a black box. Run them; don't read them unless they fail.
+
+- **Run the core.** Parent (`plusjade/app-clarkview`) changes: `run_file` on `tools/check.ts`. Source or SDK changes: that val's own checks. iOS changes: `xcodebuild … test`.
+- **Read a check only when it fails**, and only that one. Fix the code, not the check.
+- **Edit a check only when the contract it asserts intentionally changed**, or when asked to work on tests. Change the minimum. Don't tidy or extend checks in passing.
+- **Don't add a regression test per change.** Add coverage only for a lasting contract, by extending the check that owns that seam. A new check file needs a new seam and joins the runner.
+- **Migrations and cutover checks are disposable.** Verify once, record the result in the commit message, and delete the script in the same change.
+- **Docs name the runner, never individual checks.** A check's header comment says what it covers and what it touches.
+
 ## Linting
 
 SwiftLint is configured (`.swiftlint.yml`). Run `swiftlint lint` from the project root. `type_name` is disabled project-wide since the project name contains an underscore, which every top-level type inherits.

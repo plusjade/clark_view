@@ -101,9 +101,7 @@ Canonical parent tables are `bunches`, `bunch_codes`, `devices`, `sources`,
   source selection and attachment do not require matching bunches. Foreign keys,
   unique device/source pairs, and settings validation still apply. A valid bunch
   code is the enrollment/move path; membership is not an assignment ACL.
-  The obsolete bunch triggers are retired by the parent's idempotent
-  `tools/remove-assignment-bunch-constraints.ts`; do not recreate them. Verify with
-  `tools/assignment-bunch-check.ts`, which cleans up its disposable fixtures.
+  The obsolete bunch triggers are retired; do not recreate them.
 - The legacy `priority` column is inert. Composition orders by item start time, then
   source ID and source-local item ID. No current form sets priority.
 - Assignment `enabled` is a non-null 0/1 flag: Live (1, default) contributes to
@@ -111,9 +109,7 @@ Canonical parent tables are `bunches`, `bunch_codes`, `devices`, `sources`,
   editable with an isolated Source preview. Add can explicitly choose Disabled.
   State controls work without source availability. Both resolver aliases use
   `getDeviceFeedConfiguration`; delivery also checks queued reminders' source state.
-  Parent `docs/source-participation.md` owns semantics, migration, and verification;
-  `tools/enable-device-sources.ts` provisions the column before deploying readers,
-  and `tools/source-state-check.ts` checks the boundary with disposable fixtures.
+  Parent `docs/source-participation.md` owns semantics.
 - Source pointers are trusted parent configuration; device settings cannot override
   destinations. Item IDs become `<source-id>:<local-id>`, remaining stable across a
   compatible endpoint change.
@@ -296,9 +292,7 @@ kind or a field named `teams`. Full vocabulary and save semantics:
   and reminder composition use it. This server-only setting is omitted from the
   native presentation envelope; no Swift contract change is needed. Off retains
   all returned candidates, without changing source coverage or refilling selection.
-  Parent `docs/intraday-filter.md` owns semantics and the completed source cutover;
-  `tools/intraday-filter-check.ts` verifies the seam and editor round trips, while
-  `tools/source-intraday-cutover-check.ts` verifies live source contracts and assignments.
+  Parent `docs/intraday-filter.md` owns semantics and the completed source cutover.
 - Presentation version 2 selects a whole widget-family template, not dimensions. Root
   colors are opaque `#RRGGBB`. Malformed/missing presentation, unknown versions or
   templates (including retired `system-v1` and `standard-v1`) fall back without losing
@@ -381,7 +375,7 @@ estimated expiry. This keeps captions and device visibility on one temporal rule
 without inventing an end timestamp. NFL, CFB, WNBA and Women's FIBA accept only
 `teams`; the retired source `intradayFilter` key is rejected, with no compatibility
 path. Sources return selected expired candidates; device presentation owns filtering.
-See the parent's `docs/intraday-filter.md` for the contract and cutover checks.
+See the parent's `docs/intraday-filter.md` for the contract.
 Default durations are source-owned named constants
 (`NFL_TYPICAL_GAME_SECONDS` and siblings); neither the SDK nor the parent may supply
 one.
@@ -395,8 +389,7 @@ validates this optional response in `lib/sourceDiagnostics.ts` and fetches it th
 tables or counts a filtered `/v1/read` response as total coverage. **Unsupported or
 unavailable diagnostics mean unknown, not zero** — stored bounds never establish
 complete coverage or current event statuses on their own.
-See the parent's `docs/source-diagnostics.md`; verification entrypoints are the
-parent's `tools/source-diagnostics-check.ts` and each source's `diagnostics-check.ts`.
+See the parent's `docs/source-diagnostics.md`.
 
 | Source | Settings / storage | Write and known operational limits |
 | --- | --- | --- |
@@ -484,10 +477,10 @@ with `val_town_fetch_val_endpoint` against `main.ts` (parent) or `rpc.ts` (sourc
 the intended pathname/search — **a root-page fetch does not substitute for testing the
 actual changed route.**
 
-Inspect checks before running them: some create fixtures, and code branches share
-SQLite. Locate parent settings/boundary checks under `tools/` when needed.
+Automated checks follow the test policy in [AGENTS.md](../AGENTS.md#tests): parent
+changes run `tools/check.ts`; source changes run that source's own checks.
 
-Per domain, what to run and what a false pass looks like:
+Per domain, what to verify beyond the checks and what a false pass looks like:
 
 | Domain | Run | False pass to watch for |
 | --- | --- | --- |
@@ -496,7 +489,7 @@ Per domain, what to run and what a false pass looks like:
 | Settings | Add/edit/clear round trips, removed choices, stale fingerprint, invalid/unavailable source responses, no persistence on failure | — |
 | Widget contract | Decode a representative composed response with Swift; update preview fixtures/tests; build app and widget for contract changes (`xcodebuild -project clark_view.xcodeproj -scheme clark_view build`/`test`); run SwiftLint | — |
 | Push | Verify token environment/topic and actual delivery separately per environment | APNs *accepting* a request is not proof a banner appeared — use console delivery logs; a simulator build proves nothing about real APNs delivery |
-| Reminders | `tools/reminder-check.ts`: due predicate, single-claim delivery, cancellation, lateness guards, disabled dry run; disposable fixtures, no APNs requests | A disabled run exercises queue processing without proving APNs delivery; the builder still writes live queue state |
+| Reminders | Core suite; a disabled drain for queue processing | A disabled run exercises queue processing without proving APNs delivery; the builder still writes live queue state |
 | Browser | `/` and any query-bearing root must remain HTML | — |
 
 Do not use production writes as casual smoke tests. Enrollment, assignments, names,
@@ -527,8 +520,9 @@ Keep these constraints; use Git/Val Town history for change lists and old probes
   source-specific fixtures, not a blanket shift of timestamps.
 - **Do not replay completed token backfills.** `INSERT OR IGNORE` only skips rows
   still present, so replaying a backfill after a dead-token cleanup can resurrect
-  retired tokens. `tools/device-token-check.ts` guards schema initialization and
-  widget token preference; preserve that behavior when changing token persistence.
+  retired tokens. Schema initialization must not recreate the retired `device_tokens`
+  table, and lookup prefers a device's widget token; preserve both when changing token
+  persistence.
 - **Remixes can retain credentials.** Unused inherited keys can remain in a remixed
   val; there is no delete-env operation in the current MCP tooling. Do not assume
   cleanup of copied secrets happened, or bundle it into an unrelated change.

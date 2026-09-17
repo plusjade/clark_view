@@ -8,6 +8,15 @@ pointer. Preserve historical meaning; record reversals as new entries. Typo and
 broken-link corrections are allowed. See [AGENTS.md](../AGENTS.md#documenting-decisions)
 for routing current guidance, operational evidence, and routine validation.
 
+## 2026-09-17
+
+- Reduced the parent's `tools/` from 18 scripts to a 10-check core run by
+  `tools/check.ts`, plus two manual push diagnostics. The recurring token cost came
+  from docs pointing at individual checks and a read-before-run rule, not from running
+  them. Removed applied migrations, completed cutover checks, a fixture composing a
+  retired source, and a check that depended on production rows. AGENTS.md "Tests"
+  makes checks a black box; parent main snapshot 348.
+
 ## 2026-09-16
 
 - Retired parent registry ID 3 and its obsolete astronomical-event source. The

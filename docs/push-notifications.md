@@ -99,9 +99,7 @@ Never place private key contents in source or logs.
   not full device authentication. The self-test requires token knowledge, but
   enrollment/auth hardening is still needed before broader consumer rollout.
 
-Run `tools/alert-push-check.ts` in Val Town for signing and mocked transport checks
-plus disposable SQLite fixtures (cleaned up automatically); it sends no real APNs
-requests. Event reminders are described below; there is no arbitrary announcement endpoint.
+Event reminders are described below; there is no arbitrary announcement endpoint.
 
 ## Delivery verification status
 
