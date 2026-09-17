@@ -24,6 +24,10 @@ struct BeaconLockScreenView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .environment(\.widgetLifecycle, WidgetLifecycleContext(
+            labels: entry.payload.lifecycle,
+            now: entry.date
+        ))
         .containerBackground(for: .widget) { Color.clear }
     }
 }

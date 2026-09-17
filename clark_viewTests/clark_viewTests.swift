@@ -208,6 +208,81 @@ struct clark_viewTests {
         #expect(nextRefreshDate(for: payload, after: after) == after.addingTimeInterval(3600))
     }
 
+    /// The state machine: one label set, and each item's own window picks from it.
+    @Test func lifecycleLabelFollowsEachItemsOwnWindow() throws {
+        let start = Date(timeIntervalSince1970: 1788044400)
+        let payload = try decodePayload(
+            lifecycle: """
+            { "upcoming": null, "current": "LIVE", "expired": "END" }
+            """,
+            items: """
+            {
+              "id": "1", "mainText": "Fever @ Wings", "subText": "ESPN",
+              "startsAt": 1788044400, "expiresAt": 1788051600
+            }
+            """
+        )
+        let item = try #require(payload.items.first)
+        let labels = try #require(payload.lifecycle)
+
+        #expect(item.lifecycleLabel(labels, at: start.addingTimeInterval(-1)) == nil)
+        #expect(item.lifecycleLabel(labels, at: start) == "LIVE")
+        #expect(item.lifecycleLabel(labels, at: item.expiresAt.addingTimeInterval(-1)) == "LIVE")
+        // Half-open: the expiry bound itself is already over.
+        #expect(item.lifecycleLabel(labels, at: item.expiresAt) == "END")
+    }
+
+    /// A build can outlive a server that doesn't send labels yet, and vice versa.
+    @Test func lifecycleFallsBackToTheRetiredCaption() throws {
+        let payload = try decodePayload(items: """
+        {
+          "id": "1", "mainText": "Fever @ Wings", "subText": "ESPN",
+          "caption": "LIVE", "emphasized": true,
+          "startsAt": 1788044400, "expiresAt": 1788051600
+        }
+        """)
+        let item = try #require(payload.items.first)
+
+        #expect(payload.lifecycle == nil)
+        // No labels: the server-resolved word is all there is, whatever the clock says.
+        #expect(item.lifecycleLabel(nil, at: Date(timeIntervalSince1970: 0)) == "LIVE")
+    }
+
+    /// An item with no `caption` and no labels renders its start time, not an empty word.
+    @Test func absentLifecycleAndCaptionResolveToNoLabel() throws {
+        let payload = try decodePayload()
+        let item = try #require(payload.items.first)
+
+        #expect(item.lifecycleLabel(nil, at: .now) == nil)
+    }
+
+    /// The timeline carries an entry at every bound, so the label advances without a fetch.
+    @Test func lifecycleEntriesLandOnEveryUpcomingBound() throws {
+        let now = Date(timeIntervalSince1970: 1788044000)
+        let payload = try decodePayload(items: """
+        {
+          "id": "1", "mainText": "A", "subText": "",
+          "startsAt": 1788044400, "expiresAt": 1788051600
+        },
+        {
+          "id": "2", "mainText": "B", "subText": "",
+          "startsAt": 1788044400, "expiresAt": 1788048000
+        }
+        """)
+
+        // Deduplicated and ordered; the shared start appears once.
+        #expect(lifecycleEntryDates(for: payload, after: now) == [
+            Date(timeIntervalSince1970: 1788044400),
+            Date(timeIntervalSince1970: 1788048000),
+            Date(timeIntervalSince1970: 1788051600),
+        ])
+        // Bounds already past are not entries.
+        #expect(lifecycleEntryDates(for: payload, after: Date(timeIntervalSince1970: 1788048000)) == [
+            Date(timeIntervalSince1970: 1788051600),
+        ])
+        #expect(lifecycleEntryDates(for: payload, after: now, limit: 1).count == 1)
+    }
+
     @Test func emptyFeedFallsBackToTheHourlyRefresh() {
         let now = Date(timeIntervalSince1970: 1788044400)
         let payload = WidgetPayload(schemaVersion: 3, items: [])
@@ -217,6 +292,7 @@ struct clark_viewTests {
 
     private func decodePayload(
         presentation: String? = nil,
+        lifecycle: String? = nil,
         items: String = """
         {
           "id": "1",
@@ -231,10 +307,12 @@ struct clark_viewTests {
         """
     ) throws -> WidgetPayload {
         let presentationField = presentation.map { "\"presentation\": \($0)," } ?? ""
+        let lifecycleField = lifecycle.map { "\"lifecycle\": \($0)," } ?? ""
         let data = Data("""
         {
           "schemaVersion": 3,
           \(presentationField)
+          \(lifecycleField)
           "items": [\(items)]
         }
         """.utf8)

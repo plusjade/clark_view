@@ -14,26 +14,37 @@ import Foundation
 ///
 /// `startsAt` is the one deliberate exception to "server owns display text" — it stays raw
 /// data so the client can format it for the device's locale/24-hour preference, which the
-/// server can't do precisely on the client's behalf. `expiresAt` is *not* a second exception:
-/// it never reaches the screen, and exists only so the widget can schedule its own refresh
-/// (see `nextRefreshDate(for:after:)`). Temporal data is used for timing here, never wording.
+/// server can't do precisely on the client's behalf. `expiresAt` reaches the screen only
+/// through `phase(at:)`, which picks one of the feed's three server-written lifecycle labels;
+/// the bound itself is an estimate and is never rendered. It also bounds refresh scheduling
+/// (see `nextRefreshDate(for:after:)`).
 struct WidgetPayload: Decodable {
     let schemaVersion: Int
     /// Optional server-selected presentation. Older responses omit this field; malformed
     /// presentation data is discarded independently so valid feed items still render.
     let presentation: WidgetPresentationPayload?
+    /// One word per lifecycle phase, for every item in the feed. Absent on responses that
+    /// predate it, in which case each item's own `caption` is used instead.
+    let lifecycle: WidgetLifecycleLabels?
     /// Display order — the client renders these in array order with no client-side sort.
     let items: [WidgetItem]
 
-    init(schemaVersion: Int, presentation: WidgetPresentationPayload? = nil, items: [WidgetItem]) {
+    init(
+        schemaVersion: Int,
+        presentation: WidgetPresentationPayload? = nil,
+        lifecycle: WidgetLifecycleLabels? = nil,
+        items: [WidgetItem]
+    ) {
         self.schemaVersion = schemaVersion
         self.presentation = presentation
+        self.lifecycle = lifecycle
         self.items = items
     }
 
     private enum CodingKeys: String, CodingKey {
         case schemaVersion
         case presentation
+        case lifecycle
         case items
     }
 
@@ -41,7 +52,44 @@ struct WidgetPayload: Decodable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         schemaVersion = try container.decode(Int.self, forKey: .schemaVersion)
         presentation = try? container.decode(WidgetPresentationPayload.self, forKey: .presentation)
+        lifecycle = try? container.decode(WidgetLifecycleLabels.self, forKey: .lifecycle)
         items = try container.decode([WidgetItem].self, forKey: .items)
+    }
+}
+
+/// Where an item sits relative to its own window. State, never display text.
+enum WidgetPhase {
+    case upcoming
+    case current
+    case expired
+}
+
+/// The server's word for each lifecycle phase, sent once for the whole feed.
+///
+/// `nil` for a phase means *no word*, and the client formats `startsAt` as a local clock
+/// time instead — the one display decision the server can't make, since it doesn't know the
+/// device's locale or 24-hour preference.
+///
+/// This is deliberately not per item: lifecycle wording is one vocabulary for the product,
+/// not a property of any source's data. The client resolves the phase against its own clock
+/// on every render, so the word stays right between refreshes.
+struct WidgetLifecycleLabels: Decodable, Equatable {
+    let upcoming: String?
+    let current: String?
+    let expired: String?
+
+    init(upcoming: String? = nil, current: String? = nil, expired: String? = nil) {
+        self.upcoming = upcoming
+        self.current = current
+        self.expired = expired
+    }
+
+    func label(for phase: WidgetPhase) -> String? {
+        switch phase {
+        case .upcoming: return upcoming
+        case .current: return current
+        case .expired: return expired
+        }
     }
 }
 
@@ -54,13 +102,13 @@ struct WidgetItem: Decodable, Identifiable {
     /// Secondary detail, e.g. "Channel 7 · local broadcast, not on any streaming app".
     /// Rendered small/dim beneath `mainText`, not at the same weight — can run long, wraps to 2 lines.
     let subText: String
-    /// Pre-formatted status word ("LIVE", "END"). Nil means the item hasn't started —
-    /// the client falls back to formatting `startsAt` as a local start time instead.
+    /// Retired, and read only when the payload has no `lifecycle` labels — the server
+    /// resolved this against its own clock at compose time, so it can be an hour stale.
+    /// Drop it once no server sends it.
     let caption: String?
-    /// Render `caption` in the attention color (vs. the default dim treatment) — e.g. true
-    /// for "LIVE". A view instruction, not a status flag derived from the item itself: it's read
-    /// literally, with no string-matching against `caption`'s wording, so the server owns this
-    /// decision outright.
+    /// Retired and never rendered. It shipped as a "draw the caption in the attention color"
+    /// instruction that no template ever implemented. Decoded leniently so removing it
+    /// server-side can't break a feed. Drop it with `caption`.
     let emphasized: Bool
     /// When the event begins. Unix epoch seconds on the wire, UTC. Also drives the per-item
     /// "TODAY"/"TMRW"/"AUG 16" day label (see `dayLabel(for:)` in ClarkViewWidget.swift) —
@@ -76,8 +124,8 @@ struct WidgetItem: Decodable, Identifiable {
         id: String,
         mainText: String,
         subText: String,
-        caption: String?,
-        emphasized: Bool,
+        caption: String? = nil,
+        emphasized: Bool = false,
         startsAt: Date,
         expiresAt: Date
     ) {
@@ -107,7 +155,7 @@ struct WidgetItem: Decodable, Identifiable {
         mainText = try container.decode(String.self, forKey: .mainText)
         subText = try container.decode(String.self, forKey: .subText)
         caption = try container.decodeIfPresent(String.self, forKey: .caption)
-        emphasized = try container.decode(Bool.self, forKey: .emphasized)
+        emphasized = try container.decodeIfPresent(Bool.self, forKey: .emphasized) ?? false
         startsAt = try container.decodeIfPresent(Date.self, forKey: .startsAt)
             ?? container.decode(Date.self, forKey: .timestamp)
         expiresAt = try container.decodeIfPresent(Date.self, forKey: .expiresAt)
@@ -115,12 +163,47 @@ struct WidgetItem: Decodable, Identifiable {
     }
 }
 
+extension WidgetItem {
+    /// The item's lifecycle state at `now`, from its own window. Half-open: an item is
+    /// `current` from its start up to but not including its expiry, which is what makes a
+    /// one-second window current for exactly one second.
+    func phase(at now: Date) -> WidgetPhase {
+        if now < startsAt { return .upcoming }
+        return now < expiresAt ? .current : .expired
+    }
+
+    /// The word to show for this item, or nil to format `startsAt` as a local time.
+    ///
+    /// Resolving here rather than reading a server-resolved string is the point of the
+    /// labels: WidgetKit may render an entry well after it was fetched, and a word chosen
+    /// at compose time would still say "LIVE" for an event that has since ended.
+    func lifecycleLabel(_ labels: WidgetLifecycleLabels?, at now: Date) -> String? {
+        guard let labels else { return caption }
+        return labels.label(for: phase(at: now))
+    }
+}
+
+/// Every moment the feed's wording changes, still ahead of `now`.
+///
+/// One timeline entry per bound is what makes the lifecycle a state machine *on the device*:
+/// the same payload rendered at each bound resolves to the next label with no fetch. The
+/// reload in `nextRefreshDate(for:after:)` lands on the first of these, so in the ordinary
+/// case these entries are belt-and-braces — WidgetKit treats a refresh policy as a request,
+/// not a promise, and a late reload would otherwise leave "LIVE" on an ended event.
+///
+/// Capped because a feed of many items would otherwise build a timeline the system trims
+/// arbitrarily; the earliest bounds are the ones that matter.
+func lifecycleEntryDates(for payload: WidgetPayload, after now: Date = .now, limit: Int = 24) -> [Date] {
+    let bounds = payload.items.flatMap { [$0.startsAt, $0.expiresAt] }.filter { $0 > now }
+    return Array(Set(bounds).sorted().prefix(limit))
+}
+
 /// When the widget should ask the server again.
 ///
 /// The item window makes this arithmetic rather than guesswork: every start and expiry is a
-/// moment the feed's *wording* changes server-side, so the timeline asks for a reload then
-/// instead of discovering it up to an hour late. Nothing here reads or renders those bounds
-/// as text — the caption still arrives fully formed from the server.
+/// moment the feed's *wording* changes, so the timeline asks for a reload then instead of
+/// discovering it up to an hour late. The wording itself needs no reload — the entries from
+/// `lifecycleEntryDates(for:after:limit:)` already cover it; this keeps the *content* fresh.
 ///
 /// Bounded on both sides: never sooner than a minute, so a cluster of near-simultaneous
 /// events can't burn the refresh budget, and never later than the hourly floor the widget
