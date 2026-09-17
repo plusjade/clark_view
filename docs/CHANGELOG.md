@@ -25,6 +25,22 @@ for routing current guidance, operational evidence, and routine validation.
   registry no longer stores `credential_ref`; current ownership and risk are recorded
   in [valtown-brief.md](valtown-brief.md).
 
+- Moved source trust from an imported SDK to external conformance verification, and gated
+  device feeds on it. Every source imported `source-sdk` at a pinned revision, so trust was
+  a claim about a dependency rather than about behavior — and nothing forced re-checking, so
+  Lunar sat on `@3-main` publishing a wrong-looking noon anchor for an unknown period while
+  every check stayed green. The parent now probes each registered endpoint through its own
+  request-path guards (`normalizeItems`, `parseFormSchema`), so a source cannot be certified
+  by one definition and served by another; `sources` carries `conformance_state` and its
+  timestamps, and only a `verified` source reaches a resolver, a reminder, or the browser
+  Feed. Assertions are invariants, not values, because a source is probed against live data
+  whose emptiness is not its fault. The decay this targets is time, not pins: a schedule
+  re-probes every source, and staleness is surfaced rather than enforced — gating on it
+  would let an outage of the probe blank the fleet. Quarantine is reported in
+  `x-quarantined-sources` because otherwise a withheld source and an unconfigured device
+  produce the same successful empty response. All six sources verified at cutover, so no
+  feed changed. Parent `docs/source-conformance.md` owns the contract.
+
 - Replaced per-item `caption` with a global `lifecycle` label set owned by the parent.
   `caption` was a free-text string each source filled in, and it conflated two unrelated
   things: the phase word (`LIVE`/`END`, time-varying) and whether an item had a real clock
