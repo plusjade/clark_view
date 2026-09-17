@@ -35,6 +35,7 @@ app-clarkview → best-effort APNs → WidgetKit → normal resolver fetch
 | Enrollment, registry pointers, assignments, browser forms, composition, presentation configuration, push delivery | `plusjade/app-clarkview` (the parent) |
 | Team vocabulary, selection, event/status/broadcast text, upstream normalization, storage, ingestion | The implementing `plusjade/source-*` val |
 | Generic source protocol and item validation | `plusjade/source-sdk`, imported by every active source |
+| Whether a source is trusted to serve, and why | Parent `lib/sourceConformance.ts` and `docs/source-conformance.md` |
 | Widget wire fields or their meaning | Coordinate source output, parent composition, Swift decoding, fixtures, and tests |
 
 Do not put source-domain policy in Swift or source-specific dispatch in the parent's
@@ -72,6 +73,14 @@ All active sources are registered in bunch 1. IDs identify parent-owned instance
 universal source kinds. Every source uses HTTP entry `rpc.ts` and application-level
 bearer authentication despite public app access. Credential names are references only;
 their values must never enter this repo.
+
+**Registration is not trust.** Each row also carries live conformance metadata —
+`conformance_state`, `conformance_checked_at`, `conformance_verified_at`,
+`conformance_detail` — written only by the parent's probe, and **only a `verified`
+source reaches a device feed or a reminder**. Those values change on every probe, so
+read them from `/sources` (Verification column) or a source's Overview tab rather than
+caching them here. All six were verified on 2026-09-17; that is an observation, not a
+standing property.
 
 | Instance ID | Val / source key | HTTP file ID | Endpoint | Credential |
 | --- | --- | --- | --- | --- |
@@ -172,9 +181,12 @@ a standalone jump-off screen.
 | `/bunches`, `/bunches/new`, `/bunches/:id`, `/bunches/:id/pair`, `/bunches/:id/codes` | Enrollment administration and pairing-code creation |
 
 Resolver diagnostics include `x-device-feed-provider: source-registry-v1`,
-`x-effective-source-count`, and `x-effective-sources` (e.g. `5:nfl,6:cfb`). Zero
-assignments produce count `0` and an empty effective-sources header. **A successful
-empty response alone does not prove an assigned source works** — check the headers.
+`x-effective-source-count`, `x-effective-sources` (e.g. `5:nfl,6:cfb`), and
+`x-quarantined-sources` (e.g. `8:failing`). Zero assignments produce count `0` and both
+headers empty. **A successful empty response alone does not prove an assigned source
+works** — check the headers. An enabled assignment withheld for non-conformance appears
+only in `x-quarantined-sources`; without it, quarantine and an empty configuration are
+the same response.
 
 ## Two independent wire versions
 
@@ -190,6 +202,16 @@ is the parent/iOS display contract. Neither is an SDK deployment revision.
 | `POST /v1/validate-settings` | Request `{protocolVersion:1,sourceKey,settings}`; success `{protocolVersion:1,sourceKey,ok:true}` |
 | `POST /v1/write` | Request `{protocolVersion:1,sourceKey,operation,payload}`; success `{protocolVersion:1,sourceKey,ok:true,result}` |
 | `/v1/publish` | Unsupported: 501; descriptors advertise `publish:false` |
+
+**Conformance is verified externally, not by what a source imports.** The parent probes
+each endpoint through its own request-path guards (`normalizeItems`, `parseFormSchema`),
+asserting descriptor identity, that `validate-settings` accepts what the schema
+describes and **rejects** an unknown key, that `read` survives the composer's item guard
+under both offset shapes, that publish still answers 501, and latency/size/count
+budgets. Assertions are invariants, never values — an empty or off-season feed is a pass.
+A source may be built any way its author likes, `source-sdk` included or not; what is
+gated is the answer, not the dependency. Parent `docs/source-conformance.md` owns the
+contract, the registry columns, and the fail-open-on-staleness decision.
 
 No install identity, pairing data, presentation, or widget dimensions go to a source.
 `null` offset preserves its default timezone behavior. Every item is temporal and uses
@@ -491,7 +513,8 @@ Per domain, what to verify beyond the checks and what a false pass looks like:
 
 | Domain | Run | False pass to watch for |
 | --- | --- | --- |
-| Composition | Both resolver aliases and the browser preview; empty/unassigned and assigned mixed-source fixtures; namespaced IDs, ordering, ties, diagnostics, source failure, malformed output | A successful *empty* response doesn't prove an assigned source actually works — check `x-effective-sources` |
+| Composition | Both resolver aliases and the browser preview; empty/unassigned and assigned mixed-source fixtures; namespaced IDs, ordering, ties, diagnostics, source failure, malformed output | A successful *empty* response doesn't prove an assigned source actually works — check `x-effective-sources`, then `x-quarantined-sources` |
+| Conformance | The probe against every registered source, and that only a verified one reaches a feed. Core suite covers gating, staleness derivation and quarantine diagnostics | A green feed says nothing about a source nobody has re-probed — check `conformance_verified_at`, not just the state |
 | Source | Authenticated descriptor/read, auth rejection, settings/write guards, nonempty fixtures, timezone edges, source-specific selection. Source-owned checks and shared SDK `tools/sdk-check.ts` | Diagnostics reporting "unavailable" means unknown coverage, not zero |
 | Settings | Add/edit/clear round trips, removed choices, stale fingerprint, invalid/unavailable source responses, no persistence on failure | — |
 | Widget contract | Decode a representative composed response with Swift; update preview fixtures/tests; build app and widget for contract changes (`xcodebuild -project clark_view.xcodeproj -scheme clark_view build`/`test`); run SwiftLint | — |
