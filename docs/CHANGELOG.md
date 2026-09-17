@@ -10,6 +10,13 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-09-17
 
+- Migrated `plusjade/source-lunar` from SDK snapshot 3 and a bare `timestamp` to
+  snapshot 17 with a source-owned one-hour `startsAt`/`expiresAt` window. Replaced
+  its JSON payload table with a strict, normalized project database and atomic yearly
+  rebuilds; the freely regenerable data was dropped and rebuilt for 2026–2027. The
+  parent now rejects timestamp-only source items, retaining `timestamp` duplication
+  solely at the iOS compatibility seam (Lunar main snapshot 12; parent snapshot 352).
+
 - Removed source bearer authentication for the prototype: all active source HTTP
   operations are intentionally public, including writes and diagnostics, while
   source registration and assignment remain parent-owned. This removes duplicate

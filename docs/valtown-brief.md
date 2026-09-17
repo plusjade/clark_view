@@ -284,9 +284,8 @@ kind or a field named `teams`. Full vocabulary and save semantics:
   vanishes from `expires_at > :now` in SQL, both silently.
 - Schema 3 added the window. `timestamp` still ships as a duplicate of `startsAt` for
   builds that predate it, and Swift falls back to it; drop both once those builds are
-  gone. A source still publishing only `timestamp` is upgraded by the parent to a
-  one-second window rather than rejected — neither parent nor client may invent a
-  duration.
+  gone. The parent adds that duplicate only at the iOS seam. A source publishing only
+  `timestamp` is invalid; every source must own and publish both window bounds.
 - **`caption` and `emphasized` are retired.** They still ship per item, derived by the
   parent from the same labels, so builds predating `lifecycle` keep rendering; values a
   source sends for either are discarded. Swift reads `caption` only when `lifecycle` is
@@ -385,8 +384,8 @@ published window: an early-finished game remains current until its estimated exp
 path. Sources return selected expired candidates; device presentation owns filtering.
 See the parent's `docs/intraday-filter.md` for the contract.
 Default durations are source-owned named constants
-(`NFL_TYPICAL_GAME_SECONDS` and siblings); neither the SDK nor the parent may supply
-one.
+(`NFL_TYPICAL_GAME_SECONDS`, Lunar's one-hour event window, and siblings); neither
+the SDK nor the parent may supply one.
 
 The four sports sources expose public `GET /diagnostics`. Each source's
 `diagnostics.ts` maps its own storage to
@@ -405,6 +404,7 @@ See the parent's `docs/source-diagnostics.md`.
 | NFL | 32 team choices; indexed `cached_games` | `sleeper.refresh` with integer `{days:1..31}`; NFL-only normalization/storage |
 | CFB | Curated `trojans`/`bruins` choices; indexed `cfb_games` with `starts_at`/`expires_at` Unix seconds | `sleeper.refresh` with integer `{days:1..31}`; the active `weekly-refresh.ts` interval runs it with seven days; not a full college roster |
 | WNBA | 15 choices; indexed `wnba_games` with `starts_at`/`expires_at` Unix seconds | `sleeper.refresh` with integer `{days:1..31}`; the active `refresh.ts` interval runs it with seven days; accepts Sleeper nested `{team:code}` |
+| Lunar | Empty settings; strict normalized `lunar_fifteenths` table with explicit new-moon fields | `calendar.rebuild` with `{year}`; annual interval rebuilds current and next year atomically; SDK snapshot 17 emits local-noon `startsAt` plus a one-hour `expiresAt` |
 
 Sports sources use per-team next-game union/deduplication and client-day bounds.
 Sleeper refresh uses Eastern-day windows, including yesterday for clients west of
@@ -534,13 +534,6 @@ Keep these constraints; use Git/Val Town history for change lists and old probes
 - **Remixes can retain credentials.** Unused inherited keys can remain in a remixed
   val; there is no delete-env operation in the current MCP tooling. Do not assume
   cleanup of copied secrets happened, or bundle it into an unrelated change.
-- **Lunar is the one source still on `source-sdk@3-main`**, publishing a bare
-  `timestamp` that the parent upgrades to a one-second window. Its day-granular item
-  therefore resolves to the `upcoming` label — `null` — and the widget renders its noon
-  anchor as if it were a real start time. It previously suppressed that with a constant
-  `DAY 15` caption, which the global label set discards. Fixing it needs either a real
-  whole-day window plus a per-source label set, or leaving it as a known cosmetic wart.
-  Observed 2026-09-17; recheck when lunar's pin is bumped.
 - **Deferred:** per-source lifecycle label sets, immutable source publication/activation, agent ACLs, advanced
   sharing/subscriptions, partial-feed degradation, automated ingestion for sources
   other than CFB and WNBA, per-source reminder leads, reminder quiet hours (requires
