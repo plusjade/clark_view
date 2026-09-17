@@ -1,6 +1,6 @@
 # Source settings form contract
 
-The parent renders source settings from authenticated `GET /v1/descriptor?sourceKey=...`.
+The parent renders source settings from public `GET /v1/descriptor?sourceKey=...`.
 It checks protocol/source identity, `temporal:true`, and
 `capabilities.validateSettings:true`. The live schema is authoritative for the
 form; stored registry schema snapshots are not used for editing.

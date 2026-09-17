@@ -23,7 +23,7 @@ Browser → app-clarkview → bunches, devices, source registry, assignments
 App     → app-clarkview /pair, /devices/status/:installId
 Widget  → app-clarkview /config/resolve
                          → device assignments + source pointers
-                         → authenticated HTTP reads of assigned source vals
+                         → public HTTP reads of assigned source vals
                          → validate items, sort, attach presentation → widget v2
 Source ingest → implementing source's /v1/write → that val's SQLite
 app-clarkview → best-effort APNs → WidgetKit → normal resolver fetch
@@ -69,18 +69,19 @@ needed, use `links.endpoint` from `val_town_list_files`; do not invent URLs from
 names. Keep iOS on this endpoint — do not substitute an unverified alternate host.
 
 All active sources are registered in bunch 1. IDs identify parent-owned instances, not
-universal source kinds. Every source uses HTTP entry `rpc.ts` and application-level
-bearer authentication despite public app access. Credential names are references only;
-their values must never enter this repo.
+universal source kinds. Every source uses the public HTTP entry `rpc.ts`. During this
+prototype stage, all source operations are intentionally unauthenticated, including
+reads, diagnostics, ingest triggers, and other writes. Endpoint obscurity is not
+authentication. Parent-owned registration and assignment remain parent-owned operations.
 
-| Instance ID | Val / source key | HTTP file ID | Endpoint | Credential |
-| --- | --- | --- | --- | --- |
-| 4 | `plusjade/source-wfiba` / `wfiba` | `01a07d73-0d02-703f-be73-09449008031e` | `https://plusjade--01a07d730d02703fbe7309449008031e.web.val.run` | `SOURCE_WFIBA_V1_TOKEN` |
-| 5 | `plusjade/source-nfl` / `nfl` | `01a07d9f-d1a7-75dc-86db-eb178f2b25b1` | `https://plusjade--01a07d9fd1a775dc86dbeb178f2b25b1.web.val.run` | `SOURCE_NFL_V1_TOKEN` |
-| 6 | `plusjade/source-cfb` / `cfb` | `01a07dd8-7b2c-778e-9b98-1f67aa94b955` | `https://plusjade--01a07dd87b2c778e9b981f67aa94b955.web.val.run` | `SOURCE_CFB_V1_TOKEN` |
-| 7 | `plusjade/source-wnba` / `wnba` | `01a07de5-f2ca-7358-a270-26c8bacce23f` | `https://plusjade--01a07de5f2ca7358a27026c8bacce23f.web.val.run` | `SOURCE_WNBA_V1_TOKEN` |
-| 8 | `plusjade/source-lunar` / `lunar` | `bf3ab8aa-ab9f-11f1-a75e-1607ee4eb77e` | `https://plusjade--bf3ab8aaab9f11f1a75e1607ee4eb77e.web.val.run` | `SOURCE_LUNAR_V1_TOKEN` |
-| 9 | `plusjade/source-gtb` / `gtb` | `c169c7a2-ac1b-11f1-80ba-1607ee4eb77e` | `https://plusjade--c169c7a2ac1b11f180ba1607ee4eb77e.web.val.run` | `SOURCE_GTB_V1_TOKEN` |
+| Instance ID | Val / source key | HTTP file ID | Endpoint |
+| --- | --- | --- | --- |
+| 4 | `plusjade/source-wfiba` / `wfiba` | `01a07d73-0d02-703f-be73-09449008031e` | `https://plusjade--01a07d730d02703fbe7309449008031e.web.val.run` |
+| 5 | `plusjade/source-nfl` / `nfl` | `01a07d9f-d1a7-75dc-86db-eb178f2b25b1` | `https://plusjade--01a07d9fd1a775dc86dbeb178f2b25b1.web.val.run` |
+| 6 | `plusjade/source-cfb` / `cfb` | `01a07dd8-7b2c-778e-9b98-1f67aa94b955` | `https://plusjade--01a07dd87b2c778e9b981f67aa94b955.web.val.run` |
+| 7 | `plusjade/source-wnba` / `wnba` | `01a07de5-f2ca-7358-a270-26c8bacce23f` | `https://plusjade--01a07de5f2ca7358a27026c8bacce23f.web.val.run` |
+| 8 | `plusjade/source-lunar` / `lunar` | `bf3ab8aa-ab9f-11f1-a75e-1607ee4eb77e` | `https://plusjade--bf3ab8aaab9f11f1a75e1607ee4eb77e.web.val.run` |
+| 9 | `plusjade/source-gtb` / `gtb` | `c169c7a2-ac1b-11f1-80ba-1607ee4eb77e` | `https://plusjade--c169c7a2ac1b11f180ba1607ee4eb77e.web.val.run` |
 
 ## Parent model and code map
 
@@ -88,7 +89,7 @@ Canonical parent tables are `bunches`, `bunch_codes`, `devices`, `sources`,
 `device_sources`, `device_push_tokens`, and `notification_queue`. Sources own their data separately.
 
 - `sources` is a bunch-owned instance registry: `id`, `bunch_id`, `name`, `endpoint`,
-  `remote_source_key`, `contract_version`, `credential_ref`, plus descriptor/schema
+  `remote_source_key`, `contract_version`, plus descriptor/schema
   snapshots and timestamps. `kind` is unrestricted diagnostic metadata, neither unique
   nor the transport dispatch key. There is no separate definitions or
   `source_instances` table.
@@ -178,7 +179,7 @@ empty response alone does not prove an assigned source works** — check the hea
 
 ## Two independent wire versions
 
-**Source protocol v1** is the authenticated parent/source seam. **Widget schema v2**
+**Source protocol v1** is the public parent/source seam. **Widget schema v2**
 is the parent/iOS display contract. Neither is an SDK deployment revision.
 
 ### Source protocol and SDK
@@ -220,7 +221,7 @@ Source implementation boundaries:
   and write operations. `parseSettings` may read storage and pass resolved context to
   `read`; keep it free of mutation and avoid reading the catalog twice.
 - Source `lib/`: domain adapters, selection, persistence and item text.
-- `rpc.ts`: source-owned bearer authentication and HTTP mounts.
+- `rpc.ts`: source-owned public HTTP mounts.
 
 **Gotcha:** SQLite scope follows the executing val, not the imported module's owner.
 Calling a database-backed source function by importing it into the parent would access
@@ -233,7 +234,7 @@ entrypoints and environment metadata when remixing.
 ### Generic settings forms
 
 Supported fields are booleans and arrays of string choices in a closed object; choices
-use `const`, `title`, optional `x-group`. The live authenticated descriptor, not a
+use `const`, `title`, optional `x-group`. The live public descriptor, not a
 stored schema snapshot, drives editing. No parent branch should depend on a source
 kind or a field named `teams`. Full vocabulary and save semantics:
 [source-settings-contract.md](source-settings-contract.md).
@@ -387,7 +388,7 @@ Default durations are source-owned named constants
 (`NFL_TYPICAL_GAME_SECONDS` and siblings); neither the SDK nor the parent may supply
 one.
 
-The four sports sources expose authenticated `GET /diagnostics`. Each source's
+The four sports sources expose public `GET /diagnostics`. Each source's
 `diagnostics.ts` maps its own storage to
 `{diagnosticsVersion:1,sourceKey,scope:"stored",totalItems,earliestTimestamp,latestTimestamp,lastIngestedAt}`.
 Event bounds are Unix seconds; empty sources return zero and null bounds. The parent
@@ -451,7 +452,7 @@ network access and bracket completeness are separate checks.
 
 An off-platform ESPN capture ingested Sep 12's two semifinals and refreshed Sep 9–10
 through `games.ingest`, preserving FIBA game IDs. Storage has 36 games across nine
-dates; the authenticated read returned France–Germany at 14:30 UTC and Spain–USA
+dates; the read returned France–Germany at 14:30 UTC and Spain–USA
 at 18:00 UTC. Evidence and inputs live in the source's
 `tools/espn-snapshot-20260912.json`; its README owns the detailed refresh procedure.
 No computer use was needed. **Still open:** Sep 13 ESPN returned TBD-vs-TBD entries,
@@ -492,7 +493,7 @@ Per domain, what to verify beyond the checks and what a false pass looks like:
 | Domain | Run | False pass to watch for |
 | --- | --- | --- |
 | Composition | Both resolver aliases and the browser preview; empty/unassigned and assigned mixed-source fixtures; namespaced IDs, ordering, ties, diagnostics, source failure, malformed output | A successful *empty* response doesn't prove an assigned source actually works — check `x-effective-sources` |
-| Source | Authenticated descriptor/read, auth rejection, settings/write guards, nonempty fixtures, timezone edges, source-specific selection. Source-owned checks and shared SDK `tools/sdk-check.ts` | Diagnostics reporting "unavailable" means unknown coverage, not zero |
+| Source | Public descriptor/read, settings/write guards, nonempty fixtures, timezone edges, source-specific selection. Source-owned checks and shared SDK `tools/sdk-check.ts` | Diagnostics reporting "unavailable" means unknown coverage, not zero |
 | Settings | Add/edit/clear round trips, removed choices, stale fingerprint, invalid/unavailable source responses, no persistence on failure | — |
 | Widget contract | Decode a representative composed response with Swift; update preview fixtures/tests; build app and widget for contract changes (`xcodebuild -project clark_view.xcodeproj -scheme clark_view build`/`test`); run SwiftLint | — |
 | Push | Verify token environment/topic and actual delivery separately per environment | APNs *accepting* a request is not proof a banner appeared — use console delivery logs; a simulator build proves nothing about real APNs delivery |

@@ -10,6 +10,14 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-09-17
 
+- Removed source bearer authentication for the prototype: all active source HTTP
+  operations are intentionally public, including writes and diagnostics, while
+  source registration and assignment remain parent-owned. This removes duplicate
+  credential provisioning and prevents the parent from holding a source credential
+  that also authorizes writes. The parent no longer sends bearer headers, and the
+  registry no longer stores `credential_ref`; current ownership and risk are recorded
+  in [valtown-brief.md](valtown-brief.md).
+
 - Replaced per-item `caption` with a global `lifecycle` label set owned by the parent.
   `caption` was a free-text string each source filled in, and it conflated two unrelated
   things: the phase word (`LIVE`/`END`, time-varying) and whether an item had a real clock
