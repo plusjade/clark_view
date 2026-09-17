@@ -68,14 +68,14 @@ private enum WidgetDataService {
     /// here; large's primary card is the one place that renders a not-yet-started primary item,
     /// so it gets `mockPayloadUpcoming` instead (see that property).
     static var mockPayload: WidgetPayload {
-        (try? JSONDecoder.widgetPayload.decode(WidgetPayload.self, from: mockJSON(primaryCaption: "LIVE", primaryEmphasized: true))) ?? .empty
+        (try? JSONDecoder.widgetPayload.decode(WidgetPayload.self, from: mockJSON(primaryIsCurrent: true))) ?? .empty
     }
 
-    /// Same fixture, but item 1 (primary) has no caption, so the not-yet-started branch formats
-    /// its `startsAt` instead of showing "LIVE" — lets the large layout's primary card preview
-    /// an actual time.
+    /// Same fixture, but item 1 (primary) hasn't started, so it resolves to the feed's
+    /// `upcoming` label — null — and the view formats its `startsAt` instead of showing
+    /// "LIVE". Lets the large layout's primary card preview an actual time.
     static var mockPayloadUpcoming: WidgetPayload {
-        (try? JSONDecoder.widgetPayload.decode(WidgetPayload.self, from: mockJSON(primaryCaption: nil, primaryEmphasized: false))) ?? .empty
+        (try? JSONDecoder.widgetPayload.decode(WidgetPayload.self, from: mockJSON(primaryIsCurrent: false))) ?? .empty
     }
 
     /// Start times are relative to `.now` (not hardcoded epoch values) so the fixture always
@@ -86,26 +86,24 @@ private enum WidgetDataService {
     /// Item 4 carries a one-second window, the shape of an instantaneous event,
     /// takes on the wire, so a decoded preview payload is never all hours-long items.
     ///
-    /// Item 1 (primary) is pinned 2 hours out from whenever the preview opens, guaranteeing a
-    /// not-yet-started time regardless of `primaryCaption` — so switching to
-    /// `mockPayloadUpcoming` only changes whether that time is shown, not what it is.
+    /// Item 1 (primary) is the only one whose window moves: `primaryIsCurrent` puts it either
+    /// mid-window (so it resolves to "LIVE") or two hours out (so it resolves to a clock
+    /// time). Since the label now comes from the window, a fixture cannot preview "LIVE" on an
+    /// item that hasn't started — which is the point.
     ///
     /// Items 2 and 3 are pinned to 7pm same-day as a `base`, not `.now`, so a preview opened
     /// near midnight can't push "today" into tomorrow's calendar date. They're pinned to
     /// 2-digit 12-hour values (10pm, 12 noon) rather than reusing the 7pm base directly, so a
     /// single-digit-only fixture can't hide a 2-digit hour rendering regression.
-    private static func mockJSON(
-        primaryCaption: String?,
-        primaryEmphasized: Bool
-    ) -> Data {
+    private static func mockJSON(primaryIsCurrent: Bool) -> Data {
         let calendar = Calendar.current
-        let primaryTS = Int(Date.now.addingTimeInterval(2 * 3600).timeIntervalSince1970)
+        let primaryStart = Date.now.addingTimeInterval(primaryIsCurrent ? -30 * 60 : 2 * 3600)
+        let primaryTS = Int(primaryStart.timeIntervalSince1970)
         let base = calendar.date(bySettingHour: 19, minute: 0, second: 0, of: .now) ?? .now
         let tomorrow = calendar.date(byAdding: .day, value: 1, to: base) ?? base
         let tomorrowTS = Int((calendar.date(bySettingHour: 22, minute: 0, second: 0, of: tomorrow) ?? tomorrow).timeIntervalSince1970)
         let future = calendar.date(byAdding: .day, value: 5, to: base) ?? base
         let futureTS = Int((calendar.date(bySettingHour: 12, minute: 0, second: 0, of: future) ?? future).timeIntervalSince1970)
-        let captionJSON = primaryCaption.map { "\"\($0)\"" } ?? "null"
         return Data("""
         {
           "schemaVersion": 3,
@@ -117,29 +115,26 @@ private enum WidgetDataService {
               "dark": "#261447"
             }
           },
+          "lifecycle": { "upcoming": null, "current": "LIVE", "expired": "END" },
           "items": [
             {
               "id": "1", "mainText": "Fever @ Wings",
               "subText": "ESPN 263 · DirecTV",
-              "caption": \(captionJSON), "emphasized": \(primaryEmphasized),
               "startsAt": \(primaryTS), "expiresAt": \(primaryTS + 7200)
             },
             {
               "id": "2", "mainText": "Valkyries @ Sparks",
               "subText": "AMZN · Prime Video",
-              "caption": null, "emphasized": false,
               "startsAt": \(tomorrowTS), "expiresAt": \(tomorrowTS + 7200)
             },
             {
               "id": "3", "mainText": "Storm @ Mercury",
               "subText": "NBA TV · League Pass",
-              "caption": null, "emphasized": false,
               "startsAt": \(futureTS), "expiresAt": \(futureTS + 7200)
             },
             {
               "id": "4", "mainText": "Eclipse Peak",
               "subText": "Total eclipse",
-              "caption": "PEAK", "emphasized": false,
               "startsAt": \(futureTS), "expiresAt": \(futureTS + 1)
             }
           ]
@@ -195,15 +190,18 @@ struct Provider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<WidgetEntry>) -> Void) {
         Task {
             let payload = await WidgetDataService.fetchPayload(context: context)
-            let entry = WidgetEntry(
-                date: .now,
-                payload: payload,
-                focusedItemID: WidgetFocusStore.focusedItemID
-            )
+            let now = Date.now
+            let focusedItemID = WidgetFocusStore.focusedItemID
+            // One entry now, then one at every later bound. The payload is identical across
+            // them — only the entry's date differs, which is what moves each item to its next
+            // lifecycle label without another fetch.
+            let entries = ([now] + lifecycleEntryDates(for: payload, after: now)).map {
+                WidgetEntry(date: $0, payload: payload, focusedItemID: focusedItemID)
+            }
             // The next moment any item's wording can change is one of its own bounds, so the
             // reload is asked for then rather than an hour later. Absent a bound in the next
             // hour this is still the hourly refresh it always was.
-            completion(Timeline(entries: [entry], policy: .after(nextRefreshDate(for: payload))))
+            completion(Timeline(entries: entries, policy: .after(nextRefreshDate(for: payload))))
         }
     }
 }
@@ -293,7 +291,6 @@ struct ClarkViewWidget: Widget {
         WidgetItem(
             id: "long", mainText: "A very long event title with multiple participants",
             subText: "An extended source and broadcast description",
-            caption: nil, emphasized: false,
             startsAt: .now.addingTimeInterval(86_400),
             expiresAt: .now.addingTimeInterval(86_400 + 7_200)
         )

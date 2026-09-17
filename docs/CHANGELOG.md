@@ -10,6 +10,22 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-09-17
 
+- Replaced per-item `caption` with a global `lifecycle` label set owned by the parent.
+  `caption` was a free-text string each source filled in, and it conflated two unrelated
+  things: the phase word (`LIVE`/`END`, time-varying) and whether an item had a real clock
+  time (static, per source). Its contract was "any string", so nothing tied it to lifecycle
+  at all, and four sources carried byte-identical `captionFor` copies. Now a source
+  publishes only a window; `phase()` gives the state and one label set in the parent's
+  `lib/lifecycle.ts` gives the word. Swift resolves the phase against its own clock from a
+  root-level `lifecycle` object, and the timeline carries an entry at every item bound, so
+  a word can no longer be stale between refreshes. Additive on the wire: `caption` and
+  `emphasized` still ship, derived from the same labels, for builds that predate it —
+  `emphasized` was decoded but never rendered by any template, which is why the new
+  contract drops it rather than implementing it. Per-source label sets were considered and
+  deferred (YAGNI): they cost every source author a decision no source has yet needed.
+  Parent snapshot 349, SDK snapshot 17, sources repinned; Lunar is the exception, still on
+  SDK 3 — see the brief's gotchas for what that costs it.
+
 - Reduced the parent's `tools/` from 18 scripts to a 10-check core run by
   `tools/check.ts`, plus two manual push diagnostics. The recurring token cost came
   from docs pointing at individual checks and a read-before-run rule, not from running

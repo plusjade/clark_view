@@ -94,6 +94,12 @@ struct BeaconWidgetTemplate: View {
             }
         }
         .tint(Color("AccentColor"))
+        // The entry's date, not `.now`: a timeline entry is rendered for the moment it was
+        // built for, so each item resolves to the label its own window implies then.
+        .environment(\.widgetLifecycle, WidgetLifecycleContext(
+            labels: entry.payload.lifecycle,
+            now: entry.date
+        ))
         .containerBackground(for: .widget) {
             Color(srgb: colorScheme == .dark
                 ? presentation.rootSurface.dark
@@ -245,6 +251,20 @@ private struct BeaconFocusButtonStyle: ButtonStyle {
     }
 }
 
+/// The feed's lifecycle labels plus the clock they resolve against, injected once at each
+/// template root. Every date/time surface is nested a few views deep, so passing the payload
+/// down to each one would add a parameter to four intermediate views to say one thing.
+struct WidgetLifecycleContext {
+    var labels: WidgetLifecycleLabels?
+    var now: Date = .now
+}
+
+extension EnvironmentValues {
+    /// Defaults to no labels, which falls back to each item's own `caption` — so a view
+    /// rendered outside a template root still shows what the server sent.
+    @Entry var widgetLifecycle: WidgetLifecycleContext = WidgetLifecycleContext(labels: nil)
+}
+
 struct BeaconDateTimeView: View {
     enum Style {
         case primary
@@ -252,11 +272,13 @@ struct BeaconDateTimeView: View {
         case accessory
     }
 
+    @Environment(\.widgetLifecycle) private var lifecycle
+
     let item: WidgetItem
     let style: Style
 
     private var label: String {
-        let detail = item.caption
+        let detail = item.lifecycleLabel(lifecycle.labels, at: lifecycle.now)
             ?? item.startsAt.formatted(date: .omitted, time: .shortened)
         return "\(dayLabel(for: item.startsAt)) · \(detail)"
     }

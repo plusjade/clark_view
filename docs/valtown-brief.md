@@ -131,6 +131,7 @@ Canonical parent tables are `bunches`, `bunch_codes`, `devices`, `sources`,
 | `lib/reminderStore.ts` | `notification_queue` ledger, device reminder columns, claim and settlement |
 | `lib/reminderBuilder.ts`, `lib/reminderDrainer.ts` | Queue events from composed feeds; send due reminders as alerts |
 | `crons/buildReminders.ts`, `crons/drainReminders.ts` | The two reminder schedules |
+| `lib/lifecycle.ts` | Global lifecycle label set; phase-to-word resolution and the derived legacy caption |
 | `lib/guards.ts` | Domain-free runtime guards |
 | `render/pageShell.ts` | Browser styles, semantic hierarchy, navigation and shared form/table rules |
 | `render/deviceHtml.tsx`, `render/sourceHtml.tsx`, `render/bunchHtml.tsx` | Device settings/preview, source explorer, enrollment views |
@@ -204,7 +205,7 @@ active source must import its public entrypoint at a tested immutable pin:
 
 ```ts
 import { accept, reject, defineSource, serveSource, type Item }
-  from "https://esm.town/v/plusjade/source-sdk@12-main/mod.ts";
+  from "https://esm.town/v/plusjade/source-sdk@17-main/mod.ts";
 ```
 
 Use one revision throughout a source; update pins on a branch, run checks, then
@@ -242,6 +243,7 @@ kind or a field named `teams`. Full vocabulary and save semantics:
 ```json
 {
   "schemaVersion": 3,
+  "lifecycle": { "upcoming": null, "current": "LIVE", "expired": "END" },
   "items": [{
     "id": "5:example-event",
     "mainText": "Away @ Home",
@@ -260,8 +262,12 @@ kind or a field named `teams`. Full vocabulary and save semantics:
 }
 ```
 
-- Source-owned text and emphasis are display decisions, not raw sports data. The
-  parent sorts; Swift renders array order without sorting. No scores/live clock.
+- Source-owned text is a display decision, not raw sports data. The parent sorts;
+  Swift renders array order without sorting. No scores/live clock.
+- **Lifecycle wording is the parent's, global, and not per source.** `lifecycle` carries
+  one label per phase for the whole feed; Swift resolves each item's phase against its own
+  window and clock. A `null` label means the client formats `startsAt` as a local time.
+  Parent `docs/item-lifecycle.md` owns semantics and the label set.
 - **An item is a window, not an instant.** `startsAt` and `expiresAt` are Unix
   **seconds**, both required, `expiresAt` strictly greater; Swift decodes them with
   `.secondsSince1970`. Never send milliseconds or shift the instant by the client's
@@ -280,10 +286,12 @@ kind or a field named `teams`. Full vocabulary and save semantics:
   gone. A source still publishing only `timestamp` is upgraded by the parent to a
   one-second window rather than rejected — neither parent nor client may invent a
   duration.
-- Sports use `LIVE` with emphasis and `END` without it, chosen by the source from the
-  item's phase. An instantaneous astronomical source may use `PEAK` to avoid implying
-  the event is a local rise time or viewing recommendation. The protocol's phase vocabulary
-  (`upcoming | current | expired`) is state, never display text.
+- **`caption` and `emphasized` are retired.** They still ship per item, derived by the
+  parent from the same labels, so builds predating `lifecycle` keep rendering; values a
+  source sends for either are discarded. Swift reads `caption` only when `lifecycle` is
+  absent, and has never rendered `emphasized`. Drop both once those builds are gone.
+  The protocol's phase vocabulary (`upcoming | current | expired`) is state, never
+  display text.
 - Parent adds `presentation` from the device, defaulting to Beacon with white/black
   roots. It also emits deprecated `eyebrow:"NEXT"`; Swift ignores unknown keys.
 - Device presentation stores `intradayFilter` (default false), edited as **Hide
@@ -367,12 +375,11 @@ WNBA ingest automatically: each source has an interval that runs every seven day
 refreshes its rolling seven-day Sleeper window. The other sports sources have no
 automatic ingestion schedules.
 
-**Lifecycle no longer waits on ingest.** Each source derives its caption from
-`phase(item, now)` over the item's own window at read time, so a game that kicked off
-five minutes ago reads `LIVE` with no ingest in between. Stored status no longer
-overrides the published window: an early-finished game remains current until its
-estimated expiry. This keeps captions and device visibility on one temporal rule
-without inventing an end timestamp. NFL, CFB, WNBA and Women's FIBA accept only
+**Lifecycle no longer waits on ingest, and no longer belongs to sources.** A source
+publishes a window and nothing about lifecycle; `phase()` over that window decides the
+state, and the parent's global label set decides the word. A game that kicked off five
+minutes ago reads `LIVE` with no ingest in between. Stored status does not override the
+published window: an early-finished game remains current until its estimated expiry. NFL, CFB, WNBA and Women's FIBA accept only
 `teams`; the retired source `intradayFilter` key is rejected, with no compatibility
 path. Sources return selected expired candidates; device presentation owns filtering.
 See the parent's `docs/intraday-filter.md` for the contract.
@@ -526,7 +533,14 @@ Keep these constraints; use Git/Val Town history for change lists and old probes
 - **Remixes can retain credentials.** Unused inherited keys can remain in a remixed
   val; there is no delete-env operation in the current MCP tooling. Do not assume
   cleanup of copied secrets happened, or bundle it into an unrelated change.
-- **Deferred:** immutable source publication/activation, agent ACLs, advanced
+- **Lunar is the one source still on `source-sdk@3-main`**, publishing a bare
+  `timestamp` that the parent upgrades to a one-second window. Its day-granular item
+  therefore resolves to the `upcoming` label — `null` — and the widget renders its noon
+  anchor as if it were a real start time. It previously suppressed that with a constant
+  `DAY 15` caption, which the global label set discards. Fixing it needs either a real
+  whole-day window plus a per-source label set, or leaving it as a known cosmetic wart.
+  Observed 2026-09-17; recheck when lunar's pin is bumped.
+- **Deferred:** per-source lifecycle label sets, immutable source publication/activation, agent ACLs, advanced
   sharing/subscriptions, partial-feed degradation, automated ingestion for sources
   other than CFB and WNBA, per-source reminder leads, reminder quiet hours (requires
   an IANA timezone from the app), and widget refresh alongside reminder alerts.
