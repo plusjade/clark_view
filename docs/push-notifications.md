@@ -99,6 +99,10 @@ Never place private key contents in source or logs.
   not full device authentication. The self-test requires token knowledge, but
   enrollment/auth hardening is still needed before broader consumer rollout.
 
+Parent `tools/apns-credentials-check.ts` (credential format and signing) and
+`tools/widget-push-verification.ts` (sends a real push to one test install) are manual
+diagnostics, not part of `tools/check.ts`.
+
 Event reminders are described below; there is no arbitrary announcement endpoint.
 
 ## Delivery verification status
