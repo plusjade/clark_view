@@ -10,6 +10,13 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-09-17
 
+- Refined the template after its first independent use: pass validated offsets into
+  `readItems`, preserve absent versus explicit UTC, and make fallback choice and
+  README ownership explicit. Verification now uses noninteractive inputs. This
+  keeps common date-based sources inside the starter's intended edit points without
+  imposing a timezone policy or changing the wire contract (template snapshot 4;
+  parent documentation snapshot 358).
+
 - Established `plusjade/source-template` as the greenfield authoring path: a small
   remix with no centralized runtime import, plus a parent-hosted black-box GET
   verifier. The parent owns the `get-no-settings` registry profile, wiring, and
