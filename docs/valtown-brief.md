@@ -89,7 +89,7 @@ Canonical parent tables are `bunches`, `bunch_codes`, `devices`, `sources`,
 `device_sources`, `device_push_tokens`, and `notification_queue`. Sources own their data separately.
 
 - `sources` is a bunch-owned instance registry: `id`, `bunch_id`, `name`, `endpoint`,
-  `remote_source_key`, `contract_version`, `read_profile`, plus descriptor/schema
+  `remote_source_key`, `contract_version`, `read_profile`, `read_transport`, plus descriptor/schema
   snapshots and timestamps. `kind` is unrestricted diagnostic metadata, neither unique
   nor the transport dispatch key. There is no separate definitions or
   `source_instances` table.
@@ -183,16 +183,18 @@ the same response.
 ## Wire versions
 
 **Source protocol v1** remains the active public parent/source seam. A greenfield
-**canonical source feed** is active for GTB (instance 9); other sources retain
-the v1 read transport. **Widget schema v2** is the parent/iOS display contract. None is an
+**canonical source feed** serves `get-no-settings` sources and `v1` sources with
+`read_transport='get'`; other sources retain the v1 POST read. **Widget schema v2** is the parent/iOS display contract. None is an
 SDK deployment revision.
 
 ### Canonical GET source feed
 
 The parent has side-by-side read transports in `lib/sourceClient.ts`.
 New no-settings sources use the parent-owned `sources.read_profile='get-no-settings'`.
-Its default, `v1`, preserves existing sources; GTB instance `9` retains its earlier
-GET read opt-in and v1 settings/verification. Both transports flow through
+Its default, `v1`, preserves existing sources. `sources.read_transport` (`post` default,
+or `get`) selects the read transport for `v1` sources only; a `get` source keeps v1
+settings, descriptor, validation and POST probes. Registry data, never instance IDs,
+selects transport. Both transports flow through
 `readSourceItems` and the same live `composeDeviceItems` implementation.
 
 The source-facing contract and dependency-free query encoder live in the parent's
@@ -529,6 +531,9 @@ Keep these constraints; use Git/Val Town history for change lists and old probes
   client-local date floor drops valid events at UTC+14.
   Each non-sports source retains its own date-selection semantics; a timezone redesign requires
   source-specific fixtures, not a blanket shift of timestamps.
+- **Never rebuild `sources` to change a constraint.** Foreign keys are on and
+  `device_sources` cascades on delete, so dropping the table wipes every assignment.
+  Add a column instead.
 - **Do not replay completed token backfills.** `INSERT OR IGNORE` only skips rows
   still present, so replaying a backfill after a dead-token cleanup can resurrect
   retired tokens. Schema initialization must not recreate the retired `device_tokens`
