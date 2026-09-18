@@ -189,10 +189,40 @@ works** — check the headers. An enabled assignment withheld for non-conformanc
 only in `x-quarantined-sources`; without it, quarantine and an empty configuration are
 the same response.
 
-## Two independent wire versions
+## Wire versions
 
-**Source protocol v1** is the public parent/source seam. **Widget schema v2**
-is the parent/iOS display contract. Neither is an SDK deployment revision.
+**Source protocol v1** remains the active public parent/source seam. A greenfield
+**canonical source feed** is active for GTB (instance 9); other sources retain
+the v1 read transport. **Widget schema v2** is the parent/iOS display contract. None is an
+SDK deployment revision.
+
+### Canonical GET source feed
+
+The parent has side-by-side read transports in `lib/sourceClient.ts`. The hard-coded
+`CANONICAL_SOURCE_READ_IDS` set selects `GET /`; it contains GTB instance `9`.
+Other live sources still use `POST /v1/read`. Add a source instance ID only after that
+source implements and verifies the canonical GET contract. Both paths flow through
+`readSourceItems` and the same live `composeDeviceItems` implementation.
+
+The source-facing contract and dependency-free query encoder live in the parent's
+`source/README.md` and `source/readContract.ts`. The canonical request uses query parameters only:
+booleans are `true`/`false`, string selections use repeated keys, and the sole
+reserved context parameter is optional `utcOffsetSeconds`. Nested JSON, free text,
+numbers, and other escape hatches are deliberately unsupported; a source that cannot
+fit should simplify its settings. Successful responses carry
+`{sourceKey,items}` and use the existing temporal item contract.
+
+A source val has one purpose, so its root is the feed and the baseline has no version
+namespace in its URL or response. If an incompatible version is eventually needed,
+that future contract may define a request header or query parameter for callers that
+need to pin it; no unused negotiation mechanism is reserved now.
+
+This is the seed for a later remixable source-template val, not a new
+`source-sdk` module. During the staged migration, descriptor, settings validation,
+external conformance probing, and the legacy read remain v1; an opted-in source must
+serve both reads until those seams migrate. The parent refuses canonical GET request targets
+longer than 2048 characters. No registry version or active pointer changes in this
+milestone.
 
 ### Source protocol and SDK
 

@@ -10,6 +10,31 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-09-17
 
+- Opted GTB instance 9 into the canonical GET feed, the first live source on the
+  new transport. GTB's root directly validates the optional offset and temporal
+  output while retaining v1 routes for browser/conformance compatibility. Shared
+  storage selection preserves existing reminder semantics without a data migration
+  (source main snapshot 15; parent `lib/sourceClient.ts`, main snapshot 356).
+
+- Before any source opted into the greenfield read path, replaced the temporary
+  `/v2/items` namespace and versioned response with the canonical source-val
+  baseline: `GET /` returns `{sourceKey,items}`. A source val has one purpose, so
+  the root is its feed; incompatible future versions may define a header or query
+  parameter for explicit pinning when one actually exists. The parent section is
+  now `source/`, and the hard-coded canonical opt-in set remains empty (parent main
+  snapshot 355).
+
+- Established a greenfield `GET /v2/items` source-read contract in
+  `plusjade/app-clarkview`, alongside the existing POST v1 transport. The v2 query
+  vocabulary intentionally matches the parent's narrow settings UI—booleans,
+  repeated enumerated strings, and an optional timezone offset—so sources must
+  simplify rather than grow an arbitrary JSON query language. Both transports now
+  feed the live composer through one selection seam, but the hard-coded v2 source-ID
+  set is empty, preserving all current device behavior. The contract is being grown
+  under the parent for later extraction into a remixable source-template val rather
+  than extending the standalone `source-sdk` import model (parent main snapshot
+  353; superseded before adoption by the canonical baseline above).
+
 - Migrated `plusjade/source-lunar` from SDK snapshot 3 and a bare `timestamp` to
   snapshot 17 with a source-owned one-hour `startsAt`/`expiresAt` window. Replaced
   its JSON payload table with a strict, normalized project database and atomic yearly
