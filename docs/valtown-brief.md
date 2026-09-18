@@ -164,7 +164,7 @@ a standalone jump-off screen.
 
 | Method / route | Behavior |
 | --- | --- |
-| `GET /config/resolve` | Widget entry: `device=<install UUID>`, `tz=<seconds east of GMT>`. Returns schema-v2 JSON directly, no redirect, `cache-control: no-store`. Swift still sends legacy `d=<pixels>x<pixels>`; the parent ignores it. |
+| `GET /config/resolve` | Widget entry: `device=<install UUID>`, `tz=<seconds east of GMT>`, optional `timeZone=<named zone>`. Returns schema-v2 JSON directly, no redirect, `cache-control: no-store`. Swift still sends legacy `d=<pixels>x<pixels>`; the parent ignores it. |
 | `GET /devices/resolve` | Alias using the same `composeDeviceFeed` path |
 | `POST /pair` | App sends `{code,device}`. Success 200 `{ok:true,deviceId}`; unknown code 404; expired code 422. Swift requires only `ok`. Codes are six characters and reusable for 30 minutes. |
 | `POST /devices/register` | Same enrollment with optional `name` |
@@ -209,11 +209,19 @@ The source-facing contract and dependency-free query encoder live in the parent'
 `source/README.md` and `source/readContract.ts`. Existing selectable sources' query
 rules live in `source/settings.md`; the new template has no settings.
 The canonical request uses query parameters only:
-booleans are `true`/`false`, string selections use repeated keys, and the sole
-reserved context parameter is optional `utcOffsetSeconds`. Nested JSON, free text,
+booleans are `true`/`false`, string selections use repeated keys, and reserved context
+parameters are optional `utcOffsetSeconds` and `timeZone`. Nested JSON, free text,
 numbers, and other escape hatches are deliberately unsupported; a source that cannot
 fit should simplify its settings. Successful responses carry
 `{sourceKey,items}` and use the existing temporal item contract.
+
+iOS reads `TimeZone.autoupdatingCurrent` when fetching and sends its identifier
+alongside the existing offset. Both resolver aliases forward `timeZone` only to
+`get-no-settings` sources; legacy requests stay unchanged. It is a no-op placeholder:
+one optional value of 1–128 ASCII letters, digits, or `_+./-`, passed unchanged to
+`readItems(utcOffsetSeconds, timeZone)` (`null` if absent). No zone lookup, conversion,
+offset precedence, or missing-zone policy is defined yet. The template ignores both
+arguments. Named zones are not persisted or supplied to reminder jobs.
 
 A source val has one purpose, so its root is the feed and the baseline has no version
 namespace in its URL or response. If an incompatible version is eventually needed,
@@ -416,8 +424,9 @@ sent, which is the intended dry-run posture before enabling. The correctness con
 is coverage, not latency — every device must be built at least once inside its own
 reminder lead, so watch the oldest `devices.reminders_built_at` as the fleet grows.
 `devices.last_tz_offset_seconds` is captured from the resolver's `tz`, conditionally and
-best-effort; it is an offset, not a timezone, so quiet hours need an IANA identifier from
-the app before they can be correct. Details in the parent's `docs/event-reminders.md`.
+best-effort; it is an offset, not a timezone. The app's new `timeZone` context is not
+persisted; quiet hours still need a named-zone policy and storage before they can be
+correct. Details in the parent's `docs/event-reminders.md`.
 
 **Parent timestamp convention: ISO-8601 UTC text matching `Date.toISOString()`.** Every
 stored time now follows it, `device_alert_tokens.last_test_at` included (a never-tested

@@ -23,12 +23,14 @@ private enum WidgetDataService {
         let scale = UITraitCollection.current.displayScale
         let pixelWidth = Int((context.displaySize.width * scale).rounded())
         let pixelHeight = Int((context.displaySize.height * scale).rounded())
+        let timeZone = TimeZone.autoupdatingCurrent
         let request = URLRequest(
             url: ServerURL.resolveURL(
                 device: DeviceIdentity.deviceID,
                 pixelWidth: pixelWidth,
                 pixelHeight: pixelHeight,
-                tzSecondsFromGMT: TimeZone.current.secondsFromGMT()
+                tzSecondsFromGMT: timeZone.secondsFromGMT(),
+                timeZoneIdentifier: timeZone.identifier
             ),
             cachePolicy: .reloadIgnoringLocalCacheData
         )

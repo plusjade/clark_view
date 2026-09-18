@@ -8,6 +8,14 @@ pointer. Preserve historical meaning; record reversals as new entries. Typo and
 broken-link corrections are allowed. See [AGENTS.md](../AGENTS.md#documenting-decisions)
 for routing current guidance, operational evidence, and routine validation.
 
+## 2026-09-18
+
+- Added optional `timeZone` context from iOS through the parent to greenfield GET
+  sources and the remixable template. It is transport-only, preserving the viewer's
+  named zone without deciding recurrence, conversion, fallback, or offset precedence.
+  Legacy sources and stored reminder context are unchanged. The public verifier now
+  covers the new argument (`source/README.md`, `Shared/ServerURL.swift`).
+
 ## 2026-09-17
 
 - Refined the template after its first independent use: pass validated offsets into
