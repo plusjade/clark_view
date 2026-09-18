@@ -34,7 +34,7 @@ app-clarkview → best-effort APNs → WidgetKit → normal resolver fetch
 | Layout, family limits, local date/time, empty state, interaction, reload scheduling | This repository: `ClarkViewWidget/` and `Shared/` |
 | Enrollment, registry pointers, assignments, browser forms, composition, presentation configuration, push delivery | `plusjade/app-clarkview` (the parent) |
 | Team vocabulary, selection, event/status/broadcast text, upstream normalization, storage, ingestion | The implementing `plusjade/source-*` val |
-| New source authoring | Remix `plusjade/source-template`; its `AGENTS.md` points to edits, contract, and external verification |
+| New source authoring | Remix `plusjade/source-template`; update its canonical `source.json`, then follow `AGENTS.md` for implementation and external verification |
 | Source protocol and item validation | Parent `source/README.md` and `lib/sourceContract.ts`; existing v1 sources retain `plusjade/source-sdk` |
 | Whether a source is trusted to serve, and why | Parent `lib/sourceConformance.ts` and `docs/source-conformance.md` |
 | Widget wire fields or their meaning | Coordinate source output, parent composition, Swift decoding, fixtures, and tests |
@@ -143,12 +143,14 @@ shared `pageShell` styles, existing breadcrumbs/config navigation. React is not 
 reason to add a component library or client-side JavaScript.
 
 The shared browser header links Home to `/` and displays an alphabetically ordered,
-horizontally scrolling device gallery. `main.ts` fills `pageShell`'s gallery slot
-only in HTML responses; JSON routes do not load navigation data. Device pages and
-their subpages mark the current device. Device views omit headings that repeat the
-device name or selected tab, and omit the All devices breadcrumb. Action pages
-retain their headings; Merge shares the Settings tab navigation. Browser tab titles retain device names. The root remains
-a standalone jump-off screen.
+horizontally scrolling story-style gallery. `main.ts` fills `pageShell`'s single
+gallery slot only in HTML responses; JSON routes do not load navigation data.
+`/sources` and every source subroute show sources; all other browser routes show
+devices. Resource pages and their subpages mark the current resource. Device and
+source views omit headings, introductory identity copy, and breadcrumbs that repeat
+the gallery selection. Action pages retain their headings; Merge shares the Settings
+tab navigation. Browser tab titles retain resource names. The root remains a
+standalone jump-off screen.
 
 ## HTTP contracts used by iOS and the browser
 
@@ -167,8 +169,9 @@ a standalone jump-off screen.
 | `/devices/:id/sources/new`, `/devices/:id/sources`, `/devices/:id/sources/:assignmentId` | Add/edit descriptor-driven settings, Live/Disabled state, and isolated saved-settings Source preview; state changes POST to `/state`, deletion to `/delete` |
 | `/devices/:id/sources`, `/devices/:id/presentation` | Dedicated assignment index (GET) and presentation editor; device tabs are Feed, Sources, Presentation, Settings. The former `/devices/:id/preview` route is removed. |
 | `/devices/:id/merge` | Move a reinstalled app's install ID onto the device it replaces; the chosen target survives and the origin row is deleted |
-| `/sources`, `/sources/:id` | Read-only registry explorer; the resource redirects to `/sources/:id/overview` |
-| `/sources/:id/overview`, `/sources/:id/diagnostics`, `/sources/:id/settings`, `/sources/:id/devices` | Standalone resource tabs for metadata, stored coverage, schema, and attached devices |
+| `/sources` | Read-only registry explorer with the source gallery in place of the device gallery |
+| `/sources/:id` | Source Feed tab: reads the implementing source with its schema defaults and renders temporal items plus the raw source response; failures and empty feeds remain ordinary page states |
+| `/sources/:id/overview`, `/sources/:id/diagnostics`, `/sources/:id/settings`, `/sources/:id/devices` | Source tabs for complete registry metadata and verification, stored coverage, schema, and attached devices; the active source stays highlighted in the gallery |
 | `POST /internal/reminders/{build,drain}` | Reminder jobs behind `REMINDERS_TOKEN` bearer auth; unset returns 401. Drain accepts an optional row `id`, keeping an external scheduler swappable for the cron. |
 | `/bunches`, `/bunches/new`, `/bunches/:id`, `/bunches/:id/pair`, `/bunches/:id/codes` | Enrollment administration and pairing-code creation |
 
@@ -219,20 +222,34 @@ namespace in its URL or response. If an incompatible version is eventually neede
 that future contract may define a request header or query parameter for callers that
 need to pin it; no unused negotiation mechanism is reserved now.
 
-`plusjade/source-template` is a remixable val with one HTTP file, a README, and
-surgical `AGENTS.md`. It imports no shared runtime and has no parent credentials
-or calls. Sources own their code and data; authoring agents use the public contract
-and verifier without inspecting parent implementation. The parent refuses canonical
-GET request targets longer than 2048 characters.
+`plusjade/source-template` is a remixable val with one HTTP file, a canonical
+`source.json`, a README, and surgical `AGENTS.md`. The closed manifest v1 declares
+source key, display identity, selection summary, data mode, and freshness summary;
+`main.ts` imports its key so runtime and publication identity cannot drift. It
+imports no shared runtime and has no parent credentials or calls. Sources own their
+code and data; authoring agents use the public contract and verifier without
+inspecting parent implementation. Before implementation, its
+instructions require classifying the feed as computed, static, stored upstream, or
+live upstream and recording freshness, failure, refresh, bootstrap, and selection
+policy in the source README. Mutable external data defaults to interval ingestion
+and source-owned SQLite; a live upstream read is a documented exception with bounded
+fan-out and timeouts. Computed and static sources need no database. The template is
+explicitly settings-free: prefer a capability-specific personalized identity, and
+stop rather than inventing settings or `timeZone` semantics. The parent refuses
+canonical GET request targets longer than 2048 characters.
 
 `POST /source-verifications` accepts `{endpoint,sourceKey}` for a public Val Town
 root and returns `{profile,pass,checks,failures}`. It supports `get-no-settings`,
 stops at the first failing request, and neither reads nor writes the registry.
 Parent-owned probes use the same GET checker and serving guards before recording
 conformance. Registration and assignment remain separate, manual operator actions;
-parent `docs/get-sources.md` owns the wiring procedure. New no-settings sources need
-no legacy routes: the parent supplies their empty settings form. Existing sources
-keep their current routes and verification.
+parent `docs/get-sources.md` owns the wiring procedure. Publication reads the final
+branch's manifest deterministically, verifies the deployed response matches its key,
+and maps manifest identity into the registry; it never discovers identity from the
+val name, README prose, a sampled response, or operator wording. New no-settings
+sources need no legacy routes: the parent supplies their empty settings form.
+Existing v1 sources keep their current descriptor-led routes and verification until
+deliberately migrated.
 
 ### Existing v1 sources and SDK
 
@@ -435,7 +452,13 @@ contract from dictating the schema.
 
 ## Source operations and freshness
 
-Reads use stored data; refreshing a widget does not ingest upstream events.
+Every source declares a data lifecycle. Computed and static feeds may answer directly.
+For mutable external data, the default is scheduled ingestion into source-owned
+storage followed by mutation-free stored reads, so device count and upstream health
+do not enter the widget request path. A live upstream read is allowed only as an
+explicitly documented exception with bounded fan-out, timeout, freshness rationale,
+and failure behavior. A GET never provisions schema, writes storage, or turns a
+widget refresh into ingestion.
 
 **Lifecycle no longer waits on ingest, and no longer belongs to sources.** A source
 publishes a window and nothing about lifecycle; `phase()` over that window decides the
@@ -465,9 +488,10 @@ See the parent's `docs/source-diagnostics.md`.
 | NFL | 32 team choices; indexed `cached_games` | `sleeper.refresh` with integer `{days:1..31}`; NFL-only normalization/storage |
 | CFB | Curated `trojans`/`bruins` choices; indexed `cfb_games` with `starts_at`/`expires_at` Unix seconds | `sleeper.refresh` with integer `{days:1..31}`; the active `weekly-refresh.ts` interval runs it with seven days; not a full college roster |
 | WNBA | 15 choices; indexed `wnba_games` with `starts_at`/`expires_at` Unix seconds | `sleeper.refresh` with integer `{days:1..31}`; the active `refresh.ts` interval runs it with seven days; accepts Sleeper nested `{team:code}` |
-| Lunar | Empty settings; strict normalized `lunar_fifteenths` table with explicit new-moon fields | `calendar.rebuild` with `{year}`; annual interval rebuilds current and next year atomically; SDK snapshot 17 emits local-noon `startsAt` plus a one-hour `expiresAt` |
+| Lunar | Empty settings; no storage; computed UTC+8-anchored calendar | Each GET computes the next fifteenth with Meeus new-moon arithmetic and emits a fixed-UTC one-hour window |
+| Rams | Empty settings; strict `rams_games` snapshot plus singleton `rams_refresh_state`; fixed Los Angeles Rams selection | Active six-hour UTC interval fetches sixteen Sleeper Eastern slate dates in two waves, then atomically replaces the snapshot; GET reads storage only and emits the next game with a three-hour window |
 
-Sports sources use per-team next-game union/deduplication and client-day bounds.
+The stored selectable sports sources use per-team next-game union/deduplication and client-day bounds.
 Sleeper refresh uses Eastern-day windows, including yesterday for clients west of
 Eastern. `tz` is offset **seconds**, not minutes or an IANA timezone name.
 

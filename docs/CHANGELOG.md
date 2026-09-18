@@ -10,6 +10,40 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-09-18
 
+- Made sources first-class browser resources: every `/sources` route now swaps the
+  device story gallery for an alphabetized source gallery, preserves the active
+  source across tabs, and uses `/sources/:id` as a default-settings Feed preview.
+  Source tabs no longer repeat selected-source identity, while Overview owns the
+  complete registry metadata. This gives source inspection the same compact,
+  persistent context as device administration (`plusjade/app-clarkview`,
+  main snapshot 370; `render/pageShell.ts`, `render/sourceHtml.tsx`).
+
+- Migrated `plusjade/feed-rams` from request-time Sleeper fan-out to the template's
+  stored-upstream model. A six-hour UTC interval now fetches sixteen Eastern slate
+  dates, atomically replaces a strict val-scoped Rams snapshot, and records coverage
+  and last success; GET performs no upstream calls or writes. Failed refreshes leave
+  the last good snapshot intact, moving third-party latency and availability out of
+  the widget path while bounding schedule staleness (feed main snapshot 4;
+  `rams.ts`, `refresh.ts`, `source.json`).
+
+- Added a closed `source.json` manifest to the greenfield template and made its
+  HTTP response import the declared key. Parent publication now validates manifest
+  v1 and maps its key, name, and description deterministically instead of inferring
+  identity from prose, val names, sampled output, or operator input. Semantic
+  selection changes require a new key and row; deployment and operational changes
+  retain identity. This keeps runtime and registry identity aligned while leaving
+  instance ownership and trust with the parent (template snapshot 8; parent main
+  snapshot 369; `docs/get-sources.md`).
+
+- Required greenfield source remixes to classify their data lifecycle as computed,
+  static, stored upstream, or live upstream. Mutable external data now defaults to
+  interval ingestion plus source-owned SQLite, while live reads require an explicit
+  freshness rationale, bounded fan-out/timeouts, and failure policy. The template
+  also makes its no-settings personalization model and undefined `timeZone` semantics
+  explicit. This preserves source-level design freedom while forcing widget-path
+  reliability, staleness, and upstream load to be deliberate; black-box conformance
+  does not establish those properties (template snapshot 7; `docs/valtown-brief.md`).
+
 - Simplified greenfield GET context to `timeZone` alone, removing the redundant
   offset and its precedence question. It remains an optional no-op placeholder.
   iOS still sends `tz` to the parent for legacy sources; the greenfield verifier
