@@ -71,7 +71,7 @@ needed, use `links.endpoint` from `val_town_list_files`; do not invent URLs from
 names. Keep iOS on this endpoint — do not substitute an unverified alternate host.
 
 All active sources are registered in bunch 1. IDs identify parent-owned instances, not
-universal source kinds. Every source uses the public HTTP entry `rpc.ts`. During this
+universal source kinds. Every source uses the public HTTP entry point defined by the val. During this
 prototype stage, all source operations are intentionally unauthenticated, including
 reads, diagnostics, ingest triggers, and other writes. Endpoint obscurity is not
 authentication. Parent-owned registration and assignment remain parent-owned operations.
@@ -81,17 +81,7 @@ authentication. Parent-owned registration and assignment remain parent-owned ope
 `conformance_detail` — written only by the parent's probe, and **only a `verified`
 source reaches a device feed or a reminder**. Those values change on every probe, so
 read them from `/sources` (Verification column) or a source's Overview tab rather than
-caching them here. All six were verified on 2026-09-17; that is an observation, not a
-standing property.
-
-| Instance ID | Val / source key | HTTP file ID | Endpoint |
-| --- | --- | --- | --- |
-| 4 | `plusjade/source-wfiba` / `wfiba` | `01a07d73-0d02-703f-be73-09449008031e` | `https://plusjade--01a07d730d02703fbe7309449008031e.web.val.run` |
-| 5 | `plusjade/source-nfl` / `nfl` | `01a07d9f-d1a7-75dc-86db-eb178f2b25b1` | `https://plusjade--01a07d9fd1a775dc86dbeb178f2b25b1.web.val.run` |
-| 6 | `plusjade/source-cfb` / `cfb` | `01a07dd8-7b2c-778e-9b98-1f67aa94b955` | `https://plusjade--01a07dd87b2c778e9b981f67aa94b955.web.val.run` |
-| 7 | `plusjade/source-wnba` / `wnba` | `01a07de5-f2ca-7358-a270-26c8bacce23f` | `https://plusjade--01a07de5f2ca7358a27026c8bacce23f.web.val.run` |
-| 8 | `plusjade/source-lunar` / `lunar` | `bf3ab8aa-ab9f-11f1-a75e-1607ee4eb77e` | `https://plusjade--bf3ab8aaab9f11f1a75e1607ee4eb77e.web.val.run` |
-| 9 | `plusjade/source-gtb` / `gtb` | `c169c7a2-ac1b-11f1-80ba-1607ee4eb77e` | `https://plusjade--c169c7a2ac1b11f180ba1607ee4eb77e.web.val.run` |
+caching them here.
 
 ## Parent model and code map
 
@@ -287,7 +277,7 @@ Source implementation boundaries:
 - SDK (`sdk/`, exported by `mod.ts`): domain-free types, definition, protocol serving
   and guards. Must not depend on host-val code. Capabilities derive from implemented
   writes; dispatch accepts own properties only.
-- `lunarSource.ts`, `wfibaSource.ts`, `nflSource.ts`, etc.: definition, settings policy
+- `lunarSource.ts`, `nflSource.ts`, etc.: definition, settings policy
   and write operations. `parseSettings` may read storage and pass resolved context to
   `read`; keep it free of mutation and avoid reading the catalog twice.
 - Source `lib/`: domain adapters, selection, persistence and item text.
@@ -443,16 +433,13 @@ contract from dictating the schema.
 
 ## Source operations and freshness
 
-Reads use stored data; refreshing a widget does not ingest upstream events. CFB and
-WNBA ingest automatically: each source has an interval that runs every seven days and
-refreshes its rolling seven-day Sleeper window. The other sports sources have no
-automatic ingestion schedules.
+Reads use stored data; refreshing a widget does not ingest upstream events.
 
 **Lifecycle no longer waits on ingest, and no longer belongs to sources.** A source
 publishes a window and nothing about lifecycle; `phase()` over that window decides the
 state, and the parent's global label set decides the word. A game that kicked off five
 minutes ago reads `LIVE` with no ingest in between. Stored status does not override the
-published window: an early-finished game remains current until its estimated expiry. NFL, CFB, WNBA and Women's FIBA accept only
+published window: an early-finished game remains current until its estimated expiry. NFL, CFB and WNBA accept only
 `teams`; the retired source `intradayFilter` key is rejected, with no compatibility
 path. Sources return selected expired candidates; device presentation owns filtering.
 See the parent's `docs/intraday-filter.md` for the contract.
@@ -460,7 +447,7 @@ Default durations are source-owned named constants
 (`NFL_TYPICAL_GAME_SECONDS`, Lunar's one-hour event window, and siblings); neither
 the SDK nor the parent may supply one.
 
-The four sports sources expose public `GET /diagnostics`. Each source's
+The three sports sources expose public `GET /diagnostics`. Each source's
 `diagnostics.ts` maps its own storage to
 `{diagnosticsVersion:1,sourceKey,scope:"stored",totalItems,earliestTimestamp,latestTimestamp,lastIngestedAt}`.
 Event bounds are Unix seconds; empty sources return zero and null bounds. The parent
@@ -473,7 +460,6 @@ See the parent's `docs/source-diagnostics.md`.
 
 | Source | Settings / storage | Write and known operational limits |
 | --- | --- | --- |
-| Women's FIBA | 16 stable nation slugs; indexed `wfiba_games`, independent roster in `wfiba_teams` | `games.ingest` with `{dateKey,payload}`. Each date replaces its rows authoritatively. Off-platform `tools/ingest.ts` fetches ESPN; `GET /coverage` diagnoses storage. |
 | NFL | 32 team choices; indexed `cached_games` | `sleeper.refresh` with integer `{days:1..31}`; NFL-only normalization/storage |
 | CFB | Curated `trojans`/`bruins` choices; indexed `cfb_games` with `starts_at`/`expires_at` Unix seconds | `sleeper.refresh` with integer `{days:1..31}`; the active `weekly-refresh.ts` interval runs it with seven days; not a full college roster |
 | WNBA | 15 choices; indexed `wnba_games` with `starts_at`/`expires_at` Unix seconds | `sleeper.refresh` with integer `{days:1..31}`; the active `refresh.ts` interval runs it with seven days; accepts Sleeper nested `{team:code}` |
@@ -489,58 +475,6 @@ event window. WNBA also flattens Sleeper's nested team values at that boundary. 
 pass stored bounds through to source-protocol items; they do not reconstruct expiry
 in the view layer. Both refreshes fetch date buckets in bounded waves with per-request
 timeouts so a slow upstream response cannot hold the weekly interval open indefinitely.
-
-FIBA's ESPN scoreboard endpoint is
-`site.api.espn.com/apis/site/v2/sports/basketball/fiba/scoreboard?dates=YYYYMMDD`.
-
-**FIBA ingestion gotchas:**
-
-- If Val Town egress to ESPN is blocked, fetch off-platform (a local script or a
-  browser) and write directly to the source via `games.ingest`. See the scoped
-  observation below before treating this workaround as necessary.
-- Each `games.ingest` call for a date **replaces that date's rows authoritatively**.
-  Do not rerun the ESPN ingest blindly over an already hand-verified date: an empty or
-  incomplete payload erases what's stored — it does not merge.
-- Preserve the `fiba-2026-game-{official game number}` IDs on manually seeded
-  knockout games when switching providers. The source's
-  `tools/espn-snapshot-20260912.json` records the verified ESPN-to-FIBA mapping;
-  the unchanged `tools/ingest.ts` does not apply it or guard incomplete responses.
-- League 53 is a reused ESPN tournament bucket, not a permanent women's-FIBA feed —
-  revalidate competition, gender, roster and date buckets before reusing it beyond the
-  tournament it was set up for.
-- ESPN's coverage can end before a tournament does. When it does, the official FIBA
-  tournament schedule site is a working fallback for manual capture — its text
-  extraction can omit fixtures hidden behind date controls, so drive it with a browser
-  instead, and cross-check displayed times against the site's explicit GMT times (the
-  page itself renders client-local). Never infer participants or assign a concrete
-  time to a TBD pairing; retain provenance for anything captured this way.
-
-### Operational status: Women's FIBA — 2026-09-12
-
-The unchanged `tools/ingest.ts` failed in Val Town before any write with
-`ESPN 403 for 2026-09-04` (evaluation `01a09666-9e55-7069-92bc-7307b4d4d729`).
-A separate Sep 12 fetch also returned 403 there, while local requests returned
-HTTP 200 with both semifinals. ESPN's earlier coverage gap after Sep 9 has closed;
-network access and bracket completeness are separate checks.
-
-An off-platform ESPN capture ingested Sep 12's two semifinals and refreshed Sep 9–10
-through `games.ingest`, preserving FIBA game IDs. Storage has 36 games across nine
-dates; the read returned France–Germany at 14:30 UTC and Spain–USA
-at 18:00 UTC. Evidence and inputs live in the source's
-`tools/espn-snapshot-20260912.json`; its README owns the detailed refresh procedure.
-No computer use was needed. **Still open:** Sep 13 ESPN returned TBD-vs-TBD entries,
-so existing medal placeholders were retained. Recheck after semifinals, ingest
-confirmed participants, and verify team-filtered reads before closing this status.
-
-For unattended ingestion, test ESPN access from the intended scheduler host first.
-The local success supports an external scheduled fetch/write path; no unattended
-host has been verified or configured. A direct Val Town cron currently hits the same
-403. Before scheduling, add complete-date validation, protection against unexpected
-coverage/participant regressions, stable-ID mapping, and visible failures. A browser
-fallback is not inherently incompatible with cron: Val Town documents
-[remote browser execution](https://docs.val.town/guides/browser-automation/kernel),
-but FIBA extraction through that service remains untested and needs configuration.
-Recheck the egress observation when changing runtimes; update it if access changes.
 
 ## Verification loops
 
@@ -591,14 +525,8 @@ ingestion. A push/reload cannot repair an empty assignment or a stale source cac
 
 Keep these constraints; use Git/Val Town history for change lists and old probes.
 
-- **No shared catalog table.** An earlier shared per-competition catalog design
-  (`catalog_competitions`/`catalog_teams`) was replaced by each source owning its own
-  team list — do not reintroduce a shared catalog table. No NBA replacement exists.
-  The parent has no `/ingest/:source/:dateKey`, `/messages`, or root JSON/PNG
-  representation.
-- **Compare absolute instants at timezone boundaries.** A retired Sports FIBA
-  implementation scanned UTC buckets using a client-local date floor, dropping valid
-  games at UTC+14. Women's FIBA queries absolute instants and has a regression check.
+- **Compare absolute instants at timezone boundaries.** Scanning UTC buckets from a
+  client-local date floor drops valid events at UTC+14.
   Each non-sports source retains its own date-selection semantics; a timezone redesign requires
   source-specific fixtures, not a blanket shift of timestamps.
 - **Do not replay completed token backfills.** `INSERT OR IGNORE` only skips rows
@@ -610,7 +538,6 @@ Keep these constraints; use Git/Val Town history for change lists and old probes
   val; there is no delete-env operation in the current MCP tooling. Do not assume
   cleanup of copied secrets happened, or bundle it into an unrelated change.
 - **Deferred:** per-source lifecycle label sets, immutable source publication/activation, agent ACLs, advanced
-  sharing/subscriptions, partial-feed degradation, automated ingestion for sources
-  other than CFB and WNBA, per-source reminder leads, reminder quiet hours (requires
+  sharing/subscriptions, partial-feed degradation, automated ingestion for sources, per-source reminder leads, reminder quiet hours (requires
   an IANA timezone from the app), and widget refresh alongside reminder alerts.
   Implement these only when the task actually calls for them.
