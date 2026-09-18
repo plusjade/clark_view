@@ -10,6 +10,11 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-09-18
 
+- Simplified greenfield GET context to `timeZone` alone, removing the redundant
+  offset and its precedence question. It remains an optional no-op placeholder.
+  iOS still sends `tz` to the parent for legacy sources; the greenfield verifier
+  rejects offsets (`source/README.md`, template `main.ts`).
+
 - Added optional `timeZone` context from iOS through the parent to greenfield GET
   sources and the remixable template. It is transport-only, preserving the viewer's
   named zone without deciding recurrence, conversion, fallback, or offset precedence.

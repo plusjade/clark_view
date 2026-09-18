@@ -208,20 +208,19 @@ GET read opt-in and v1 settings/verification. Both transports flow through
 The source-facing contract and dependency-free query encoder live in the parent's
 `source/README.md` and `source/readContract.ts`. Existing selectable sources' query
 rules live in `source/settings.md`; the new template has no settings.
-The canonical request uses query parameters only:
-booleans are `true`/`false`, string selections use repeated keys, and reserved context
-parameters are optional `utcOffsetSeconds` and `timeZone`. Nested JSON, free text,
+The greenfield request accepts only optional `timeZone`; `utcOffsetSeconds` is
+rejected. Existing selectable GET sources retain booleans (`true`/`false`), repeated
+string selections, and their offset context. Nested JSON, free text,
 numbers, and other escape hatches are deliberately unsupported; a source that cannot
 fit should simplify its settings. Successful responses carry
 `{sourceKey,items}` and use the existing temporal item contract.
 
 iOS reads `TimeZone.autoupdatingCurrent` when fetching and sends its identifier
-alongside the existing offset. Both resolver aliases forward `timeZone` only to
-`get-no-settings` sources; legacy requests stay unchanged. It is a no-op placeholder:
+alongside the existing offset. Both resolver aliases forward only `timeZone` to
+`get-no-settings` sources; legacy requests keep their offset context. It is a no-op placeholder:
 one optional value of 1–128 ASCII letters, digits, or `_+./-`, passed unchanged to
-`readItems(utcOffsetSeconds, timeZone)` (`null` if absent). No zone lookup, conversion,
-offset precedence, or missing-zone policy is defined yet. The template ignores both
-arguments. Named zones are not persisted or supplied to reminder jobs.
+`readItems(timeZone)` (`null` if absent). No zone lookup, conversion, or missing-zone
+policy is defined yet. The template ignores the argument. Named zones are not persisted or supplied to reminder jobs.
 
 A source val has one purpose, so its root is the feed and the baseline has no version
 namespace in its URL or response. If an incompatible version is eventually needed,
