@@ -10,6 +10,13 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-09-17
 
+- Established `plusjade/source-template` as the greenfield authoring path: a small
+  remix with no centralized runtime import, plus a parent-hosted black-box GET
+  verifier. The parent owns the `get-no-settings` registry profile, wiring, and
+  activation; sources need no parent access or legacy compatibility routes.
+  This makes behavioral conformance the authoring boundary without migrating existing
+  sources (parent main snapshot 357; `source/README.md`, `docs/get-sources.md`).
+
 - Opted GTB instance 9 into the canonical GET feed, the first live source on the
   new transport. GTB's root directly validates the optional offset and temporal
   output while retaining v1 routes for browser/conformance compatibility. Shared

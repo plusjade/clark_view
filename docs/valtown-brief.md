@@ -34,7 +34,8 @@ app-clarkview → best-effort APNs → WidgetKit → normal resolver fetch
 | Layout, family limits, local date/time, empty state, interaction, reload scheduling | This repository: `ClarkViewWidget/` and `Shared/` |
 | Enrollment, registry pointers, assignments, browser forms, composition, presentation configuration, push delivery | `plusjade/app-clarkview` (the parent) |
 | Team vocabulary, selection, event/status/broadcast text, upstream normalization, storage, ingestion | The implementing `plusjade/source-*` val |
-| Generic source protocol and item validation | `plusjade/source-sdk`, imported by every active source |
+| New source authoring | Remix `plusjade/source-template`; its `AGENTS.md` points to edits, contract, and external verification |
+| Source protocol and item validation | Parent `source/README.md` and `lib/sourceContract.ts`; existing v1 sources retain `plusjade/source-sdk` |
 | Whether a source is trusted to serve, and why | Parent `lib/sourceConformance.ts` and `docs/source-conformance.md` |
 | Widget wire fields or their meaning | Coordinate source output, parent composition, Swift decoding, fixtures, and tests |
 
@@ -98,7 +99,7 @@ Canonical parent tables are `bunches`, `bunch_codes`, `devices`, `sources`,
 `device_sources`, `device_push_tokens`, and `notification_queue`. Sources own their data separately.
 
 - `sources` is a bunch-owned instance registry: `id`, `bunch_id`, `name`, `endpoint`,
-  `remote_source_key`, `contract_version`, plus descriptor/schema
+  `remote_source_key`, `contract_version`, `read_profile`, plus descriptor/schema
   snapshots and timestamps. `kind` is unrestricted diagnostic metadata, neither unique
   nor the transport dispatch key. There is no separate definitions or
   `source_instances` table.
@@ -198,14 +199,16 @@ SDK deployment revision.
 
 ### Canonical GET source feed
 
-The parent has side-by-side read transports in `lib/sourceClient.ts`. The hard-coded
-`CANONICAL_SOURCE_READ_IDS` set selects `GET /`; it contains GTB instance `9`.
-Other live sources still use `POST /v1/read`. Add a source instance ID only after that
-source implements and verifies the canonical GET contract. Both paths flow through
+The parent has side-by-side read transports in `lib/sourceClient.ts`.
+New no-settings sources use the parent-owned `sources.read_profile='get-no-settings'`.
+Its default, `v1`, preserves existing sources; GTB instance `9` retains its earlier
+GET read opt-in and v1 settings/verification. Both transports flow through
 `readSourceItems` and the same live `composeDeviceItems` implementation.
 
 The source-facing contract and dependency-free query encoder live in the parent's
-`source/README.md` and `source/readContract.ts`. The canonical request uses query parameters only:
+`source/README.md` and `source/readContract.ts`. Existing selectable sources' query
+rules live in `source/settings.md`; the new template has no settings.
+The canonical request uses query parameters only:
 booleans are `true`/`false`, string selections use repeated keys, and the sole
 reserved context parameter is optional `utcOffsetSeconds`. Nested JSON, free text,
 numbers, and other escape hatches are deliberately unsupported; a source that cannot
@@ -217,14 +220,22 @@ namespace in its URL or response. If an incompatible version is eventually neede
 that future contract may define a request header or query parameter for callers that
 need to pin it; no unused negotiation mechanism is reserved now.
 
-This is the seed for a later remixable source-template val, not a new
-`source-sdk` module. During the staged migration, descriptor, settings validation,
-external conformance probing, and the legacy read remain v1; an opted-in source must
-serve both reads until those seams migrate. The parent refuses canonical GET request targets
-longer than 2048 characters. No registry version or active pointer changes in this
-milestone.
+`plusjade/source-template` is a remixable val with one HTTP file, a README, and
+surgical `AGENTS.md`. It imports no shared runtime and has no parent credentials
+or calls. Sources own their code and data; authoring agents use the public contract
+and verifier without inspecting parent implementation. The parent refuses canonical
+GET request targets longer than 2048 characters.
 
-### Source protocol and SDK
+`POST /source-verifications` accepts `{endpoint,sourceKey}` for a public Val Town
+root and returns `{profile,pass,checks,failures}`. It supports `get-no-settings`,
+stops at the first failing request, and neither reads nor writes the registry.
+Parent-owned probes use the same GET checker and serving guards before recording
+conformance. Registration and assignment remain separate, manual operator actions;
+parent `docs/get-sources.md` owns the wiring procedure. New no-settings sources need
+no legacy routes: the parent supplies their empty settings form. Existing sources
+keep their current routes and verification.
+
+### Existing v1 sources and SDK
 
 | Operation | Envelope / rule |
 | --- | --- |
@@ -235,7 +246,7 @@ milestone.
 | `/v1/publish` | Unsupported: 501; descriptors advertise `publish:false` |
 
 **Conformance is verified externally, not by what a source imports.** The parent probes
-each endpoint through its own request-path guards (`normalizeItems`, `parseFormSchema`),
+each v1 endpoint through its own request-path guards (`items`, `parseFormSchema`),
 asserting descriptor identity, that `validate-settings` accepts what the schema
 describes and **rejects** an unknown key, that `read` survives the composer's item guard
 under both offset shapes, that publish still answers 501, and latency/size/count
@@ -253,8 +264,8 @@ milliseconds).
 
 The shared SDK is `plusjade/source-sdk`, public and dependency-free, with no HTTP
 entry, storage, credentials, or schedules. See its
-[creator guide](https://www.val.town/x/plusjade/source-sdk/code/README.md). Every
-active source must import its public entrypoint at a tested immutable pin:
+[creator guide](https://www.val.town/x/plusjade/source-sdk/code/README.md). Existing
+SDK consumers keep their tested immutable pin; new sources start from the template:
 
 ```ts
 import { accept, reject, defineSource, serveSource, type Item }
@@ -285,8 +296,10 @@ entrypoints and environment metadata when remixing.
 
 ### Generic settings forms
 
-Supported fields are booleans and arrays of string choices in a closed object; choices
-use `const`, `title`, optional `x-group`. The live public descriptor, not a
+The `get-no-settings` profile has a parent-owned empty form and accepts only `{}`.
+For existing descriptor-backed sources, supported fields are booleans and arrays of
+string choices in a closed object; choices use `const`, `title`, optional `x-group`.
+The live public descriptor, not a
 stored schema snapshot, drives editing. No parent branch should depend on a source
 kind or a field named `teams`. Full vocabulary and save semantics:
 [source-settings-contract.md](source-settings-contract.md).
@@ -525,7 +538,7 @@ Recheck the egress observation when changing runtimes; update it if access chang
 
 Classify the change using the ownership map above before touching anything remote.
 Local layout work needs no remote calls; source work needs the source's own README;
-protocol/authoring work needs the SDK guide.
+new source authoring starts at the template's `AGENTS.md`; existing SDK work needs its guide.
 
 Remote workflow: start from the cached identities in this file (use
 `val_town_get_val_detail` only if branch/ownership/access is actually in question);
@@ -547,6 +560,7 @@ Per domain, what to verify beyond the checks and what a false pass looks like:
 | Composition | Both resolver aliases and the browser preview; empty/unassigned and assigned mixed-source fixtures; namespaced IDs, ordering, ties, diagnostics, source failure, malformed output | A successful *empty* response doesn't prove an assigned source actually works — check `x-effective-sources`, then `x-quarantined-sources` |
 | Conformance | The probe against every registered source, and that only a verified one reaches a feed. Core suite covers gating, staleness derivation and quarantine diagnostics | A green feed says nothing about a source nobody has re-probed — check `conformance_verified_at`, not just the state |
 | Source | Public descriptor/read, settings/write guards, nonempty fixtures, timezone edges, source-specific selection. Source-owned checks and shared SDK `tools/sdk-check.ts` | Diagnostics reporting "unavailable" means unknown coverage, not zero |
+| New GET source | External `/source-verifications` against the remix's own endpoint and key; parent changes run `tools/check.ts` | A pass does not register or activate a source, prove data accuracy, or establish nonempty coverage |
 | Settings | Add/edit/clear round trips, removed choices, stale fingerprint, invalid/unavailable source responses, no persistence on failure | — |
 | Widget contract | Decode a representative composed response with Swift; update preview fixtures/tests; build app and widget for contract changes (`xcodebuild -project clark_view.xcodeproj -scheme clark_view build`/`test`); run SwiftLint | — |
 | Push | Verify token environment/topic and actual delivery separately per environment | APNs *accepting* a request is not proof a banner appeared — use console delivery logs; a simulator build proves nothing about real APNs delivery |
