@@ -10,6 +10,16 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-09-19
 
+- Made the device Feed tab the item list. The explanatory lead, the "Combining …"
+  summary and the timezone note above the table are gone; every row instead names
+  its own source, linked to `/sources/:id` and resolved from the `<source-id>:`
+  prefix composition already writes into each item id, so attribution is per item
+  rather than one line for the whole feed. The raw response moved into a collapsed
+  `<details>`, and columns lead with the item text so a phone's stacked row is
+  titled by what the widget shows rather than by a timestamp
+  (`plusjade/app-clarkview`, main snapshot 373; `render/deviceHtml.tsx`,
+  `docs/source-participation.md`).
+
 - Stripped the add and assignment pages to their decisions. Add offers only Add,
   always Live; an assignment offers Disable/Make live and Remove as single-button
   forms that carry the value they write. The per-assignment Source preview, its
