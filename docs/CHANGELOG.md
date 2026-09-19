@@ -8,6 +8,61 @@ pointer. Preserve historical meaning; record reversals as new entries. Typo and
 broken-link corrections are allowed. See [AGENTS.md](../AGENTS.md#documenting-decisions)
 for routing current guidance, operational evidence, and routine validation.
 
+## 2026-09-19
+
+- Moved the source gallery above the device tabs and onto every device page —
+  Feed, Sources, Presentation, Settings, Merge, and the add/assignment
+  sub-pages — since it navigates between sources rather than belonging to one
+  tab. A `DeviceHeader` component now owns gallery-then-tabs so the order is
+  defined once. The gallery also leads with live sources: `live` is derived from
+  conformance rather than stored, so the tiering is a stable sort applied after
+  mapping in `listDeviceSourceChoices`, which keeps the query's name ordering
+  inside each tier. Consequence worth revisiting: the Sources tab now holds only
+  the state legend (`plusjade/app-clarkview`, main snapshot 375;
+  `render/deviceHtml.tsx`, `lib/deviceStore.ts`, `http/routes/devices.ts`).
+
+- Split the story galleries' selection and state marks onto separate visual
+  channels, because both were drawing an accent ring and competing. Selection —
+  in the device gallery and the source gallery alike — is now a filled avatar in
+  `--ink`, deliberately not accent, since accent already means feed
+  participation. Feed state moved to a ring outside the avatar (solid accent
+  Live, dotted accent Withheld, dashed neutral Disabled, none for Add), so it
+  stays legible over the selection fill and a source can carry both at once. The
+  selection rules are declared last: they match with the same specificity as the
+  state rules and only win on order (`plusjade/app-clarkview`, main snapshot 374;
+  `render/pageShell.ts`, `docs/source-participation.md`).
+
+- Made the device Feed tab the item list. The explanatory lead, the "Combining …"
+  summary and the timezone note above the table are gone; every row instead names
+  its own source, linked to `/sources/:id` and resolved from the `<source-id>:`
+  prefix composition already writes into each item id, so attribution is per item
+  rather than one line for the whole feed. The raw response moved into a collapsed
+  `<details>`, and columns lead with the item text so a phone's stacked row is
+  titled by what the widget shows rather than by a timestamp
+  (`plusjade/app-clarkview`, main snapshot 373; `render/deviceHtml.tsx`,
+  `docs/source-participation.md`).
+
+- Stripped the add and assignment pages to their decisions. Add offers only Add,
+  always Live; an assignment offers Disable/Make live and Remove as single-button
+  forms that carry the value they write. The per-assignment Source preview, its
+  prose, and the Live/Disabled radios are gone, and a settings form renders only
+  when the source's schema has fields. Output now lives behind a link to
+  `/sources/:id`, which reads with schema defaults rather than device settings —
+  the device Feed tab remains the answer to "what will this device show". The
+  target is a distracted operator making a safe, reversible change without
+  reading anything (`plusjade/app-clarkview`, main snapshot 372;
+  `render/deviceHtml.tsx`, `http/routes/devices.ts`, `docs/source-participation.md`).
+
+- Rebuilt a device's Sources view as one story-style gallery of every registered
+  source. An attached source links to its assignment, an unattached one to the add
+  form already pointed at it, and ring plus caption word carry Live / Withheld /
+  Disabled / Add. The assignment table and the separate add picker are gone; the
+  gallery also heads the add and assignment pages, so any source is one tap from
+  any other. This collapses browse → pick → configure into a single surface, which
+  was the point: fewer interactions per outcome (`plusjade/app-clarkview`, main
+  snapshot 371; `render/deviceHtml.tsx`, `lib/deviceStore.ts`,
+  `docs/source-participation.md`).
+
 ## 2026-09-18
 
 - Made sources first-class browser resources: every `/sources` route now swaps the
