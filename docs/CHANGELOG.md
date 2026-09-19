@@ -10,6 +10,17 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-09-19
 
+- Moved the source gallery above the device tabs and onto every device page —
+  Feed, Sources, Presentation, Settings, Merge, and the add/assignment
+  sub-pages — since it navigates between sources rather than belonging to one
+  tab. A `DeviceHeader` component now owns gallery-then-tabs so the order is
+  defined once. The gallery also leads with live sources: `live` is derived from
+  conformance rather than stored, so the tiering is a stable sort applied after
+  mapping in `listDeviceSourceChoices`, which keeps the query's name ordering
+  inside each tier. Consequence worth revisiting: the Sources tab now holds only
+  the state legend (`plusjade/app-clarkview`, main snapshot 375;
+  `render/deviceHtml.tsx`, `lib/deviceStore.ts`, `http/routes/devices.ts`).
+
 - Split the story galleries' selection and state marks onto separate visual
   channels, because both were drawing an accent ring and competing. Selection —
   in the device gallery and the source gallery alike — is now a filled avatar in
