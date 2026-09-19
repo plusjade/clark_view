@@ -166,8 +166,8 @@ standalone jump-off screen.
 | `GET /` | Always HTML, including query-bearing URLs; links to `/bunches`, `/devices`, `/sources` |
 | `/devices/:id` | Integer-ID browser resource; default Feed tab shows live-source composition; the header gallery identifies the device |
 | `/devices/:id/settings` | Device info, name edit (GET/POST), and entry to merge functionality |
-| `/devices/:id/sources/new`, `/devices/:id/sources`, `/devices/:id/sources/:assignmentId` | Add/edit descriptor-driven settings, Live/Disabled state, and isolated saved-settings Source preview; state changes POST to `/state`, deletion to `/delete` |
-| `/devices/:id/sources`, `/devices/:id/presentation` | Dedicated assignment index (GET) and presentation editor; device tabs are Feed, Sources, Presentation, Settings. The former `/devices/:id/preview` route is removed. |
+| `/devices/:id/sources/new`, `/devices/:id/sources`, `/devices/:id/sources/:assignmentId` | Add/edit descriptor-driven settings, Live/Disabled state, and isolated saved-settings Source preview; state changes POST to `/state`, deletion to `/delete`. `new` renders one chosen source's form, redirecting an attached source to its assignment and a missing or unknown one to the index |
+| `/devices/:id/sources`, `/devices/:id/presentation` | Source gallery (GET) and presentation editor; device tabs are Feed, Sources, Presentation, Settings. The former `/devices/:id/preview` route is removed. |
 | `/devices/:id/merge` | Move a reinstalled app's install ID onto the device it replaces; the chosen target survives and the origin row is deleted |
 | `/sources` | Read-only registry explorer with the source gallery in place of the device gallery |
 | `/sources/:id` | Source Feed tab: reads the implementing source with its schema defaults and renders temporal items plus the raw source response; failures and empty feeds remain ordinary page states |

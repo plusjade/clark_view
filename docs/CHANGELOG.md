@@ -8,6 +8,18 @@ pointer. Preserve historical meaning; record reversals as new entries. Typo and
 broken-link corrections are allowed. See [AGENTS.md](../AGENTS.md#documenting-decisions)
 for routing current guidance, operational evidence, and routine validation.
 
+## 2026-09-19
+
+- Rebuilt a device's Sources view as one story-style gallery of every registered
+  source. An attached source links to its assignment, an unattached one to the add
+  form already pointed at it, and ring plus caption word carry Live / Withheld /
+  Disabled / Add. The assignment table and the separate add picker are gone; the
+  gallery also heads the add and assignment pages, so any source is one tap from
+  any other. This collapses browse → pick → configure into a single surface, which
+  was the point: fewer interactions per outcome (`plusjade/app-clarkview`, main
+  snapshot 371; `render/deviceHtml.tsx`, `lib/deviceStore.ts`,
+  `docs/source-participation.md`).
+
 ## 2026-09-18
 
 - Made sources first-class browser resources: every `/sources` route now swaps the
