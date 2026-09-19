@@ -107,7 +107,8 @@ Canonical parent tables are `bunches`, `bunch_codes`, `devices`, `sources`,
   source ID and source-local item ID. No current form sets priority.
 - Assignment `enabled` is a non-null 0/1 flag: Live (1, default) contributes to
   resolvers, browser Feed, and reminders; Disabled (0) retains settings and stays
-  editable with an isolated Source preview. Add can explicitly choose Disabled.
+  editable. The browser always adds Live and reaches Disabled only from an existing
+  assignment, though the POST route still accepts `enabled=0`.
   State controls work without source availability. Both resolver aliases use
   `getDeviceFeedConfiguration`; delivery also checks queued reminders' source state.
   Parent `docs/source-participation.md` owns semantics.
@@ -166,7 +167,7 @@ standalone jump-off screen.
 | `GET /` | Always HTML, including query-bearing URLs; links to `/bunches`, `/devices`, `/sources` |
 | `/devices/:id` | Integer-ID browser resource; default Feed tab shows live-source composition; the header gallery identifies the device |
 | `/devices/:id/settings` | Device info, name edit (GET/POST), and entry to merge functionality |
-| `/devices/:id/sources/new`, `/devices/:id/sources`, `/devices/:id/sources/:assignmentId` | Add/edit descriptor-driven settings, Live/Disabled state, and isolated saved-settings Source preview; state changes POST to `/state`, deletion to `/delete`. `new` renders one chosen source's form, redirecting an attached source to its assignment and a missing or unknown one to the index |
+| `/devices/:id/sources/new`, `/devices/:id/sources`, `/devices/:id/sources/:assignmentId` | `new` offers only Add (always Live) for one chosen source, redirecting an attached source to its assignment and a missing or unknown one to the index. An assignment offers Disable/Make live and Remove as single-button forms, plus a descriptor-driven settings form only when the schema has fields. Both link to `/sources/:id` for output; there is no per-assignment preview. State POSTs to `/state`, deletion to `/delete` |
 | `/devices/:id/sources`, `/devices/:id/presentation` | Source gallery (GET) and presentation editor; device tabs are Feed, Sources, Presentation, Settings. The former `/devices/:id/preview` route is removed. |
 | `/devices/:id/merge` | Move a reinstalled app's install ID onto the device it replaces; the chosen target survives and the origin row is deleted |
 | `/sources` | Read-only registry explorer with the source gallery in place of the device gallery |

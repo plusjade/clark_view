@@ -10,6 +10,17 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-09-19
 
+- Stripped the add and assignment pages to their decisions. Add offers only Add,
+  always Live; an assignment offers Disable/Make live and Remove as single-button
+  forms that carry the value they write. The per-assignment Source preview, its
+  prose, and the Live/Disabled radios are gone, and a settings form renders only
+  when the source's schema has fields. Output now lives behind a link to
+  `/sources/:id`, which reads with schema defaults rather than device settings —
+  the device Feed tab remains the answer to "what will this device show". The
+  target is a distracted operator making a safe, reversible change without
+  reading anything (`plusjade/app-clarkview`, main snapshot 372;
+  `render/deviceHtml.tsx`, `http/routes/devices.ts`, `docs/source-participation.md`).
+
 - Rebuilt a device's Sources view as one story-style gallery of every registered
   source. An attached source links to its assignment, an unattached one to the add
   form already pointed at it, and ring plus caption word carry Live / Withheld /
