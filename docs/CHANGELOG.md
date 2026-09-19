@@ -10,6 +10,17 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-09-19
 
+- Split the story galleries' selection and state marks onto separate visual
+  channels, because both were drawing an accent ring and competing. Selection —
+  in the device gallery and the source gallery alike — is now a filled avatar in
+  `--ink`, deliberately not accent, since accent already means feed
+  participation. Feed state moved to a ring outside the avatar (solid accent
+  Live, dotted accent Withheld, dashed neutral Disabled, none for Add), so it
+  stays legible over the selection fill and a source can carry both at once. The
+  selection rules are declared last: they match with the same specificity as the
+  state rules and only win on order (`plusjade/app-clarkview`, main snapshot 374;
+  `render/pageShell.ts`, `docs/source-participation.md`).
+
 - Made the device Feed tab the item list. The explanatory lead, the "Combining …"
   summary and the timezone note above the table are gone; every row instead names
   its own source, linked to `/sources/:id` and resolved from the `<source-id>:`
