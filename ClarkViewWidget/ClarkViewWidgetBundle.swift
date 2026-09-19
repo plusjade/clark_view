@@ -12,5 +12,6 @@ import SwiftUI
 struct ClarkViewWidgetBundle: WidgetBundle {
     var body: some Widget {
         ClarkViewWidget()
+        ClarkLiveActivity()
     }
 }

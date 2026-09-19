@@ -4,6 +4,7 @@ import WidgetKit
 /// Coordinates setup; permission and diagnostic screens own their respective controls.
 struct ContentView: View {
     @Environment(NotificationSettings.self) private var notifications
+    @Environment(LiveActivityCoordinator.self) private var liveActivities
     @Environment(\.scenePhase) private var scenePhase
     @State private var isPaired = DeviceIdentity.isPaired
     @State private var showsDiagnostics = false
@@ -44,6 +45,7 @@ struct ContentView: View {
     }
 
     private func refresh() async {
+        await liveActivities.refresh()
         await notifications.refresh()
         // A failed fetch must not erase pairing; a lost pairing response can be recovered here.
         let pairingAtStart = isPaired
@@ -60,4 +62,5 @@ struct ContentView: View {
 #Preview {
     ContentView()
         .environment(NotificationSettings())
+        .environment(LiveActivityCoordinator())
 }

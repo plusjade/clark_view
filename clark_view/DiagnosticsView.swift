@@ -10,6 +10,9 @@ struct DiagnosticsView: View {
 
     var body: some View {
         Form {
+            Section("Experiments") {
+                NavigationLink("Live Activity Spike") { LiveActivityDiagnosticsView() }
+            }
             Section("Device") {
                 if let status {
                     row("Device ID", status.deviceId)

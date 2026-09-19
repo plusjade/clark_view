@@ -391,6 +391,14 @@ kind or a field named `teams`. Full vocabulary and save semantics:
 
 ## iOS implementation and refresh behavior
 
+The standalone Live Activity spike is separate from the temporal widget feed.
+It uses parent `live_activity_spikes` records with presentation snapshots and
+ActivityKit update/end pushes, without source/event references. Native diagnostics
+creates the record before a foreground ActivityKit start. See
+[live-activity-spike.md](live-activity-spike.md) for the iOS contract, operation,
+and deployment status; parent `docs/live-activity-spike.md` owns its JSON routes
+and SQLite schema. No browser UI or event scheduling is part of the spike.
+
 | Local file | Role |
 | --- | --- |
 | [ServerURL.swift](../Shared/ServerURL.swift) | Base URL and resolver query |

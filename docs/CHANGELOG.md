@@ -8,6 +8,17 @@ pointer. Preserve historical meaning; record reversals as new entries. Typo and
 broken-link corrections are allowed. See [AGENTS.md](../AGENTS.md#documenting-decisions)
 for routing current guidance, operational evidence, and routine validation.
 
+## 2026-09-19
+
+- Built the Live Activity spike around a standalone SQLite presentation record,
+  with no event/source identity or time window. Native diagnostics creates the
+  record and starts locally; edits and ending use ActivityKit APNs. This keeps UX
+  exploration independent of event selection and lifecycle policy. Desired state,
+  device observations, and push acceptance remain separate so diagnostics do not
+  imply delivery. Implementation: `Shared/ClarkLiveActivityAttributes.swift` and
+  parent `lib/liveActivityStore.ts`; deployment status in
+  [live-activity-spike.md](live-activity-spike.md).
+
 ## 2026-09-18
 
 - Made sources first-class browser resources: every `/sources` route now swaps the

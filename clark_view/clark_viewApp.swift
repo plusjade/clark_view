@@ -10,11 +10,13 @@ import SwiftUI
 @main
 struct clark_viewApp: App {
     @UIApplicationDelegateAdaptor(NotificationDelegate.self) private var notificationDelegate
+    @State private var liveActivities = LiveActivityCoordinator()
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environment(notificationDelegate.notifications)
+                .environment(liveActivities)
         }
     }
 }
