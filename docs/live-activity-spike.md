@@ -3,7 +3,8 @@
 Open app Diagnostics → Live Activity Spike. Edit a title, message, status, and
 optional progress; Create Record and Start first persists a standalone SQLite
 record, then starts ActivityKit locally from the saved content. Send Update via
-Server and End via Server persist the next snapshot and deliver it through APNs.
+Server, Send Alerting Update via Server, and End via Server persist the next snapshot
+and deliver it through APNs. The editor automatically adopts each newer saved revision.
 There is no source/event relationship, automatic schedule, or browser CRUD UI.
 
 ## Ownership and contract
@@ -23,7 +24,8 @@ The parent table is `live_activity_spikes`. Desired state, last observed device
 state, content revision, accepted revision, and delivery result are distinct.
 APNs acceptance does not prove visible delivery. Terminal device observations
 prevent further sends. Failed sends retain content and end intent for explicit
-retry. A new experiment gets a new record; finished activities are not resurrected.
+retry. Alerting updates retain their alert intent too; ordinary updates remain quiet.
+A new experiment gets a new record; finished activities are not resurrected.
 
 A random per-record bearer key is retained in the app's private defaults, separate
 from the record ID in ActivityKit attributes. Never log the key, token, or complete
@@ -37,7 +39,8 @@ differences between widget Unix-second decoding and ActivityKit's Codable behavi
 Parent `docs/live-activity-spike.md` owns schema provisioning, endpoint bodies,
 delivery ordering, and operator procedures. The API is
 `/live-activities/:id/{create,status,register,observe,update,end,deliver}`; only status
-uses GET. Update/end use revision comparison to reject stale edits. Content updates
+uses GET. Update accepts an optional boolean `alert`; end is always nonalerting.
+Update/end use revision comparison to reject stale edits. Content updates
 are limited to one per second to keep APNs timestamps ordered. After a conflict,
 refresh the record before retrying. Direct SQLite edits do not trigger delivery;
 use the parent's store functions to validate, persist, and send a snapshot.
@@ -46,9 +49,12 @@ use the parent's store functions to validate, persist, and send a snapshot.
 
 1. Run a signed build and open Diagnostics → Live Activity Spike.
 2. Create Record and Start. Confirm the local state becomes active and the push
-   token becomes registered. A local start does not depend on APNs delivery.
-3. Edit content and send an update. Inspect Lock Screen and Dynamic Island.
-   Load Saved Content copies the server snapshot into the editor after reopening.
+   token becomes registered. A success haptic and in-app alert acknowledge the local
+   start; it does not depend on APNs delivery.
+3. Edit content and send an ordinary or alerting update. The latter asks iOS to show
+   the expanded Dynamic Island briefly. Inspect Lock Screen and Dynamic Island.
+   Newer server revisions automatically replace stale editor content; Load Saved
+   Content remains an explicit recovery action.
 4. End via Server requests immediate dismissal. Retry Last Server Delivery sends
    the saved snapshot again without changing its revision. Dismiss Locally is an
    explicit cleanup fallback and does not demonstrate server delivery.
@@ -68,10 +74,12 @@ with the expected standalone content; the disposable record was removed afterwar
 The schema is provisioned in the parent database; Val Town branches share that database.
 
 The iOS simulator build and unit suite pass, including a complete snapshot Codable
-contract check. SwiftLint reports only pre-existing warnings. Real ActivityKit
-start/rendering and APNs update/end delivery are not yet verified on a device.
+contract check. SwiftLint reports only pre-existing warnings. On 2026-09-19, manual
+device verification confirmed the compact Dynamic Island and persistent Lock Screen
+presentations. APNs update/end and the alerting expanded presentation still need
+explicit device verification.
 
-The app uses the stable main endpoint, which now serves the new routes. Remaining
-verification is observing start/update/end on a signed device. Close this status
-item after that check. Production delivery needs its own verification; sandbox
-acceptance alone does not establish it.
+The app uses the stable main endpoint, which now serves the new routes. Close this
+status item after observing ordinary update, alerting expansion, and end on a signed
+device. Production delivery needs its own verification; sandbox acceptance alone
+does not establish it.

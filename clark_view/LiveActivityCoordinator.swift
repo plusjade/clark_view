@@ -54,8 +54,8 @@ final class LiveActivityCoordinator {
         } catch { errorMessage = error.localizedDescription }
     }
 
-    func start(content: ClarkLiveActivityAttributes.ContentState) async {
-        guard canStart, content.isValid else { return }
+    func start(content: ClarkLiveActivityAttributes.ContentState) async -> Bool {
+        guard canStart, content.isValid else { return false }
         isWorking = true
         errorMessage = nil
         defer { isWorking = false }
@@ -69,7 +69,7 @@ final class LiveActivityCoordinator {
             UserDefaults.standard.set(try? JSONEncoder().encode(session), forKey: storageKey)
             UserDefaults.standard.set(false, forKey: startedKey)
         }
-        guard let session else { return }
+        guard let session else { return false }
         do {
             guard let environment = PushEnvironment.current else {
                 throw LiveActivityClient.Failure(message: "Couldn’t determine the signed APNs environment.")
@@ -88,22 +88,26 @@ final class LiveActivityCoordinator {
                 UserDefaults.standard.set(true, forKey: startedKey)
                 observe(started, session: session)
                 await report(started.activityState, session: session)
+                return true
             } catch {
                 localState = "failed"
                 _ = try? await LiveActivityClient.request("observe", session: session, body: .init(state: "failed"))
                 throw error
             }
-        } catch { errorMessage = error.localizedDescription }
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
     }
 
-    func send(content: ClarkLiveActivityAttributes.ContentState, end: Bool) async {
+    func send(content: ClarkLiveActivityAttributes.ContentState, end: Bool, alert: Bool = false) async {
         guard canSend, content.isValid, let session, let record else { return }
         isWorking = true
         errorMessage = nil
         defer { isWorking = false }
         do {
             accept(try await LiveActivityClient.request(end ? "end" : "update", session: session,
-                body: .init(content: content, revision: record.revision)))
+                body: .init(content: content, revision: record.revision, alert: alert)))
         } catch {
             errorMessage = error.localizedDescription
             if let latest = try? await LiveActivityClient.request("status", session: session) { accept(latest) }

@@ -15,7 +15,9 @@ for routing current guidance, operational evidence, and routine validation.
   record and starts locally; edits and ending use ActivityKit APNs. This keeps UX
   exploration independent of event selection and lifecycle policy. Desired state,
   device observations, and push acceptance remain separate so diagnostics do not
-  imply delivery. Implementation: `Shared/ClarkLiveActivityAttributes.swift` and
+  imply delivery. Attention is also explicit: ordinary updates remain quiet while an
+  alerting update persists its intent across retries and asks iOS to briefly expand
+  the Dynamic Island. Implementation: `Shared/ClarkLiveActivityAttributes.swift` and
   parent `lib/liveActivityStore.ts`; deployment status in
   [live-activity-spike.md](live-activity-spike.md).
 

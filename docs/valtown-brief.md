@@ -394,7 +394,9 @@ kind or a field named `teams`. Full vocabulary and save semantics:
 The standalone Live Activity spike is separate from the temporal widget feed.
 It uses parent `live_activity_spikes` records with presentation snapshots and
 ActivityKit update/end pushes, without source/event references. Native diagnostics
-creates the record before a foreground ActivityKit start. See
+creates the record before a foreground ActivityKit start and acknowledges success in
+the app. Ordinary updates are quiet; an explicit alerting update asks iOS to briefly
+expand the Dynamic Island. The alert intent is persisted for delivery retry. See
 [live-activity-spike.md](live-activity-spike.md) for the iOS contract, operation,
 and deployment status; parent `docs/live-activity-spike.md` owns its JSON routes
 and SQLite schema. No browser UI or event scheduling is part of the spike.

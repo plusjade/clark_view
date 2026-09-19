@@ -14,6 +14,7 @@ enum LiveActivityClient {
         let deviceState: String
         let revision: Int
         let tokenRegistered: Bool
+        let alertRequested: Bool?
         let deliveryResult: String
         let deliveredRevision: Int?
     }
@@ -25,6 +26,7 @@ enum LiveActivityClient {
         var token: String?
         var state: String?
         var revision: Int?
+        var alert: Bool?
     }
 
     struct Failure: LocalizedError {

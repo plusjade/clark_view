@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Editable presentation content makes the spike useful for exploring each Live Activity surface.
 struct LiveActivityDiagnosticsView: View {
@@ -6,6 +7,7 @@ struct LiveActivityDiagnosticsView: View {
     @State private var content = ClarkLiveActivityAttributes.ContentState.sample
     @State private var showsProgress = true
     @State private var progress = 0.25
+    @State private var showsStartConfirmation = false
 
     private var draft: ClarkLiveActivityAttributes.ContentState {
         var value = content
@@ -27,16 +29,28 @@ struct LiveActivityDiagnosticsView: View {
                 }
             }
             Section {
-                Button("Create Record and Start") { Task { await coordinator.start(content: draft) } }
+                Button("Create Record and Start") {
+                    Task {
+                        if await coordinator.start(content: draft) {
+                            UINotificationFeedbackGenerator().notificationOccurred(.success)
+                            showsStartConfirmation = true
+                        }
+                    }
+                }
                     .disabled(!coordinator.canStart || !draft.isValid)
                 Button("Send Update via Server") { Task { await coordinator.send(content: draft, end: false) } }
                     .disabled(!coordinator.canSend || !draft.isValid)
+                Button("Send Alerting Update via Server") {
+                    Task { await coordinator.send(content: draft, end: false, alert: true) }
+                }
+                .disabled(!coordinator.canSend || !draft.isValid)
                 Button("End via Server", role: .destructive) {
                     Task { await coordinator.send(content: draft, end: true) }
                 }
                 .disabled(!coordinator.canSend || !draft.isValid)
             } footer: {
                 Text("Start creates a standalone server record, then starts locally. "
+                     + "Alerting updates ask the system to briefly expand the Dynamic Island. "
                      + "Updates and ending arrive through APNs.")
             }
             Section("Diagnostics") {
@@ -49,9 +63,7 @@ struct LiveActivityDiagnosticsView: View {
                     LabeledContent("Push token", value: record.tokenRegistered ? "Registered" : "Waiting")
                     Text(record.deliveryResult).foregroundStyle(.secondary)
                     Button("Load Saved Content") {
-                        content = record.content
-                        showsProgress = record.content.progress != nil
-                        progress = record.content.progress ?? 0
+                        load(record.content)
                     }
                 }
                 if let error = coordinator.errorMessage { Text(error).foregroundStyle(.red) }
@@ -65,6 +77,23 @@ struct LiveActivityDiagnosticsView: View {
         }
         .navigationTitle("Live Activity Spike")
         .navigationBarTitleDisplayMode(.inline)
-        .task { await coordinator.refresh() }
+        .task {
+            await coordinator.refresh()
+            if let saved = coordinator.record?.content { load(saved) }
+        }
+        .onChange(of: coordinator.record?.revision, initial: true) {
+            if let saved = coordinator.record?.content { load(saved) }
+        }
+        .alert("Live Activity Started", isPresented: $showsStartConfirmation) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("It is now available in the Dynamic Island and on the Lock Screen.")
+        }
+    }
+
+    private func load(_ saved: ClarkLiveActivityAttributes.ContentState) {
+        content = saved
+        showsProgress = saved.progress != nil
+        progress = saved.progress ?? 0
     }
 }
