@@ -7,7 +7,7 @@ struct ContentView: View {
     @Environment(LiveActivityCoordinator.self) private var liveActivities
     @Environment(\.scenePhase) private var scenePhase
     @State private var isPaired = DeviceIdentity.isPaired
-    @State private var showsDiagnostics = false
+    @State private var diagnosticsPanel: DiagnosticsPanel?
 
     var body: some View {
         NavigationStack {
@@ -22,21 +22,10 @@ struct ContentView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Diagnostics", systemImage: "stethoscope") {
-                        showsDiagnostics = true
-                    }
+                    DiagnosticsMenu(selection: $diagnosticsPanel)
                 }
             }
-            .sheet(isPresented: $showsDiagnostics) {
-                NavigationStack {
-                    DiagnosticsView()
-                        .toolbar {
-                            ToolbarItem(placement: .confirmationAction) {
-                                Button("Done") { showsDiagnostics = false }
-                            }
-                        }
-                }
-            }
+            .diagnosticsPanel($diagnosticsPanel)
             .task { await refresh() }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { Task { await refresh() } }

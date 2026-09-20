@@ -1,6 +1,6 @@
 # Live Activity spike
 
-Open app Diagnostics → Live Activity Spike. Edit a title, message, status, and
+Open the app’s diagnostics menu → Live Activity. Edit a title, message, status, and
 optional progress; Create Record and Start first persists a standalone SQLite
 record, then starts ActivityKit locally from the saved content. Send Update via
 Server, Send Alerting Update via Server, and End via Server persist the next snapshot
@@ -47,7 +47,7 @@ use the parent's store functions to validate, persist, and send a snapshot.
 
 ## Trying the spike
 
-1. Run a signed build and open Diagnostics → Live Activity Spike.
+1. Run a signed build and open the diagnostics menu → Live Activity.
 2. Create Record and Start. Confirm the local state becomes active and the push
    token becomes registered. A success haptic and in-app alert acknowledge the local
    start; it does not depend on APNs delivery.

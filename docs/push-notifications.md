@@ -37,8 +37,9 @@ install-to-device mapping before picking a token for a test.
    Notifications for the App ID in the Apple Developer account and let automatic
    signing refresh the profile if necessary.
 2. Build and run on your iPhone. Pair, tap **Enable Notifications**, and allow
-   notifications. Confirm **Registered with Apple**.
-3. Tap **Copy APNs Token for Testing** and paste it directly into
+   notifications.
+3. Open the diagnostics menu → **Notifications**, confirm **Apple Registration** reports
+   a registered token, then tap **Copy APNs Token** and paste it directly into
    [Apple's Push Notifications Console](https://developer.apple.com/notifications/push-notifications-console/).
 4. Choose app `plusjade.clark-view`, the **development** environment for an
    Xcode development-signed build, push type **alert**, and priority **10**.

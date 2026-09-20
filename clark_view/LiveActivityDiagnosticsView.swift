@@ -53,7 +53,7 @@ struct LiveActivityDiagnosticsView: View {
                      + "Alerting updates ask the system to briefly expand the Dynamic Island. "
                      + "Updates and ending arrive through APNs.")
             }
-            Section("Diagnostics") {
+            Section("Status") {
                 LabeledContent("Live Activities",
                                value: coordinator.activitiesEnabled ? "Enabled" : "Disabled in Settings")
                 LabeledContent("On this device", value: coordinator.localState)
@@ -75,7 +75,7 @@ struct LiveActivityDiagnosticsView: View {
                     .disabled(coordinator.isWorking || !["active", "stale", "ended"].contains(coordinator.localState))
             }
         }
-        .navigationTitle("Live Activity Spike")
+        .navigationTitle("Live Activity")
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await coordinator.refresh()

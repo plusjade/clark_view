@@ -10,6 +10,14 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-09-19
 
+- Split the single diagnostics sheet into dedicated Device, Notifications, Widget,
+  and Live Activity panels behind one toolbar menu (`clark_view/DiagnosticsPanel.swift`).
+  The home screen keeps only setup — pairing and the notification permission prompt —
+  so instrumentation grows by adding a panel instead of another section in a list.
+- Dropped source settings from the iOS device-status model. The browser owns settings
+  editing, so the app renders assigned sources as a plain list of kinds. Decoding them
+  was also a liveness risk: `settings` was non-optional, so a server that stopped
+  sending it would fail the whole status decode and silently freeze pairing state.
 - Built the Live Activity spike around a standalone SQLite presentation record,
   with no event/source identity or time window. Native diagnostics creates the
   record and starts locally; edits and ending use ActivityKit APNs. This keeps UX
