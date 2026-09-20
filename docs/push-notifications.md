@@ -7,6 +7,11 @@ banners, and can open notification settings. The paired screen can copy the app 
 for a manual Apple console test or trigger a fixed self-test through Val Town. Tokens
 are not logged or persisted locally.
 
+Tapping a visible alert pushes a subject detail in the app. A payload may provide a
+top-level `deepLink` containing an app-owned `clarkview` URL; without one, the app
+uses the alert title and body as the subject snapshot. Malformed or foreign URLs are
+ignored rather than navigating. Event reminders currently use the title/body fallback.
+
 The widget extension independently uploads its WidgetKit token to `POST /device/token`.
 Delivery evidence and recheck conditions are scoped below.
 

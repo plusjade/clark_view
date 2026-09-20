@@ -160,80 +160,102 @@ private struct BeaconFocusableItemView: View {
     let usesTranslucency: Bool
 
     var body: some View {
-        Button(intent: FocusWidgetItemIntent(itemID: item.id, changesFocus: !isPrimary)) {
-            BeaconFocusItemLayout(primaryProgress: isPrimary ? 1 : 0) {
-                BeaconDateTimeView(
-                    item: item,
-                    style: isPrimary ? .primary : .secondary
-                )
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentTransition(.interpolate)
-
-                Text(item.mainText)
-                    .font(.system(
-                        isPrimary ? .largeTitle : .title3,
-                        design: .default,
-                        weight: isPrimary ? .regular : .semibold
-                    ))
-                    .lineLimit(isPrimary ? 2 : 1)
-                    .multilineTextAlignment(.leading)
-                    .truncationMode(.tail)
-                    .foregroundStyle(.primary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .contentTransition(.interpolate)
-
-                Text(item.subText)
-                    .font(.system(.title3, design: .default, weight: .regular))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .opacity(isPrimary ? 1 : 0)
-
-                Image(systemName: "plus.magnifyingglass")
-                    .font(.title.weight(.bold))
-                    .foregroundStyle(.tint)
-                    .frame(width: 50, height: 50)
-                    .background(BeaconWidgetPalette.actionSurface, in: Circle())
-                    .frame(maxWidth: .infinity, minHeight: 50, alignment: .trailing)
-                    .opacity(isPrimary ? 0 : 1)
-            }
-            .padding(isPrimary ? 20 : 14)
-            .frame(
-                maxWidth: .infinity,
-                maxHeight: isPrimary ? .infinity : nil,
-                alignment: .topLeading
-            )
-            .background {
-                BeaconWidgetCardSurface(
-                    isFocused: isPrimary,
-                    usesTranslucency: usesTranslucency
-                )
-            }
-            .overlay {
-                ZStack {
-                    BeaconWidgetPalette.cardShape
-                        .strokeBorder(BeaconWidgetPalette.focusedBorder, lineWidth: 1)
-                        .opacity(isPrimary ? 1 : 0)
-
-                    BeaconWidgetPalette.cardShape
-                        .strokeBorder(
-                            BeaconWidgetPalette.compactBorder,
-                            style: StrokeStyle(lineWidth: 1, dash: [1, 5])
-                        )
-                        .opacity(isPrimary ? 0 : 1)
+        Group {
+            if isPrimary, let destinationURL {
+                Link(destination: destinationURL) {
+                    card
                 }
+                .accessibilityLabel("Open \(item.mainText)")
+                .accessibilityHint("Opens event details in Clark View")
+            } else {
+                Button(intent: FocusWidgetItemIntent(itemID: item.id, changesFocus: true)) {
+                    card
+                }
+                .accessibilityLabel("Show \(item.mainText) larger")
+                .accessibilityHint("Shows this item larger")
             }
-            .contentShape(BeaconWidgetPalette.cardShape)
         }
         .buttonStyle(BeaconFocusButtonStyle(reduceMotion: reduceMotion))
-        .accessibilityLabel(
-            isPrimary ? "\(item.mainText), focused item" : "Show \(item.mainText) larger"
-        )
-        .accessibilityHint(isPrimary ? "Already shown larger" : "Shows this item larger")
         .id(item.id)
+    }
+
+    private var destinationURL: URL? {
+        AppDeepLink(
+            kind: .event,
+            subjectID: item.id,
+            title: item.mainText,
+            detail: item.subText,
+            startsAt: item.startsAt
+        ).url
+    }
+
+    private var card: some View {
+        BeaconFocusItemLayout(primaryProgress: isPrimary ? 1 : 0) {
+            BeaconDateTimeView(
+                item: item,
+                style: isPrimary ? .primary : .secondary
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentTransition(.interpolate)
+
+            Text(item.mainText)
+                .font(.system(
+                    isPrimary ? .largeTitle : .title3,
+                    design: .default,
+                    weight: isPrimary ? .regular : .semibold
+                ))
+                .lineLimit(isPrimary ? 2 : 1)
+                .multilineTextAlignment(.leading)
+                .truncationMode(.tail)
+                .foregroundStyle(.primary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .contentTransition(.interpolate)
+
+            Text(item.subText)
+                .font(.system(.title3, design: .default, weight: .regular))
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .opacity(isPrimary ? 1 : 0)
+
+            Image(systemName: "plus.magnifyingglass")
+                .font(.title.weight(.bold))
+                .foregroundStyle(.tint)
+                .frame(width: 50, height: 50)
+                .background(BeaconWidgetPalette.actionSurface, in: Circle())
+                .frame(maxWidth: .infinity, minHeight: 50, alignment: .trailing)
+                .opacity(isPrimary ? 0 : 1)
+        }
+        .padding(isPrimary ? 20 : 14)
+        .frame(
+            maxWidth: .infinity,
+            maxHeight: isPrimary ? .infinity : nil,
+            alignment: .topLeading
+        )
+        .background {
+            BeaconWidgetCardSurface(
+                isFocused: isPrimary,
+                usesTranslucency: usesTranslucency
+            )
+        }
+        .overlay {
+            ZStack {
+                BeaconWidgetPalette.cardShape
+                    .strokeBorder(BeaconWidgetPalette.focusedBorder, lineWidth: 1)
+                    .opacity(isPrimary ? 1 : 0)
+
+                BeaconWidgetPalette.cardShape
+                    .strokeBorder(
+                        BeaconWidgetPalette.compactBorder,
+                        style: StrokeStyle(lineWidth: 1, dash: [1, 5])
+                    )
+                    .opacity(isPrimary ? 0 : 1)
+            }
+        }
+        .contentShape(BeaconWidgetPalette.cardShape)
     }
 }
 

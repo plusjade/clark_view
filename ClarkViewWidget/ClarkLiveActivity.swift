@@ -10,6 +10,7 @@ struct ClarkLiveActivity: Widget {
                 .padding()
                 .activityBackgroundTint(Color(.systemBackground))
                 .activitySystemActionForegroundColor(.primary)
+                .widgetURL(destinationURL(for: context))
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
@@ -36,7 +37,21 @@ struct ClarkLiveActivity: Widget {
                 Image(systemName: "waveform.path")
                     .accessibilityLabel(context.state.title + ", " + context.state.status)
             }
+            .widgetURL(destinationURL(for: context))
         }
+    }
+
+    private func destinationURL(
+        for context: ActivityViewContext<ClarkLiveActivityAttributes>
+    ) -> URL? {
+        AppDeepLink(
+            kind: .liveActivity,
+            subjectID: context.attributes.recordID,
+            title: context.state.title,
+            detail: context.state.message,
+            status: context.state.status,
+            progress: context.state.progress
+        ).url
     }
 }
 

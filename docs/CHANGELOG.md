@@ -8,6 +8,15 @@ pointer. Preserve historical meaning; record reversals as new entries. Typo and
 broken-link corrections are allowed. See [AGENTS.md](../AGENTS.md#documenting-decisions)
 for routing current guidance, operational evidence, and routine validation.
 
+## 2026-09-20
+
+- Added one presentation-only `clarkview` route contract across widgets, Live
+  Activities, and alert responses. System-surface taps now push the notifying event
+  or activity snapshot instead of dropping people on setup; invalid routes do
+  nothing, and alert payloads without a route retain useful title/body fallback.
+  The route carries no credentials and performs no mutation or server lookup
+  (`Shared/AppDeepLink.swift`, `clark_view/DeepLinkRouter.swift`).
+
 ## 2026-09-19
 
 - Split the single diagnostics sheet into dedicated Device, Notifications, Widget,

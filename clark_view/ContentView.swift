@@ -4,12 +4,15 @@ import WidgetKit
 /// Coordinates setup; permission and diagnostic screens own their respective controls.
 struct ContentView: View {
     @Environment(NotificationSettings.self) private var notifications
+    @Environment(DeepLinkRouter.self) private var deepLinks
     @Environment(LiveActivityCoordinator.self) private var liveActivities
     @Environment(\.scenePhase) private var scenePhase
     @State private var isPaired = DeviceIdentity.isPaired
     @State private var diagnosticsPanel: DiagnosticsPanel?
 
     var body: some View {
+        @Bindable var deepLinks = deepLinks
+
         NavigationStack {
             Group {
                 if isPaired {
@@ -26,6 +29,10 @@ struct ContentView: View {
                 }
             }
             .diagnosticsPanel($diagnosticsPanel)
+            .navigationDestination(item: $deepLinks.destination) { destination in
+                DeepLinkDetailView(destination: destination)
+            }
+            .onOpenURL { deepLinks.open($0) }
             .task { await refresh() }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { Task { await refresh() } }
@@ -51,5 +58,6 @@ struct ContentView: View {
 #Preview {
     ContentView()
         .environment(NotificationSettings())
+        .environment(DeepLinkRouter())
         .environment(LiveActivityCoordinator())
 }

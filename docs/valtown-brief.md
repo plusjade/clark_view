@@ -408,6 +408,7 @@ and SQLite schema. No browser UI or event scheduling is part of the spike.
 | [ClarkViewWidget.swift](../ClarkViewWidget/ClarkViewWidget.swift) | Fetch/cache, preview fixtures, hourly timeline, entry view |
 | [BeaconWidgetTemplate.swift](../ClarkViewWidget/BeaconWidgetTemplate.swift), [BeaconWidgetFocusLayouts.swift](../ClarkViewWidget/BeaconWidgetFocusLayouts.swift) | Default layout and focus transition |
 | [WidgetFocusStore.swift](../Shared/WidgetFocusStore.swift), [FocusWidgetItemIntent.swift](../ClarkViewWidget/FocusWidgetItemIntent.swift) | Shared local focus and short interaction-cache window |
+| [AppDeepLink.swift](../Shared/AppDeepLink.swift), [DeepLinkRouter.swift](../clark_view/DeepLinkRouter.swift) | `clarkview` subject routes shared by widgets, Live Activities, alert responses, and in-app navigation |
 | [DeviceIdentity.swift](../Shared/DeviceIdentity.swift) | Per-install UUID in `group.plusjade.clark-view`; local paired flag is copy-only |
 | [PairingClient.swift](../Shared/PairingClient.swift), [DeviceStatusClient.swift](../Shared/DeviceStatusClient.swift) | Enrollment and diagnostic reads |
 | [PushTokenClient.swift](../Shared/PushTokenClient.swift), [ClarkViewWidgetPushHandler.swift](../ClarkViewWidget/ClarkViewWidgetPushHandler.swift) | Native widget token upload/removal |
@@ -423,6 +424,11 @@ refresh button; manual refresh lives in the app only. Reload requests ask Widget
 for a timeline and do not guarantee immediate execution; the normal timeline requests
 an hourly refresh. Native accented/vibrant appearances remain system-owned; Beacon respects
 Reduce Motion and Reduce Transparency. Consult Swift for geometry, not this brief.
+
+Widget and Live Activity taps carry their displayed snapshot through the app-owned
+`clarkview` URL scheme and push a native detail destination. In the large widget, a
+compact item still expands in place first; tapping the focused item opens its detail.
+The route is presentation-only and performs no mutation or server lookup.
 
 The widget extension owns its push entitlement and `.pushHandler`. The containing app
 separately requests visible-notification permission, registers an app token, and

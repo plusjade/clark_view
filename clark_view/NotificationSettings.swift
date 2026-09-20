@@ -68,6 +68,7 @@ final class NotificationSettings {
 
 final class NotificationDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     let notifications = NotificationSettings()
+    let deepLinks = DeepLinkRouter()
 
     func application(
         _ application: UIApplication,
@@ -100,5 +101,20 @@ final class NotificationDelegate: NSObject, UIApplicationDelegate, UNUserNotific
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
         completionHandler([.banner, .list, .sound])
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let content = response.notification.request.content
+        let rawURL = content.userInfo["deepLink"] as? String
+        let title = content.title.isEmpty ? nil : content.title
+        let body = content.body.isEmpty ? nil : content.body
+        Task { @MainActor [weak self] in
+            self?.deepLinks.openNotification(deepLink: rawURL, title: title, body: body)
+            completionHandler()
+        }
     }
 }

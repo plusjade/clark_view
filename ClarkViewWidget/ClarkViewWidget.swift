@@ -239,12 +239,26 @@ struct ClarkViewWidgetEntryView: View {
 
     let entry: Provider.Entry
 
+    private var destinationURL: URL? {
+        let focused = entry.focusedItemID.flatMap { id in entry.payload.items.first { $0.id == id } }
+        guard let item = focused ?? entry.payload.items.first else { return nil }
+        return AppDeepLink(
+            kind: .event,
+            subjectID: item.id,
+            title: item.mainText,
+            detail: item.subText,
+            startsAt: item.startsAt
+        ).url
+    }
+
     var body: some View {
         if family == .accessoryRectangular {
             BeaconLockScreenView(entry: entry)
+                .widgetURL(destinationURL)
         } else {
             let presentation = WidgetPresentation(payload: entry.payload.presentation)
             BeaconWidgetTemplate(entry: entry, presentation: presentation)
+                .widgetURL(destinationURL)
         }
     }
 }

@@ -16,6 +16,7 @@ struct clark_viewApp: App {
         WindowGroup {
             ContentView()
                 .environment(notificationDelegate.notifications)
+                .environment(notificationDelegate.deepLinks)
                 .environment(liveActivities)
         }
     }
