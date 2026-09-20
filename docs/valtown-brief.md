@@ -25,7 +25,7 @@ Widget  → app-clarkview /config/resolve
                          → device assignments + source pointers
                          → public HTTP reads of assigned source vals
                          → validate items, sort, attach presentation → widget v2
-Source ingest → implementing source's /v1/write → that val's SQLite
+Source ingest → that source's own schedule → its own SQLite
 app-clarkview → best-effort APNs → WidgetKit → normal resolver fetch
 ```
 
@@ -35,12 +35,12 @@ app-clarkview → best-effort APNs → WidgetKit → normal resolver fetch
 | Enrollment, registry pointers, assignments, browser forms, composition, presentation configuration, push delivery | `plusjade/app-clarkview` (the parent) |
 | Team vocabulary, selection, event/status/broadcast text, upstream normalization, storage, ingestion | The implementing `plusjade/source-*` val |
 | New source authoring | Remix `plusjade/source-template`; update its canonical `source.json`, then follow `AGENTS.md` for implementation and external verification |
-| Source protocol and item validation | Parent `source/README.md` and `lib/sourceContract.ts`; existing v1 sources retain `plusjade/source-sdk` |
+| Source contract and item validation | Parent `source/README.md`, `source/readContract.ts`, `lib/sourceContract.ts` and `lib/canonicalSource.ts` |
 | Whether a source is trusted to serve, and why | Parent `lib/sourceConformance.ts` and `docs/source-conformance.md` |
 | Widget wire fields or their meaning | Coordinate source output, parent composition, Swift decoding, fixtures, and tests |
 
 Do not put source-domain policy in Swift or source-specific dispatch in the parent's
-generic settings/composition path. The parent understands temporal view items; it has
+generic composition path. The parent understands temporal view items; it has
 no internal games model. There is no intermediate feed val.
 
 ## Design intent
@@ -89,29 +89,29 @@ Canonical parent tables are `bunches`, `bunch_codes`, `devices`, `sources`,
 `device_sources`, `device_push_tokens`, and `notification_queue`. Sources own their data separately.
 
 - `sources` is a bunch-owned instance registry: `id`, `bunch_id`, `name`, `endpoint`,
-  `remote_source_key`, `contract_version`, `read_profile`, `read_transport`, plus descriptor/schema
-  snapshots and timestamps. `kind` is unrestricted diagnostic metadata, neither unique
+  `remote_source_key`, `contract_version`, `read_profile`, plus timestamps. `read_transport`
+  and `settings_schema` are inert leftovers of the retired protocol. `kind` is unrestricted diagnostic metadata, neither unique
   nor the transport dispatch key. There is no separate definitions or
   `source_instances` table.
 - A reinstall pairs into a new row; `/devices/:id/merge` resolves that by moving the
   live install ID onto the configured device and deleting the origin row. Adoption
   preserves the target's row ID, name, assignments, presentation and page; the retired
   install ID's push/alert token rows are dropped. Nothing copies assignments forward.
-- `device_sources` stores instance IDs and JSON settings independently of bunch
+- `device_sources` stores instance IDs independently of bunch
   membership. Moving a device or source between bunches preserves assignments;
   source selection and attachment do not require matching bunches. Foreign keys,
-  unique device/source pairs, and settings validation still apply. A valid bunch
+  and unique device/source pairs still apply. A valid bunch
   code is the enrollment/move path; membership is not an assignment ACL.
   The obsolete bunch triggers are retired; do not recreate them.
 - The legacy `priority` column is inert. Composition orders by item start time, then
   source ID and source-local item ID. No current form sets priority.
 - Assignment `enabled` is a non-null 0/1 flag: Live (1, default) contributes to
-  resolvers, browser Feed, and reminders; Disabled (0) retains settings and stays
-  editable with an isolated Source preview. Add can explicitly choose Disabled.
+  resolvers, browser Feed, and reminders; Disabled (0) stays attached with an isolated
+  Source preview. Add can explicitly choose Disabled.
   State controls work without source availability. Both resolver aliases use
   `getDeviceFeedConfiguration`; delivery also checks queued reminders' source state.
   Parent `docs/source-participation.md` owns semantics.
-- Source pointers are trusted parent configuration; device settings cannot override
+- Source pointers are trusted parent configuration; nothing device-side can override
   destinations. Item IDs become `<source-id>:<local-id>`, remaining stable across a
   compatible endpoint change.
 - Assigned sources execute concurrently. A failed source fails the whole composition;
@@ -122,8 +122,7 @@ Canonical parent tables are `bunches`, `bunch_codes`, `devices`, `sources`,
 | Parent path | Responsibility |
 | --- | --- |
 | `main.ts`, `http/routes/*.ts` | Stable Hono wiring, iOS routes, browser administration; no parent ingest route |
-| `lib/sourceClient.ts` | Source lookup/transport, protocol/item guards, shared selection/query types, `composeDeviceFeed` |
-| `lib/sourceSettings.ts` | Live descriptor validation, form decoding, source validation before persistence |
+| `lib/sourceClient.ts` | Source lookup, canonical GET read, item guards, `composeDeviceFeed` |
 | `lib/sourceStore.ts` | Registry and browser source projections |
 | `lib/deviceStore.ts`, `lib/deviceSourceStore.ts` | Device/assignment writes and widget-facing configuration lookup |
 | `lib/bunchStore.ts` | Bunch administration, reusable 30-minute codes, registration |
@@ -135,7 +134,7 @@ Canonical parent tables are `bunches`, `bunch_codes`, `devices`, `sources`,
 | `lib/lifecycle.ts` | Global lifecycle label set; phase-to-word resolution and the derived legacy caption |
 | `lib/guards.ts` | Domain-free runtime guards |
 | `render/pageShell.ts` | Browser styles, semantic hierarchy, navigation and shared form/table rules |
-| `render/deviceHtml.tsx`, `render/sourceHtml.tsx`, `render/bunchHtml.tsx` | Device settings/preview, source explorer, enrollment views |
+| `render/deviceHtml.tsx`, `render/sourceHtml.tsx`, `render/bunchHtml.tsx` | Device pages/preview, source explorer, enrollment views |
 | `render/rootHtml.ts`, `render/dataTable.tsx` | HTML root and shared tables |
 
 Browser work follows `AGENTS.md`: native semantic HTML, compact data-dense views,
@@ -160,18 +159,18 @@ standalone jump-off screen.
 | `GET /devices/resolve` | Alias using the same `composeDeviceFeed` path |
 | `POST /pair` | App sends `{code,device}`. Success 200 `{ok:true,deviceId}`; unknown code 404; expired code 422. Swift requires only `ok`. Codes are six characters and reusable for 30 minutes. |
 | `POST /devices/register` | Same enrollment with optional `name` |
-| `GET /config/status/:deviceId` | Legacy diagnostics using the install UUID, not an integer row ID. Unknown install returns `{deviceId,paired:false}`. Registered response includes registration/name/source diagnostics; optional sports/teams projection is compatibility-only. |
-| `GET /devices/status/:installId` | App registration/source diagnostics: `{deviceId,registered,name,sources:[{kind,settings}]}`; unknown install omits name/sources and returns `registered:false`. Kind is nonunique metadata; settings are source-owned JSON that the app ignores. |
+| `GET /config/status/:deviceId` | Legacy diagnostics using the install UUID, not an integer row ID. Unknown install returns `{deviceId,paired:false}`. Registered response includes registration/name/source diagnostics; the `teams` projection is compatibility-only and now always empty. |
+| `GET /devices/status/:installId` | App registration/source diagnostics: `{deviceId,registered,name,sources:[{kind,settings,enabled}]}`; unknown install omits name/sources and returns `registered:false`. Kind is nonunique metadata; `settings` is retired and always `{}`. |
 | `POST /device/token` | `{device,token,kind:"widget",environment:"sandbox"\|"production",active}`; `active:false` removes the token. Legacy omitted fields support old app-background tokens. Registration may precede pairing. |
 | `GET /` | Always HTML, including query-bearing URLs; links to `/bunches`, `/devices`, `/sources` |
 | `/devices/:id` | Integer-ID browser resource; default Feed tab shows live-source composition; the header gallery identifies the device |
 | `/devices/:id/settings` | Device info, name edit (GET/POST), and entry to merge functionality |
-| `/devices/:id/sources/new`, `/devices/:id/sources`, `/devices/:id/sources/:assignmentId` | Add/edit descriptor-driven settings, Live/Disabled state, and isolated saved-settings Source preview; state changes POST to `/state`, deletion to `/delete` |
+| `/devices/:id/sources/new`, `/devices/:id/sources`, `/devices/:id/sources/:assignmentId` | Attach a source and control Live/Disabled state; there is no settings form and an attach carrying one is refused 422. State changes POST to `/state`, deletion to `/delete` |
 | `/devices/:id/sources`, `/devices/:id/presentation` | Dedicated assignment index (GET) and presentation editor; device tabs are Feed, Sources, Presentation, Settings. The former `/devices/:id/preview` route is removed. |
 | `/devices/:id/merge` | Move a reinstalled app's install ID onto the device it replaces; the chosen target survives and the origin row is deleted |
 | `/sources` | Read-only registry explorer with the source gallery in place of the device gallery |
 | `/sources/:id` | Source Feed tab: reads the implementing source with its schema defaults and renders temporal items plus the raw source response; failures and empty feeds remain ordinary page states |
-| `/sources/:id/overview`, `/sources/:id/diagnostics`, `/sources/:id/settings`, `/sources/:id/devices` | Source tabs for complete registry metadata and verification, stored coverage, schema, and attached devices; the active source stays highlighted in the gallery |
+| `/sources/:id/overview`, `/sources/:id/diagnostics`, `/sources/:id/devices` | Source tabs for complete registry metadata and verification, stored coverage, and attached devices; the active source stays highlighted in the gallery |
 | `POST /internal/reminders/{build,drain}` | Reminder jobs behind `REMINDERS_TOKEN` bearer auth; unset returns 401. Drain accepts an optional row `id`, keeping an external scheduler swappable for the cron. |
 | `/bunches`, `/bunches/new`, `/bunches/:id`, `/bunches/:id/pair`, `/bunches/:id/codes` | Enrollment administration and pairing-code creation |
 
@@ -185,37 +184,33 @@ the same response.
 
 ## Wire versions
 
-**Source protocol v1** remains the active public parent/source seam. A greenfield
-**canonical source feed** serves `get-no-settings` sources and `v1` sources with
-`read_transport='get'`; other sources retain the v1 POST read. **Widget schema v2** is the parent/iOS display contract. None is an
-SDK deployment revision.
+The **canonical GET source feed** is the only parent/source seam. **Widget schema 3**
+is the parent/iOS display contract.
 
 ### Canonical GET source feed
 
-The parent has side-by-side read transports in `lib/sourceClient.ts`.
-New no-settings sources use the parent-owned `sources.read_profile='get-no-settings'`.
-Its default, `v1`, preserves existing sources. `sources.read_transport` (`post` default,
-or `get`) selects the read transport for `v1` sources only; a `get` source keeps v1
-settings, descriptor, validation and POST probes. Registry data, never instance IDs,
-selects transport. Both transports flow through
-`readSourceItems` and the same live `composeDeviceItems` implementation.
+`lib/sourceClient.ts:readSourceItems` performs one GET of the source root and
+validates the response through `lib/canonicalSource.ts`, the same guards the
+conformance probe uses. `sources.read_profile` must be `get-no-settings`;
+`sourcePointer` refuses any other value, because the column still defaults to the
+retired `v1` and a row that never set it would otherwise reach a removed transport.
+`read_transport` and `settings_schema` remain as inert columns — dropping them would
+require rebuilding `sources` and cascading away every assignment.
 
-The source-facing contract and dependency-free query encoder live in the parent's
-`source/README.md` and `source/readContract.ts`. Existing selectable sources' query
-rules live in `source/settings.md`; the new template has no settings.
-The greenfield request accepts only optional `timeZone`; `utcOffsetSeconds` is
-rejected. Existing selectable GET sources retain booleans (`true`/`false`), repeated
-string selections, and their offset context. Nested JSON, free text,
-numbers, and other escape hatches are deliberately unsupported; a source that cannot
-fit should simplify its settings. Successful responses carry
-`{sourceKey,items}` and use the existing temporal item contract.
+The source-facing contract and its dependency-free path encoder live in the parent's
+`source/README.md` and `source/readContract.ts`. **Sources take no settings.** The
+request accepts one optional `timeZone` and nothing else; an unknown parameter, a
+duplicate `timeZone`, or the retired `utcOffsetSeconds` must be rejected with 400. A
+capability that would need selection is a separate source, not a setting. Successful
+responses carry `{sourceKey,items}` and use the temporal item contract.
 
 iOS reads `TimeZone.autoupdatingCurrent` when fetching and sends its identifier
-alongside the existing offset. Both resolver aliases forward only `timeZone` to
-`get-no-settings` sources; legacy requests keep their offset context. It is a no-op placeholder:
-one optional value of 1–128 ASCII letters, digits, or `_+./-`, passed unchanged to
-`readItems(timeZone)` (`null` if absent). No zone lookup, conversion, or missing-zone
-policy is defined yet. The template ignores the argument. Named zones are not persisted or supplied to reminder jobs.
+alongside the legacy `tz` offset. The offset is now used only to stamp
+`devices.last_tz_offset_seconds` for reminder wording; it never reaches a source.
+`timeZone` is a no-op placeholder: one optional value of 1–128 ASCII letters, digits,
+or `_+./-`, passed unchanged to the source. No zone lookup, conversion, or
+missing-zone policy is defined yet. The template ignores the argument. Named zones
+are not persisted or supplied to reminder jobs.
 
 A source val has one purpose, so its root is the feed and the baseline has no version
 namespace in its URL or response. If an incompatible version is eventually needed,
@@ -233,92 +228,40 @@ instructions require classifying the feed as computed, static, stored upstream, 
 live upstream and recording freshness, failure, refresh, bootstrap, and selection
 policy in the source README. Mutable external data defaults to interval ingestion
 and source-owned SQLite; a live upstream read is a documented exception with bounded
-fan-out and timeouts. Computed and static sources need no database. The template is
-explicitly settings-free: prefer a capability-specific personalized identity, and
-stop rather than inventing settings or `timeZone` semantics. The parent refuses
-canonical GET request targets longer than 2048 characters.
+fan-out and timeouts. Computed and static sources need no database. Prefer a
+capability-specific personalized identity, and stop rather than inventing settings or
+`timeZone` semantics. The parent refuses request targets longer than 2048 characters.
 
 `POST /source-verifications` accepts `{endpoint,sourceKey}` for a public Val Town
-root and returns `{profile,pass,checks,failures}`. It supports `get-no-settings`,
-stops at the first failing request, and neither reads nor writes the registry.
-Parent-owned probes use the same GET checker and serving guards before recording
-conformance. Registration and assignment remain separate, manual operator actions;
-parent `docs/get-sources.md` owns the wiring procedure. Publication reads the final
-branch's manifest deterministically, verifies the deployed response matches its key,
-and maps manifest identity into the registry; it never discovers identity from the
-val name, README prose, a sampled response, or operator wording. New no-settings
-sources need no legacy routes: the parent supplies their empty settings form.
-Existing v1 sources keep their current descriptor-led routes and verification until
-deliberately migrated.
+root and returns `{profile,pass,checks,failures}`. It stops at the first failing
+request and neither reads nor writes the registry. Parent-owned probes use the same
+GET checker and serving guards before recording conformance. Registration and
+assignment remain separate, manual operator actions; parent `docs/get-sources.md`
+owns the wiring procedure and requires writing `read_profile` explicitly. Publication
+reads the final branch's manifest deterministically, verifies the deployed response
+matches its key, and maps manifest identity into the registry; it never discovers
+identity from the val name, README prose, a sampled response, or operator wording.
 
-### Existing v1 sources and SDK
+**Conformance is verified externally, not by what a source imports.** The probe
+asserts invariants, never values — an empty or off-season feed is a pass. Parent
+`docs/source-conformance.md` owns the contract, the registry columns, and the
+fail-open-on-staleness decision.
 
-| Operation | Envelope / rule |
-| --- | --- |
-| `GET /v1/descriptor?sourceKey=...` | Protocol/source identity, `temporal:true`, settings schema, supported capabilities |
-| `POST /v1/read` | Request `{protocolVersion:1,sourceKey,settings,context:{utcOffsetSeconds:number\|null}}`; response `{protocolVersion:1,sourceKey,items}` |
-| `POST /v1/validate-settings` | Request `{protocolVersion:1,sourceKey,settings}`; success `{protocolVersion:1,sourceKey,ok:true}` |
-| `POST /v1/write` | Request `{protocolVersion:1,sourceKey,operation,payload}`; success `{protocolVersion:1,sourceKey,ok:true,result}` |
-| `/v1/publish` | Unsupported: 501; descriptors advertise `publish:false` |
-
-**Conformance is verified externally, not by what a source imports.** The parent probes
-each v1 endpoint through its own request-path guards (`items`, `parseFormSchema`),
-asserting descriptor identity, that `validate-settings` accepts what the schema
-describes and **rejects** an unknown key, that `read` survives the composer's item guard
-under both offset shapes, that publish still answers 501, and latency/size/count
-budgets. Assertions are invariants, never values — an empty or off-season feed is a pass.
-A source may be built any way its author likes, `source-sdk` included or not; what is
-gated is the answer, not the dependency. Parent `docs/source-conformance.md` owns the
-contract, the registry columns, and the fail-open-on-staleness decision.
-
-No install identity, pairing data, presentation, or widget dimensions go to a source.
-`null` offset preserves its default timezone behavior. Every item is temporal and uses
-the widget's literal item keys. Validate responses at the seam, including identity,
-duplicate IDs, and a finite Unix-second window whose expiry is strictly after its
-start and within a plausible span (the span rule is what catches a bound written in
-milliseconds).
-
-The shared SDK is `plusjade/source-sdk`, public and dependency-free, with no HTTP
-entry, storage, credentials, or schedules. See its
-[creator guide](https://www.val.town/x/plusjade/source-sdk/code/README.md). Existing
-SDK consumers keep their tested immutable pin; new sources start from the template:
-
-```ts
-import { accept, reject, defineSource, serveSource, type Item }
-  from "https://esm.town/v/plusjade/source-sdk@17-main/mod.ts";
-```
-
-Use one revision throughout a source; update pins on a branch, run checks, then
-merge.
-
-Source implementation boundaries:
-
-- SDK (`sdk/`, exported by `mod.ts`): domain-free types, definition, protocol serving
-  and guards. Must not depend on host-val code. Capabilities derive from implemented
-  writes; dispatch accepts own properties only.
-- `lunarSource.ts`, `nflSource.ts`, etc.: definition, settings policy
-  and write operations. `parseSettings` may read storage and pass resolved context to
-  `read`; keep it free of mutation and avoid reading the catalog twice.
-- Source `lib/`: domain adapters, selection, persistence and item text.
-- `rpc.ts`: source-owned public HTTP mounts.
+No install identity, pairing data, presentation, settings, or widget dimensions go to
+a source. Every item is temporal and uses the widget's literal item keys. Validate
+responses at the seam, including identity, duplicate IDs, and a finite Unix-second
+window whose expiry is strictly after its start and within a plausible span (the span
+rule is what catches a bound written in milliseconds).
 
 **Gotcha:** SQLite scope follows the executing val, not the imported module's owner.
 Calling a database-backed source function by importing it into the parent would access
-the parent's database — cross-val data work must go over HTTP instead. The SDK
-executes inside its importing source without another HTTP hop. Provision source
+the parent's database — cross-val data work must go over HTTP instead. Provision source
 schema at deployment, not during feed reads. A Val Town code branch does not isolate
 SQLite, and a remix's copied database does not stay in sync — inspect copied
 entrypoints and environment metadata when remixing.
 
-### Generic settings forms
-
-The `get-no-settings` profile has a parent-owned empty form and accepts only `{}`.
-For existing descriptor-backed sources, supported fields are booleans and arrays of
-string choices in a closed object; choices use `const`, `title`, optional `x-group`.
-The live public descriptor, not a
-stored schema snapshot, drives editing. No parent branch should depend on a source
-kind or a field named `teams`. Full vocabulary and save semantics:
-[source-settings-contract.md](source-settings-contract.md).
+The deprecated `plusjade/source-sdk` and the `plusjade/source-*` vals that imported
+it are disconnected from the registry and serve nothing. Do not build on them.
 
 ### Widget payload
 
@@ -480,49 +423,44 @@ widget refresh into ingestion.
 publishes a window and nothing about lifecycle; `phase()` over that window decides the
 state, and the parent's global label set decides the word. A game that kicked off five
 minutes ago reads `LIVE` with no ingest in between. Stored status does not override the
-published window: an early-finished game remains current until its estimated expiry. NFL, CFB and WNBA accept only
-`teams`; the retired source `intradayFilter` key is rejected, with no compatibility
-path. Sources return selected expired candidates; device presentation owns filtering.
-See the parent's `docs/intraday-filter.md` for the contract.
-Default durations are source-owned named constants
-(`NFL_TYPICAL_GAME_SECONDS`, Lunar's one-hour event window, and siblings); neither
-the SDK nor the parent may supply one.
+published window: an early-finished game remains current until its estimated expiry.
+Sources take no settings, so nothing device-side narrows a feed; device presentation
+owns expiry filtering. See the parent's `docs/intraday-filter.md` for the contract.
+Default durations are source-owned named constants (Lunar's one-hour event window and
+siblings); the parent may not supply one.
 
-The three sports sources expose public `GET /diagnostics`. Each source's
-`diagnostics.ts` maps its own storage to
+A source may expose a public `GET /diagnostics` mapping its own storage to
 `{diagnosticsVersion:1,sourceKey,scope:"stored",totalItems,earliestTimestamp,latestTimestamp,lastIngestedAt}`.
 Event bounds are Unix seconds; empty sources return zero and null bounds. The parent
 validates this optional response in `lib/sourceDiagnostics.ts` and fetches it through
 `lib/sourceDiagnosticsClient.ts` only on the Diagnostics tab. It never guesses source
-tables or counts a filtered `/v1/read` response as total coverage. **Unsupported or
-unavailable diagnostics mean unknown, not zero** — stored bounds never establish
-complete coverage or current event statuses on their own.
+tables. **Unsupported or unavailable diagnostics mean unknown, not zero** — stored
+bounds never establish complete coverage or current event statuses on their own.
 See the parent's `docs/source-diagnostics.md`.
 
-| Source | Settings / storage | Write and known operational limits |
+The registered sources are `plusjade/feed-lunar`, `feed-gtb`, `feed-rams`,
+`feed-fever`, `feed-sparks`, `feed-trojans` and `feed-bruins`, all on the canonical
+GET profile. Each one's storage, refresh schedule and failure policy live in its own
+README; do not restate them here.
+
+| Source | Storage | Known operational shape |
 | --- | --- | --- |
-| NFL | 32 team choices; indexed `cached_games` | `sleeper.refresh` with integer `{days:1..31}`; NFL-only normalization/storage |
-| CFB | Curated `trojans`/`bruins` choices; indexed `cfb_games` with `starts_at`/`expires_at` Unix seconds | `sleeper.refresh` with integer `{days:1..31}`; the active `weekly-refresh.ts` interval runs it with seven days; not a full college roster |
-| WNBA | 15 choices; indexed `wnba_games` with `starts_at`/`expires_at` Unix seconds | `sleeper.refresh` with integer `{days:1..31}`; the active `refresh.ts` interval runs it with seven days; accepts Sleeper nested `{team:code}` |
-| Lunar | Empty settings; no storage; computed UTC+8-anchored calendar | Each GET computes the next fifteenth with Meeus new-moon arithmetic and emits a fixed-UTC one-hour window |
-| Rams | Empty settings; strict `rams_games` snapshot plus singleton `rams_refresh_state`; fixed Los Angeles Rams selection | Active six-hour UTC interval fetches sixteen Sleeper Eastern slate dates in two waves, then atomically replaces the snapshot; GET reads storage only and emits the next game with a three-hour window |
+| Lunar | None; computed UTC+8-anchored calendar | Each GET computes the next fifteenth with Meeus new-moon arithmetic and emits a fixed-UTC one-hour window |
+| Rams | Strict `rams_games` snapshot plus singleton `rams_refresh_state` | Active six-hour UTC interval fetches sixteen Sleeper Eastern slate dates in two waves, then atomically replaces the snapshot; GET reads storage only and emits the next game with a three-hour window |
 
-The stored selectable sports sources use per-team next-game union/deduplication and client-day bounds.
-Sleeper refresh uses Eastern-day windows, including yesterday for clients west of
-Eastern. `tz` is offset **seconds**, not minutes or an IANA timezone name.
-
-CFB and WNBA convert Sleeper's `start_time` milliseconds at their upstream adapters
-and store the resulting `starts_at`/`expires_at` seconds as the source's canonical
-event window. WNBA also flattens Sleeper's nested team values at that boundary. Reads
-pass stored bounds through to source-protocol items; they do not reconstruct expiry
-in the view layer. Both refreshes fetch date buckets in bounded waves with per-request
-timeouts so a slow upstream response cannot hold the weekly interval open indefinitely.
+Sources fetching Sleeper convert its `start_time` milliseconds at their upstream
+adapter and store the resulting `starts_at`/`expires_at` **seconds** as the source's
+canonical event window; reads pass those bounds straight through rather than
+reconstructing expiry in a view layer. Refreshes fetch date buckets in bounded waves
+with per-request timeouts, so a slow upstream cannot hold an interval open
+indefinitely. Sleeper's day windows are Eastern, so a source serving clients west of
+Eastern includes the previous day.
 
 ## Verification loops
 
 Classify the change using the ownership map above before touching anything remote.
 Local layout work needs no remote calls; source work needs the source's own README;
-new source authoring starts at the template's `AGENTS.md`; existing SDK work needs its guide.
+new source authoring starts at the template's `AGENTS.md`.
 
 Remote workflow: start from the cached identities in this file (use
 `val_town_get_val_detail` only if branch/ownership/access is actually in question);
@@ -543,9 +481,9 @@ Per domain, what to verify beyond the checks and what a false pass looks like:
 | --- | --- | --- |
 | Composition | Both resolver aliases and the browser preview; empty/unassigned and assigned mixed-source fixtures; namespaced IDs, ordering, ties, diagnostics, source failure, malformed output | A successful *empty* response doesn't prove an assigned source actually works — check `x-effective-sources`, then `x-quarantined-sources` |
 | Conformance | The probe against every registered source, and that only a verified one reaches a feed. Core suite covers gating, staleness derivation and quarantine diagnostics | A green feed says nothing about a source nobody has re-probed — check `conformance_verified_at`, not just the state |
-| Source | Public descriptor/read, settings/write guards, nonempty fixtures, timezone edges, source-specific selection. Source-owned checks and shared SDK `tools/sdk-check.ts` | Diagnostics reporting "unavailable" means unknown coverage, not zero |
+| Source | Public `GET /`, its 400/405 rejections, nonempty fixtures, timezone edges. Source-owned checks | Diagnostics reporting "unavailable" means unknown coverage, not zero |
 | New GET source | External `/source-verifications` against the remix's own endpoint and key; parent changes run `tools/check.ts` | A pass does not register or activate a source, prove data accuracy, or establish nonempty coverage |
-| Settings | Add/edit/clear round trips, removed choices, stale fingerprint, invalid/unavailable source responses, no persistence on failure | — |
+| Attachment | Add/remove/state round trips; an attach carrying settings must be refused and persist nothing | — |
 | Widget contract | Decode a representative composed response with Swift; update preview fixtures/tests; build app and widget for contract changes (`xcodebuild -project clark_view.xcodeproj -scheme clark_view build`/`test`); run SwiftLint | — |
 | Push | Verify token environment/topic and actual delivery separately per environment | APNs *accepting* a request is not proof a banner appeared — use console delivery logs; a simulator build proves nothing about real APNs delivery |
 | Reminders | Core suite; a disabled drain for queue processing | A disabled run exercises queue processing without proving APNs delivery; the builder still writes live queue state |
@@ -560,7 +498,7 @@ IDs, pairing codes, APNs tokens or secret values into chat, logs, fixtures or th
 repository.
 
 For a blank/stale widget, trace in order: app refresh diagnostics → resolver
-status/body and effective sources → assignments/settings → source read/coverage →
+status/body and effective sources → assignments → source read/coverage →
 ingestion. A push/reload cannot repair an empty assignment or a stale source cache.
 
 ## Gotchas and deliberately unfinished work

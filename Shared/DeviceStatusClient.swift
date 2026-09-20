@@ -11,7 +11,8 @@ enum DeviceStatusClient {
         var paired: Bool { registered }
     }
 
-    /// Kind is diagnostic metadata, not identity; source-owned settings are managed in the browser.
+    /// Kind is diagnostic metadata, not identity. Sources have no settings; the
+    /// response's retired `settings` key is ignored here.
     struct SourceAssociation: Decodable {
         let kind: String
     }

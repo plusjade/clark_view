@@ -10,6 +10,21 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-09-20
 
+- Retired source protocol v1 and per-device source settings entirely. All seven
+  registered sources had already moved to the canonical GET profile, so the POST
+  read, the descriptor/validate/publish conformance branch, and the whole
+  descriptor-driven settings stack (`lib/sourceSettings.ts`, the settings forms, the
+  source Settings tab) were dead code holding open a contract nobody used. Settings
+  are gone for good: an attach carries a source and its Live/Disabled state, and a
+  request carrying settings is refused 422 rather than ignored. `sourcePointer` now
+  throws on any `read_profile` other than `get-no-settings`, because the column still
+  defaults to the retired `v1` and a row that omitted it would otherwise reach a
+  removed transport. The `read_transport`, `settings_schema` and
+  `device_sources.settings` columns stay inert — `sources` cannot be rebuilt without
+  cascading away every assignment, and a NULL settings value would silently drop an
+  assignment from the widget feed. Verified by `tools/check.ts` plus a direct read of
+  all seven live sources.
+
 - Added one presentation-only `clarkview` route contract across widgets, Live
   Activities, and alert responses. System-surface taps now push the notifying event
   or activity snapshot instead of dropping people on setup; invalid routes do

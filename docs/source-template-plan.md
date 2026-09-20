@@ -10,5 +10,5 @@ Implemented 2026-09-17 in parent main snapshot 357.
 Current local guidance lives in [valtown-brief.md](valtown-brief.md); the rationale is
 recorded in [CHANGELOG.md](CHANGELOG.md). Existing sources retain their behavior.
 The temporary database fixtures and rollout script were removed. Neither new val is
-registered or assigned to a device. Settings support beyond the no-settings profile,
-discovery, and a registration UI remain outside this pass.
+registered or assigned to a device. Sources have since become settings-free for good;
+discovery and a registration UI remain outside this pass.
