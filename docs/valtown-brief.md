@@ -1,6 +1,8 @@
 # Clark View and Val Town: agent brief
 
 Read this before using Val Town MCP tools or changing the iOS/server boundary.
+Tool names below are unprefixed; the runtime prefix depends on how the Val Town MCP
+is installed, so discover the live names from the tool listing.
 
 **Maintenance rule — read before editing this file.** Update current ownership,
 contracts, procedures, and constraints in their relevant sections; remove superseded
@@ -67,7 +69,7 @@ endpoint **`https://plusjade--f0eeffb89a9311f19bb61607ee4eb77e.web.val.run/`**.
 
 **Preserve the HTTP file's identity: update it in place; do not delete, recreate, or
 rename it.** Endpoint identity follows the file ID, not its name. When verification is
-needed, use `links.endpoint` from `val_town_list_files`; do not invent URLs from val
+needed, use `links.endpoint` from `list_files`; do not invent URLs from val
 names. Keep iOS on this endpoint — do not substitute an unverified alternate host.
 
 All active sources are registered in bunch 1. IDs identify parent-owned instances, not
@@ -463,14 +465,14 @@ Local layout work needs no remote calls; source work needs the source's own READ
 new source authoring starts at the template's `AGENTS.md`.
 
 Remote workflow: start from the cached identities in this file (use
-`val_town_get_val_detail` only if branch/ownership/access is actually in question);
+`get_val_detail` only if branch/ownership/access is actually in question);
 list files once at the needed directory, then read only the implicated modules. Use
-targeted `val_town_replace_in_file`, or `val_town_update_file` for a mostly-rewritten
+targeted `replace_in_file`, or `update_file` for a mostly-rewritten
 file; keep route wiring in `main.ts`. For multi-file/contract work, use one branch per
 affected val, verify, then merge once per val. Verify representative deployed HTTP
-with `val_town_fetch_val_endpoint` against `main.ts` (parent) or `rpc.ts` (source) and
-the intended pathname/search — **a root-page fetch does not substitute for testing the
-actual changed route.**
+with `fetch_val_endpoint` against the val's HTTP entry (`main.ts`, in the parent and
+in every source) and the intended pathname/search. **A root-page fetch does not
+substitute for testing the actual changed route.**
 
 Automated checks follow the test policy in [AGENTS.md](../AGENTS.md#tests): parent
 changes run `tools/check.ts`; source changes run that source's own checks.
@@ -492,7 +494,7 @@ Per domain, what to verify beyond the checks and what a false pass looks like:
 Do not use production writes as casual smoke tests. Enrollment, assignments, names,
 tokens, ingest and schema operations mutate state — use scoped disposable fixtures and
 clean them up, accounting for shared SQLite even on branches. Prefer read-only route
-diagnostics, then narrow, parameterized `val_town_sqlite_execute` queries with
+diagnostics, then narrow, parameterized `sqlite_execute` queries with
 `mode:"read"` and the exact owning val database. Do not put install IDs, capability
 IDs, pairing codes, APNs tokens or secret values into chat, logs, fixtures or this
 repository.

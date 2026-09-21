@@ -8,7 +8,7 @@ orientation, build/test workflow, and `docs/valtown-brief.md` prerequisite below
 not apply. Do not load them or inspect unrelated vals.
 
 Currently supported: `source-gtb` → `plusjade/source-gtb`. Call
-`val_town_read_file` with that exact val, `path: "AGENTS.md"`, `branch: "main"`,
+the Val Town MCP's `read_file` with that exact val, `path: "AGENTS.md"`, `branch: "main"`,
 and `show_line_numbers: false`; then follow its normalization, SQLite transaction,
 and completion checks. Discover only the tools needed for this route. Do not list
 vals/files or read the source README first. The source owns the schema and rules;
