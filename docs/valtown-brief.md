@@ -429,15 +429,17 @@ Classify with the routing table above before touching anything remote.
 Remote workflow: start from the cached identities in this file (use
 `get_val_detail` only if branch/ownership/access is actually in question);
 list files once at the needed directory, then read only the implicated modules.
-`read_file` has no offset or limit, so a read costs the whole file: keep remote files
-small and single-purpose, and pass `show_line_numbers: false` unless you are about to
-cite a line or call `insert_at_line`. Load the route's tools in one discovery call
-rather than one per tool. Use targeted `replace_in_file`, or `update_file` for a
-mostly-rewritten file; keep route wiring in `main.ts`. For multi-file/contract work,
+`read_file` has no offset or limit, so a read costs the whole file, and `list_files`
+is per-directory. Let file and directory boundaries follow what changes together:
+read cost breaks ties between defensible boundaries, it never justifies splitting a
+cohesive module, and a wrong guess costs a full read. Pass `show_line_numbers: false`
+unless you are about to cite a line or call `insert_at_line`, and load the route's
+tools in one discovery call rather than one per tool. Use targeted `replace_in_file`,
+or `update_file` for a mostly-rewritten file; keep route wiring in `main.ts`. For multi-file/contract work,
 use one branch per affected val, verify, then merge once per val. Verify
 representative deployed HTTP with `fetch_val_endpoint` against the val's HTTP entry
-(`main.ts`, in the parent and in every source) and the intended pathname/search. **A root-page fetch does not
-substitute for testing the actual changed route.**
+(`main.ts`, in the parent and in every source) and the intended pathname/search.
+**A root-page fetch does not substitute for testing the actual changed route.**
 
 Automated checks follow the test policy in [AGENTS.md](../AGENTS.md#tests): parent
 changes run `tools/check.ts`; source changes run that source's own checks.
