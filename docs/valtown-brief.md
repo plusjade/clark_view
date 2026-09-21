@@ -45,6 +45,16 @@ Do not put source-domain policy in Swift or source-specific dispatch in the pare
 generic composition path. The parent understands temporal view items; it has
 no internal games model. There is no intermediate feed val.
 
+Classify the task before reading anything else. Each route is a budget, not a minimum:
+
+| Task | Read | Do not load |
+| --- | --- | --- |
+| Widget layout, diagnostics, focus, deep links | [ios-widget.md](ios-widget.md) and the Swift it names | This file past the ownership map; any remote val |
+| New source authoring | `plusjade/source-template`'s `AGENTS.md`, then its README | Parent implementation; sibling sources |
+| Source behavior, storage, or ingestion | That source's own README and `AGENTS.md` | Parent modules; sibling sources |
+| Parent routes, composition, browser, wire contracts | The code map below, then only the implicated parent modules | Swift; unrelated parent directories; other vals |
+| `add-entry:` data entry | [AGENTS.md](../AGENTS.md) routes it to the source's own instruction file | Everything else, this file included |
+
 ## Design intent
 
 A source is an independently operated capability, not a table — the point is letting
@@ -414,9 +424,7 @@ Eastern includes the previous day.
 
 ## Verification loops
 
-Classify the change using the ownership map above before touching anything remote.
-Local layout work needs no remote calls; source work needs the source's own README;
-new source authoring starts at the template's `AGENTS.md`.
+Classify with the routing table above before touching anything remote.
 
 Remote workflow: start from the cached identities in this file (use
 `get_val_detail` only if branch/ownership/access is actually in question);
