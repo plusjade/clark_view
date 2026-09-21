@@ -8,6 +8,22 @@ pointer. Preserve historical meaning; record reversals as new entries. Typo and
 broken-link corrections are allowed. See [AGENTS.md](../AGENTS.md#documenting-decisions)
 for routing current guidance, operational evidence, and routine validation.
 
+## 2026-09-21
+
+- Dropped the duplicate Val Town MCP install, keeping the claude.ai connector over the
+  `valtown@valtown` plugin. Both exposed the same 59 tools under different runtime
+  prefixes, so an identical call could land through either path. The connector is the
+  one cloud sessions get: the cloud host passes connectors in using the authorization
+  granted at claude.ai, while a user-scope plugin never leaves the machine it was
+  installed on and a repo-declared marketplace applies only after a teammate trusts the
+  folder — which a fresh cloud instance has no way to do. The cost is the plugin's
+  `valtown:*` skills; `find_val_town_skills` covers the same ground on demand. Deleted
+  `.claude/settings.json` in the same change: its 60-entry `mcp__valtown__*` allowlist
+  matched neither install's tool names and had been silently dead, so every Val Town
+  call was prompting anyway. A replacement allowlist belongs in
+  `.claude/settings.local.json`, not the committed file, because a connector id is
+  account-specific and meaningless to a teammate or a cloud instance.
+
 ## 2026-09-20
 
 - Retired source protocol v1 and per-device source settings entirely. All seven
