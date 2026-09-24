@@ -1,7 +1,6 @@
 import SwiftUI
 
-/// Every diagnostic surface reachable from the home screen. The menu is the single launcher
-/// so setup stays on the home screen and instrumentation stays one level down.
+/// The menu holds notification setup and device diagnostics beside the live feed.
 enum DiagnosticsPanel: String, Identifiable {
     case device
     case notifications
@@ -31,7 +30,7 @@ enum DiagnosticsPanel: String, Identifiable {
     @ViewBuilder var destination: some View {
         switch self {
         case .device: DeviceDiagnosticsView()
-        case .notifications: NotificationDiagnosticsView()
+        case .notifications: NotificationSettingsView()
         case .widget: WidgetDiagnosticsView()
         case .liveActivity: LiveActivityDiagnosticsView()
         }
@@ -43,7 +42,7 @@ struct DiagnosticsMenu: View {
     @Binding var selection: DiagnosticsPanel?
 
     var body: some View {
-        Menu("Diagnostics", systemImage: "ellipsis") {
+        Menu("Menu", systemImage: "ellipsis") {
             Section {
                 item(.device)
                 item(.notifications)

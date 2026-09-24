@@ -1,7 +1,7 @@
 import SwiftUI
 import WidgetKit
 
-/// Coordinates setup; permission and diagnostic screens own their respective controls.
+/// Pairing takes precedence; a paired install opens its live feed.
 struct ContentView: View {
     @Environment(NotificationSettings.self) private var notifications
     @Environment(DeepLinkRouter.self) private var deepLinks
@@ -16,7 +16,7 @@ struct ContentView: View {
         NavigationStack {
             Group {
                 if isPaired {
-                    NotificationSettingsView()
+                    FeedHomeView()
                 } else {
                     PairingView(onPaired: { isPaired = true })
                 }

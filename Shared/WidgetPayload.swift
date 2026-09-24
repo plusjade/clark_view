@@ -111,7 +111,7 @@ struct WidgetItem: Decodable, Identifiable {
     /// server-side can't break a feed. Drop it with `caption`.
     let emphasized: Bool
     /// When the event begins. Unix epoch seconds on the wire, UTC. Also drives the per-item
-    /// "TODAY"/"TMRW"/"AUG 16" day label (see `dayLabel(for:)` in ClarkViewWidget.swift) —
+    /// "TODAY"/"TMRW"/"AUG 16" day label (see `dayLabel(for:)` in BeaconDateTimeView.swift) —
     /// same locale-formatting rationale as the start-time fallback above.
     let startsAt: Date
     /// When the item stops being current. **An estimate, and never displayed.** The server

@@ -8,6 +8,14 @@ pointer. Preserve historical meaning; record reversals as new entries. Typo and
 broken-link corrections are allowed. See [AGENTS.md](../AGENTS.md#documenting-decisions)
 for routing current guidance, operational evidence, and routine validation.
 
+## 2026-09-24
+
+- Made the paired app home a full `/config/resolve` feed, with the large widget's
+  date line shared between targets and its focused-first card hierarchy carried into
+  the app. Pairing still gates the home screen; notification permission setup moved
+  into the toolbar menu's Notifications entry so the feed is the paired landing page
+  (`clark_view/FeedHomeView.swift`, `Shared/BeaconDateTimeView.swift`).
+
 ## 2026-09-21
 
 - Dropped the duplicate Val Town MCP install, keeping the claude.ai connector over the

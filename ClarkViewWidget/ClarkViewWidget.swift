@@ -214,26 +214,6 @@ extension Color {
     }
 }
 
-/// Per-item day eyebrow, computed client-side from `startsAt` against the device's local
-/// calendar — same rationale as the clock time in `BeaconDateTimeView`: only the device
-/// knows its own calendar and locale. Falls back to an abbreviated month/day (e.g. "AUG 16")
-/// once a date is neither today nor tomorrow.
-///
-/// "TMRW", not "TOMORROW": the rail's fixed width means a longer string only fits via
-/// `minimumScaleFactor`, which is an accessibility regression (shrinks the one word that
-/// most needs to stay legible) rather than a real fix. Shortening the string lets it render
-/// at full size; autosizing stays on as a safety net, not the primary mechanism.
-func dayLabel(for date: Date) -> String {
-    let calendar = Calendar.autoupdatingCurrent
-    if calendar.isDateInToday(date) { return "TODAY" }
-    if calendar.isDateInTomorrow(date) { return "TMRW" }
-
-    let formatter = DateFormatter()
-    formatter.locale = .autoupdatingCurrent
-    formatter.setLocalizedDateFormatFromTemplate("MMMd")
-    return formatter.string(from: date).uppercased()
-}
-
 struct ClarkViewWidgetEntryView: View {
     @Environment(\.widgetFamily) private var family
 

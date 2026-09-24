@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// Alert-push instrumentation; the home screen owns the permission prompt itself.
+/// Alert-push instrumentation, reached from notification setup in the menu.
 struct NotificationDiagnosticsView: View {
     @Environment(NotificationSettings.self) private var notifications
 

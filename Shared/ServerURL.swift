@@ -8,8 +8,8 @@
 import Foundation
 
 /// The shared Val Town backend base URL, used by every client (pairing, push token,
-/// device status, alerts) to build its own endpoint. `resolveURL` additionally builds
-/// the widget's one outbound request: `GET /config/resolve` returns the schema-v2
+/// device status, alerts) to build its own endpoint. `resolveURL` builds the app and
+/// widget feed request: `GET /config/resolve` returns the schema-v2
 /// payload directly, with no redirect.
 enum ServerURL {
     static let baseURL = URL(string: "https://plusjade--f0eeffb89a9311f19bb61607ee4eb77e.web.val.run/")!

@@ -16,13 +16,13 @@ to the task, not as re-confirmed fact.
 
 ## Start here: ownership and request flow
 
-Clark View is widget-first. The containing iOS app pairs an install and exposes
-diagnostics/manual reload. A browser helper configures sources. The widget displays
-server-composed temporal items.
+Clark View is widget-first. The containing iOS app pairs an install, displays the
+same live feed, and exposes notification setup and diagnostics through its menu. A
+browser helper configures sources. The widget displays server-composed temporal items.
 
 ```text
 Browser → app-clarkview → bunches, devices, source registry, assignments
-App     → app-clarkview /pair, /devices/status/:installId
+App     → app-clarkview /pair, /devices/status/:installId, /config/resolve
 Widget  → app-clarkview /config/resolve
                          → device assignments + source pointers
                          → public HTTP reads of assigned source vals
@@ -166,7 +166,7 @@ standalone jump-off screen.
 
 | Method / route | Behavior |
 | --- | --- |
-| `GET /config/resolve` | Widget entry: `device=<install UUID>`, `tz=<seconds east of GMT>`, optional `timeZone=<named zone>`. Returns schema-v2 JSON directly, no redirect, `cache-control: no-store`. Swift still sends legacy `d=<pixels>x<pixels>`; the parent ignores it. |
+| `GET /config/resolve` | Widget and paired-app feed: `device=<install UUID>`, `tz=<seconds east of GMT>`, optional `timeZone=<named zone>`. Returns schema-v2 JSON directly, no redirect, `cache-control: no-store`. Swift still sends legacy `d=<pixels>x<pixels>`; the parent ignores it. |
 | `GET /devices/resolve` | Alias using the same `composeDeviceFeed` path |
 | `POST /pair` | App sends `{code,device}`. Success 200 `{ok:true,deviceId}`; unknown code 404; expired code 422. Swift requires only `ok`. Codes are six characters and reusable for 30 minutes. |
 | `POST /devices/register` | Same enrollment with optional `name` |

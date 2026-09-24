@@ -8,7 +8,7 @@
 import SwiftUI
 import WidgetKit
 
-/// Pairs the device before handing off to notification setup.
+/// Pairs the device before handing off to the live feed.
 struct PairingView: View {
     var onPaired: () -> Void
 

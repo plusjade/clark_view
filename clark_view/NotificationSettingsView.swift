@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// Notification setup is also the paired landing screen, independent of how pairing completed.
+/// Notification setup lives in the menu after pairing.
 struct NotificationSettingsView: View {
     @Environment(NotificationSettings.self) private var notifications
     @Environment(\.openURL) private var openURL
@@ -56,12 +56,18 @@ struct NotificationSettingsView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
+
+                NavigationLink("Notification Diagnostics") {
+                    NotificationDiagnosticsView()
+                }
             }
             .frame(maxWidth: 420)
             .padding(24)
             .padding(.top, 40)
             .frame(maxWidth: .infinity)
         }
+        .navigationTitle("Notifications")
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     private var message: String {

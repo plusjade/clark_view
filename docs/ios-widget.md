@@ -19,8 +19,10 @@ and SQLite schema. No browser UI or event scheduling is part of the spike.
 | --- | --- |
 | [ServerURL.swift](../Shared/ServerURL.swift) | Base URL and resolver query |
 | [WidgetPayload.swift](../Shared/WidgetPayload.swift), [WidgetPresentation.swift](../Shared/WidgetPresentation.swift) | Wire decoding and presentation fallback |
+| [BeaconDateTimeView.swift](../Shared/BeaconDateTimeView.swift) | Shared widget/app lifecycle date line and local day label |
 | [ClarkViewWidget.swift](../ClarkViewWidget/ClarkViewWidget.swift) | Fetch/cache, preview fixtures, hourly timeline, entry view |
 | [BeaconWidgetTemplate.swift](../ClarkViewWidget/BeaconWidgetTemplate.swift), [BeaconWidgetFocusLayouts.swift](../ClarkViewWidget/BeaconWidgetFocusLayouts.swift) | Default layout and focus transition |
+| [ContentView.swift](../clark_view/ContentView.swift), [FeedHomeView.swift](../clark_view/FeedHomeView.swift) | Paired/unpaired entry and the app's full feed list |
 | [WidgetFocusStore.swift](../Shared/WidgetFocusStore.swift), [FocusWidgetItemIntent.swift](../ClarkViewWidget/FocusWidgetItemIntent.swift) | Shared local focus and short interaction-cache window |
 | [AppDeepLink.swift](../Shared/AppDeepLink.swift), [DeepLinkRouter.swift](../clark_view/DeepLinkRouter.swift) | `clarkview` subject routes shared by widgets, Live Activities, alert responses, and in-app navigation |
 | [DeviceIdentity.swift](../Shared/DeviceIdentity.swift) | Per-install UUID in `group.plusjade.clark-view`; local paired flag is copy-only |
@@ -38,6 +40,12 @@ refresh button; manual refresh lives in the app only. Reload requests ask Widget
 for a timeline and do not guarantee immediate execution; the normal timeline requests
 an hourly refresh. Native accented/vibrant appearances remain system-owned; Beacon respects
 Reduce Motion and Reduce Transparency. Consult Swift for geometry, not this file.
+
+The app opens pairing until the install is paired, then reads `/config/resolve` for
+its full feed. Its first item follows the large widget's focused card hierarchy;
+the remaining items use compact cards. The app reuses the widget's date line, refreshes
+when opened or foregrounded, and supports pull to refresh. Notification setup and its
+diagnostics live under the toolbar menu's Notifications entry.
 
 Widget and Live Activity taps carry their displayed snapshot through the app-owned
 `clarkview` URL scheme and push a native detail destination. In the large widget, a
