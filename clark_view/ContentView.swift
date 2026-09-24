@@ -1,13 +1,16 @@
 import SwiftUI
 import WidgetKit
 
-/// Pairing takes precedence; a paired install opens its live feed.
+/// Feed selection is independent of pairing; pairing remains available for notifications.
 struct ContentView: View {
     @Environment(NotificationSettings.self) private var notifications
     @Environment(DeepLinkRouter.self) private var deepLinks
     @Environment(LiveActivityCoordinator.self) private var liveActivities
     @Environment(\.scenePhase) private var scenePhase
     @State private var isPaired = DeviceIdentity.isPaired
+    @State private var selectedFeed = FeedSelection.current
+    @State private var showsFeedPicker = false
+    @State private var showsPairing = false
     @State private var diagnosticsPanel: DiagnosticsPanel?
 
     var body: some View {
@@ -15,25 +18,69 @@ struct ContentView: View {
 
         NavigationStack {
             Group {
-                if isPaired {
-                    FeedHomeView()
+                if let selectedFeed {
+                    FeedHomeView(feed: selectedFeed, chooseFeed: { showsFeedPicker = true })
                 } else {
-                    PairingView(onPaired: { isPaired = true })
+                    ContentUnavailableView {
+                        Label("Choose a feed", systemImage: "list.bullet")
+                    } description: {
+                        Text("Browse all feeds without pairing.")
+                    } actions: {
+                        Button("Choose Feed") { showsFeedPicker = true }
+                        if !isPaired { Button("Pair this device") { showsPairing = true } }
+                    }
                 }
             }
             .navigationTitle("Clark View")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                if !isPaired {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("Pair") { showsPairing = true }
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     DiagnosticsMenu(selection: $diagnosticsPanel)
                 }
             }
             .diagnosticsPanel($diagnosticsPanel)
+            .sheet(isPresented: $showsFeedPicker) {
+                FeedPickerView(selected: selectedFeed) { feed in
+                    FeedSelection.select(feed)
+                    selectedFeed = feed
+                }
+            }
+            .sheet(isPresented: $showsPairing) {
+                PairingView(onPaired: {
+                    isPaired = true
+                    showsPairing = false
+                    if selectedFeed == nil {
+                        Task {
+                            if let feed = try? await FeedDirectoryClient.existingFeed(for: DeviceIdentity.deviceID),
+                               selectedFeed == nil {
+                                FeedSelection.select(feed)
+                                selectedFeed = feed
+                            }
+                        }
+                    }
+                })
+            }
             .navigationDestination(item: $deepLinks.destination) { destination in
                 DeepLinkDetailView(destination: destination)
             }
             .onOpenURL { deepLinks.open($0) }
-            .task { await refresh() }
+            .task {
+                if selectedFeed == nil {
+                    if let feed = try? await FeedDirectoryClient.existingFeed(for: DeviceIdentity.deviceID),
+                       selectedFeed == nil {
+                        FeedSelection.select(feed)
+                        selectedFeed = feed
+                    } else if selectedFeed == nil {
+                        showsFeedPicker = true
+                    }
+                }
+                await refresh()
+            }
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { Task { await refresh() } }
             }

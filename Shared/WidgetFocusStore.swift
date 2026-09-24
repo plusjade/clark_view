@@ -10,9 +10,11 @@ import Foundation
 enum WidgetFocusStore {
     private static let focusedItemIDKey = "beaconFocusedItemID"
     private static let cacheReuseDeadlineKey = "beaconCacheReuseDeadline"
+    private static let focusFeedIDKey = "beaconFocusFeedID"
     private static let defaults = UserDefaults(suiteName: DeviceIdentity.appGroupID) ?? .standard
 
     static var shouldReuseCachedPayload: Bool {
+        guard defaults.string(forKey: focusFeedIDKey) == FeedSelection.current?.id else { return false }
         guard let deadline = defaults.object(forKey: cacheReuseDeadlineKey) as? Date else {
             return false
         }
@@ -20,8 +22,12 @@ enum WidgetFocusStore {
     }
 
     static var focusedItemID: String? {
-        get { defaults.string(forKey: focusedItemIDKey) }
+        get {
+            guard defaults.string(forKey: focusFeedIDKey) == FeedSelection.current?.id else { return nil }
+            return defaults.string(forKey: focusedItemIDKey)
+        }
         set {
+            defaults.set(FeedSelection.current?.id, forKey: focusFeedIDKey)
             if let newValue {
                 defaults.set(newValue, forKey: focusedItemIDKey)
             } else {
@@ -31,6 +37,7 @@ enum WidgetFocusStore {
     }
 
     static func handleTap(on itemID: String, changesFocus: Bool) {
+        defaults.set(FeedSelection.current?.id, forKey: focusFeedIDKey)
         if changesFocus {
             focusedItemID = itemID
         }
@@ -41,5 +48,11 @@ enum WidgetFocusStore {
 
     static func requireNetworkRefresh() {
         defaults.removeObject(forKey: cacheReuseDeadlineKey)
+    }
+
+    static func clear() {
+        defaults.removeObject(forKey: focusedItemIDKey)
+        defaults.removeObject(forKey: focusFeedIDKey)
+        requireNetworkRefresh()
     }
 }

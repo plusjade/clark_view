@@ -22,8 +22,8 @@ browser helper configures sources. The widget displays server-composed temporal 
 
 ```text
 Browser → app-clarkview → bunches, devices, source registry, assignments
-App     → app-clarkview /pair, /devices/status/:installId, /config/resolve
-Widget  → app-clarkview /config/resolve
+App     → app-clarkview /feeds, /feeds/:feedId; /pair and status remain installation routes
+Widget  → app-clarkview /feeds/:feedId
                          → device assignments + source pointers
                          → public HTTP reads of assigned source vals
                          → validate items, sort, attach presentation → widget v2
@@ -127,8 +127,11 @@ Canonical parent tables are `bunches`, `bunch_codes`, `devices`, `sources`,
   compatible endpoint change.
 - Assigned sources execute concurrently. A failed source fails the whole composition;
   partial-feed degradation is not implemented.
-- **Absent, unknown, or unassigned devices receive an empty schema-v2 feed** with
-  normal presentation and no source request. There is no starter feed.
+- In the legacy resolver, absent, unknown, or unassigned devices receive an empty
+  schema-3 feed with normal presentation and no source request. There is no starter feed.
+- Public feeds project existing device rows. Row IDs are opaque public feed IDs;
+  directory order is name (case-insensitive), then row ID. A known row with no live
+  sources composes a successful empty feed; an unknown row returns JSON 404.
 
 | Parent path | Responsibility |
 | --- | --- |
@@ -166,7 +169,10 @@ standalone jump-off screen.
 
 | Method / route | Behavior |
 | --- | --- |
-| `GET /config/resolve` | Widget and paired-app feed: `device=<install UUID>`, `tz=<seconds east of GMT>`, optional `timeZone=<named zone>`. Returns schema-v2 JSON directly, no redirect, `cache-control: no-store`. Swift still sends legacy `d=<pixels>x<pixels>`; the parent ignores it. |
+| `GET /feeds` | Public, unpaired directory: `{feeds:[{id,name}]}`. IDs are decimal row IDs carried as opaque strings by Swift; no installation identity in the response. Read-only and `no-store`. |
+| `GET /feeds/:feedId` | Public, unpaired schema-3 composition from the existing row's enabled and verified assignments and presentation. Optional `timeZone` reader context; no dimensions, installation identity, or timezone write. Unknown IDs return JSON 404; all reads use `no-store`. |
+| `GET /installations/:installId/feed` | One-time native migration lookup for an existing installation, returning `{id,name}` or JSON 404. It is separate from feed discovery and selection. |
+| `GET /config/resolve` | Legacy client feed during cutover: `device=<install UUID>`, `tz=<seconds east of GMT>`, optional `timeZone=<named zone>`. Returns schema-3 JSON directly with `no-store`; old clients may send ignored dimensions. Retain until client cutover is confirmed, then remove separately. |
 | `GET /devices/resolve` | Alias using the same `composeDeviceFeed` path |
 | `POST /pair` | App sends `{code,device}`. Success 200 `{ok:true,deviceId}`; unknown code 404; expired code 422. Swift requires only `ok`. Codes are six characters and reusable for 30 minutes. |
 | `POST /devices/register` | Same enrollment with optional `name` |
@@ -215,8 +221,8 @@ duplicate `timeZone`, or the retired `utcOffsetSeconds` must be rejected with 40
 capability that would need selection is a separate source, not a setting. Successful
 responses carry `{sourceKey,items}` and use the temporal item contract.
 
-iOS reads `TimeZone.autoupdatingCurrent` when fetching and sends its identifier
-alongside the legacy `tz` offset. The offset is now used only to stamp
+iOS reads `TimeZone.autoupdatingCurrent` when fetching a selected feed and sends only
+its identifier. Legacy resolver clients may send a `tz` offset, used only to stamp
 `devices.last_tz_offset_seconds` for reminder wording; it never reaches a source.
 `timeZone` is a no-op placeholder: one optional value of 1–128 ASCII letters, digits,
 or `_+./-`, passed unchanged to the source. No zone lookup, conversion, or

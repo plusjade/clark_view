@@ -12,43 +12,28 @@ import UIKit
 
 private enum WidgetDataService {
     private static let cachedPayloadKey = "latestWidgetPayload"
+    private static let cachedFeedIDKey = "latestWidgetPayloadFeedID"
+    private static let cachedRevisionKey = "latestWidgetPayloadRevision"
     private static let defaults = UserDefaults(suiteName: DeviceIdentity.appGroupID) ?? .standard
 
     static func fetchPayload(context: Provider.Context) async -> WidgetPayload {
-        if WidgetFocusStore.shouldReuseCachedPayload, let cachedPayload {
+        guard let feed = FeedSelection.current else { return .empty }
+        let revision = FeedSelection.revision
+        if WidgetFocusStore.shouldReuseCachedPayload, let cachedPayload = cachedPayload(for: feed) {
             return cachedPayload
         }
 
         WidgetRefreshDiagnostics.recordAttempt()
-        let scale = UITraitCollection.current.displayScale
-        let pixelWidth = Int((context.displaySize.width * scale).rounded())
-        let pixelHeight = Int((context.displaySize.height * scale).rounded())
-        let timeZone = TimeZone.autoupdatingCurrent
-        let request = URLRequest(
-            url: ServerURL.resolveURL(
-                device: DeviceIdentity.deviceID,
-                pixelWidth: pixelWidth,
-                pixelHeight: pixelHeight,
-                tzSecondsFromGMT: timeZone.secondsFromGMT(),
-                timeZoneIdentifier: timeZone.identifier
-            ),
-            cachePolicy: .reloadIgnoringLocalCacheData
-        )
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse else {
-                WidgetRefreshDiagnostics.recordFailure("Invalid server response")
-                return .empty
-            }
-            guard httpResponse.statusCode == 200 else {
-                WidgetRefreshDiagnostics.recordFailure("Server returned HTTP \(httpResponse.statusCode)")
-                return .empty
-            }
-            let payload = try JSONDecoder.widgetPayload.decode(WidgetPayload.self, from: data)
+            let (payload, data) = try await FeedDirectoryClient.payloadWithData(for: feed)
+            guard FeedSelection.current?.id == feed.id, FeedSelection.revision == revision else { return .empty }
             defaults.set(data, forKey: cachedPayloadKey)
+            defaults.set(feed.id, forKey: cachedFeedIDKey)
+            defaults.set(revision, forKey: cachedRevisionKey)
             WidgetRefreshDiagnostics.recordSuccess()
             return payload
         } catch {
+            guard FeedSelection.revision == revision else { return .empty }
             let message = error is DecodingError
                 ? "Invalid widget response"
                 : error.localizedDescription
@@ -57,8 +42,10 @@ private enum WidgetDataService {
         }
     }
 
-    private static var cachedPayload: WidgetPayload? {
-        guard let data = defaults.data(forKey: cachedPayloadKey) else {
+    private static func cachedPayload(for feed: Feed) -> WidgetPayload? {
+        guard defaults.string(forKey: cachedFeedIDKey) == feed.id,
+              defaults.string(forKey: cachedRevisionKey) == FeedSelection.revision,
+              let data = defaults.data(forKey: cachedPayloadKey) else {
             return nil
         }
         return try? JSONDecoder.widgetPayload.decode(WidgetPayload.self, from: data)
@@ -161,11 +148,16 @@ struct WidgetEntry: TimelineEntry {
     let date: Date
     let payload: WidgetPayload
     let focusedItemID: String?
+    let selectionRevision: String
+    let feedID: String?
 
-    init(date: Date, payload: WidgetPayload, focusedItemID: String? = nil) {
+    init(date: Date, payload: WidgetPayload, focusedItemID: String? = nil,
+         selectionRevision: String = FeedSelection.revision) {
         self.date = date
         self.payload = payload
         self.focusedItemID = focusedItemID
+        self.selectionRevision = selectionRevision
+        self.feedID = FeedSelection.current?.id
     }
 }
 
@@ -180,30 +172,36 @@ struct Provider: TimelineProvider {
             return
         }
         Task {
+            let revision = FeedSelection.revision
             let payload = await WidgetDataService.fetchPayload(context: context)
+            let currentPayload = revision == FeedSelection.revision ? payload : .empty
             completion(WidgetEntry(
                 date: .now,
-                payload: payload,
-                focusedItemID: WidgetFocusStore.focusedItemID
+                payload: currentPayload,
+                focusedItemID: WidgetFocusStore.focusedItemID,
+                selectionRevision: revision
             ))
         }
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<WidgetEntry>) -> Void) {
         Task {
+            let revision = FeedSelection.revision
             let payload = await WidgetDataService.fetchPayload(context: context)
+            let currentPayload = revision == FeedSelection.revision ? payload : .empty
             let now = Date.now
             let focusedItemID = WidgetFocusStore.focusedItemID
             // One entry now, then one at every later bound. The payload is identical across
             // them — only the entry's date differs, which is what moves each item to its next
             // lifecycle label without another fetch.
-            let entries = ([now] + lifecycleEntryDates(for: payload, after: now)).map {
-                WidgetEntry(date: $0, payload: payload, focusedItemID: focusedItemID)
+            let entries = ([now] + lifecycleEntryDates(for: currentPayload, after: now)).map {
+                WidgetEntry(date: $0, payload: currentPayload, focusedItemID: focusedItemID,
+                            selectionRevision: revision)
             }
             // The next moment any item's wording can change is one of its own bounds, so the
             // reload is asked for then rather than an hour later. Absent a bound in the next
             // hour this is still the hourly refresh it always was.
-            completion(Timeline(entries: entries, policy: .after(nextRefreshDate(for: payload))))
+            completion(Timeline(entries: entries, policy: .after(nextRefreshDate(for: currentPayload))))
         }
     }
 }
@@ -232,7 +230,11 @@ struct ClarkViewWidgetEntryView: View {
     }
 
     var body: some View {
-        if family == .accessoryRectangular {
+        if entry.selectionRevision != FeedSelection.revision {
+            Text("Choose feed in Clark View")
+        } else if FeedSelection.isUnavailable {
+            Text("Feed unavailable. Choose a feed in Clark View.")
+        } else if family == .accessoryRectangular {
             BeaconLockScreenView(entry: entry)
                 .widgetURL(destinationURL)
         } else {

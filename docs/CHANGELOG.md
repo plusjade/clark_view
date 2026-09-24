@@ -10,6 +10,14 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-09-24
 
+- Projected existing device rows as public feeds and moved native reads to one
+  App Group selection, preserving installation identity for pairing and tokens.
+  This provides unpaired browsing and a reversible client cutover without changing
+  storage or reminder ownership; `/config/resolve` remains isolated for older builds.
+  See `http/routes/feeds.ts` in `plusjade/app-clarkview` and `Shared/FeedSelection.swift`.
+
+## 2026-09-24
+
 - Made the paired app home a full `/config/resolve` feed, with the large widget's
   date line shared between targets and its focused-first card hierarchy carried into
   the app. Pairing still gates the home screen; notification permission setup moved

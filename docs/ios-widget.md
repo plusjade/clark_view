@@ -17,7 +17,7 @@ and SQLite schema. No browser UI or event scheduling is part of the spike.
 
 | Local file | Role |
 | --- | --- |
-| [ServerURL.swift](../Shared/ServerURL.swift) | Base URL and resolver query |
+| [ServerURL.swift](../Shared/ServerURL.swift), [FeedSelection.swift](../Shared/FeedSelection.swift) | Base URL, public feed client, App Group selection |
 | [WidgetPayload.swift](../Shared/WidgetPayload.swift), [WidgetPresentation.swift](../Shared/WidgetPresentation.swift) | Wire decoding and presentation fallback |
 | [BeaconDateTimeView.swift](../Shared/BeaconDateTimeView.swift) | Shared widget/app lifecycle date line and local day label |
 | [ClarkViewWidget.swift](../ClarkViewWidget/ClarkViewWidget.swift) | Fetch/cache, preview fixtures, hourly timeline, entry view |
@@ -41,8 +41,13 @@ for a timeline and do not guarantee immediate execution; the normal timeline req
 an hourly refresh. Native accented/vibrant appearances remain system-owned; Beacon respects
 Reduce Motion and Reduce Transparency. Consult Swift for geometry, not this file.
 
-The app opens pairing until the install is paired, then reads `/config/resolve` for
-its full feed. Its first item follows the large widget's focused card hierarchy;
+The app opens the feed picker when no selection exists; pairing is optional for
+browsing. App and widget read `/feeds/:feedId` using one App Group selection. On
+first launch, the app asks `/installations/:installId/feed` for the old row before
+offering the picker. Switching clears local payload, focus and widget cache, and
+requests a timeline reload. In-flight results check the selection revision before
+publishing; a vanished feed stays selected and shows an unavailable state. WidgetKit
+controls when the replacement timeline appears. The first item follows the large widget's focused card hierarchy;
 the remaining items use compact cards. The app reuses the widget's date line, refreshes
 when opened or foregrounded, and supports pull to refresh. Notification setup and its
 diagnostics live under the toolbar menu's Notifications entry.

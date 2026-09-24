@@ -1,16 +1,24 @@
 import SwiftUI
 
-/// The paired app reads the same composed feed as the widget and presents every item.
+/// The app reads the installation's selected public feed.
 struct FeedHomeView: View {
+    let feed: Feed
+    let chooseFeed: () -> Void
     @Environment(DeepLinkRouter.self) private var deepLinks
     @Environment(\.scenePhase) private var scenePhase
     @State private var payload: WidgetPayload?
     @State private var errorMessage: String?
     @State private var isLoading = false
+    @State private var requestID = UUID()
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    Text("Feed: \(feed.name)").font(.headline)
+                    Spacer()
+                    Button("Choose Feed", action: chooseFeed)
+                }
                 if let payload {
                     if payload.items.isEmpty {
                         ContentUnavailableView("Nothing here right now 🫨", systemImage: "sportscourt")
@@ -60,6 +68,13 @@ struct FeedHomeView: View {
         .accessibilityIdentifier("feedHome")
         .refreshable { await load() }
         .task { await load() }
+        .onChange(of: feed.id) { _, _ in
+            requestID = UUID()
+            payload = nil
+            errorMessage = nil
+            isLoading = false
+            Task { await load() }
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await load() } }
         }
@@ -67,36 +82,22 @@ struct FeedHomeView: View {
 
     private func load() async {
         guard !isLoading else { return }
+        let startedWith = requestID
         isLoading = true
-        defer { isLoading = false }
-
-        let timeZone = TimeZone.autoupdatingCurrent
-        // The resolver ignores legacy dimensions; both app and widget read this same route.
-        let url = ServerURL.resolveURL(
-            device: DeviceIdentity.deviceID,
-            pixelWidth: 0,
-            pixelHeight: 0,
-            tzSecondsFromGMT: timeZone.secondsFromGMT(),
-            timeZoneIdentifier: timeZone.identifier
-        )
+        defer { if requestID == startedWith { isLoading = false } }
         do {
-            let request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let response = response as? HTTPURLResponse, response.statusCode == 200 else {
-                throw FeedError.invalidResponse
-            }
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .secondsSince1970
-            payload = try decoder.decode(WidgetPayload.self, from: data)
+            let result = try await FeedDirectoryClient.payload(for: feed)
+            guard requestID == startedWith, FeedSelection.current?.id == feed.id else { return }
+            payload = result
             errorMessage = nil
         } catch {
-            errorMessage = "Couldn’t refresh the feed. Pull down to retry."
+            guard requestID == startedWith else { return }
+            payload = nil
+            errorMessage = error is FeedClientError && (error as? FeedClientError) == .unavailable
+                ? "This feed is unavailable. Choose another feed."
+                : "Couldn’t refresh the feed. Pull down to retry."
         }
     }
-}
-
-private enum FeedError: Error {
-    case invalidResponse
 }
 
 /// Uses the large widget's date line, type scale, surface, and focused-first hierarchy.

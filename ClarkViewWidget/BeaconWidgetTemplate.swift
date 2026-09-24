@@ -69,7 +69,9 @@ struct BeaconWidgetTemplate: View {
                                 item: item,
                                 isPrimary: item.id == focusedItemID,
                                 reduceMotion: reduceMotion,
-                                usesTranslucency: usesTranslucentSurfaces
+                                usesTranslucency: usesTranslucentSurfaces,
+                                feedID: entry.feedID ?? "",
+                                selectionRevision: entry.selectionRevision
                             )
                         }
                     } else if let primary = visibleItems.first {
@@ -158,6 +160,8 @@ private struct BeaconFocusableItemView: View {
     let isPrimary: Bool
     let reduceMotion: Bool
     let usesTranslucency: Bool
+    let feedID: String
+    let selectionRevision: String
 
     var body: some View {
         Group {
@@ -168,7 +172,10 @@ private struct BeaconFocusableItemView: View {
                 .accessibilityLabel("Open \(item.mainText)")
                 .accessibilityHint("Opens event details in Clark View")
             } else {
-                Button(intent: FocusWidgetItemIntent(itemID: item.id, changesFocus: true)) {
+                Button(intent: FocusWidgetItemIntent(
+                    itemID: item.id, changesFocus: true,
+                    feedID: feedID, selectionRevision: selectionRevision
+                )) {
                     card
                 }
                 .accessibilityLabel("Show \(item.mainText) larger")
