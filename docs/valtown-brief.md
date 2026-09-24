@@ -53,7 +53,6 @@ Classify the task before reading anything else. Each route is a budget, not a mi
 | New source authoring | `plusjade/source-template`'s `AGENTS.md`, then its README | Parent implementation; sibling sources |
 | Source behavior, storage, or ingestion | That source's own README and `AGENTS.md` | Parent modules; sibling sources |
 | Parent routes, composition, browser, wire contracts | The code map below, then only the implicated parent modules | Swift; unrelated parent directories; other vals |
-| `add-entry:` data entry | [AGENTS.md](../AGENTS.md) routes it to the source's own instruction file | Everything else, this file included |
 
 ## Design intent
 
@@ -271,9 +270,6 @@ the parent's database — cross-val data work must go over HTTP instead. Provisi
 schema at deployment, not during feed reads. A Val Town code branch does not isolate
 SQLite, and a remix's copied database does not stay in sync — inspect copied
 entrypoints and environment metadata when remixing.
-
-The deprecated `plusjade/source-sdk` and the `plusjade/source-*` vals that imported
-it are disconnected from the registry and serve nothing. Do not build on them.
 
 ### Widget payload
 

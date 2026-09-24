@@ -1,32 +1,12 @@
 # Agent instructions
 
-## Fast path: `add-entry:`
-
-When the user's request starts with `add-entry:`, route directly to the named
-source's operational instructions. This is a bounded data-entry task; the project
-orientation, build/test workflow, and `docs/valtown-brief.md` prerequisite below do
-not apply. Do not load them or inspect unrelated vals.
-
-Currently supported: `source-gtb` → `plusjade/source-gtb`. Call
-the Val Town MCP's `read_file` with that exact val, `path: "AGENTS.md"`, `branch: "main"`,
-and `show_line_numbers: false`; then follow its normalization, SQLite transaction,
-and completion checks. Discover only the tools needed for this route. Do not list
-vals/files or read the source README first. The source owns the schema and rules;
-do not duplicate them here. If its instruction file is missing, stop and report
-that dependency. An unknown source is unsupported: ask for a source-specific
-adapter to be added, rather than guessing its database or table.
-
-An explicit add-entry request authorizes the described insert; an example in a
-discussion about this workflow does not. Exact duplicates are safe retries;
-conflicting entries must never be overwritten by this route.
-
 ## Project
 
 SwiftUI iOS app with a WidgetKit extension. App target `clark_view`, bundle id `plusjade.clark-view`, deployment target iOS 26.5, Swift 5.0. No third-party dependencies.
 
 Four targets: `clark_view` (app), `ClarkViewWidgetExtension` (widget), `clark_viewTests` (unit tests), and `clark_viewUITests` (UI tests).
 
-Clark View is widget-first: the containing app handles pairing and diagnostics, while the user-facing experience lives in `ClarkViewWidget`. Its server API and browser-managed configuration are hosted by the Val Town project `plusjade/app-clarkview`. Except for the `add-entry:` fast path above, before using Val Town MCP tools or changing the iOS/server boundary, read [`docs/valtown-brief.md`](docs/valtown-brief.md); it routes each task class to the minimum it should read, and maps ownership boundaries, endpoint identities, route/payload contracts, per-domain verification loops, and known gotchas.
+Clark View is widget-first: the containing app handles pairing and diagnostics, while the user-facing experience lives in `ClarkViewWidget`. Its server API and browser-managed configuration are hosted by the Val Town project `plusjade/app-clarkview`. Before using Val Town MCP tools or changing the iOS/server boundary, read [`docs/valtown-brief.md`](docs/valtown-brief.md); it routes each task class to the minimum it should read, and maps ownership boundaries, endpoint identities, route/payload contracts, per-domain verification loops, and known gotchas.
 
 ## Documenting decisions
 
