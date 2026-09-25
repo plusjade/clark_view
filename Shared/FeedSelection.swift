@@ -46,13 +46,14 @@ enum FeedDirectoryClient {
         return try JSONDecoder().decode(Feed.self, from: data)
     }
 
-    static func payload(for feed: Feed) async throws -> WidgetPayload {
-        try await payloadWithData(for: feed).0
+    static func payload(for feed: Feed, context: FeedRequestContext) async throws -> WidgetPayload {
+        try await payloadWithData(for: feed, context: context).0
     }
 
-    static func payloadWithData(for feed: Feed) async throws -> (WidgetPayload, Data) {
+    static func payloadWithData(for feed: Feed, context: FeedRequestContext) async throws -> (WidgetPayload, Data) {
         let url = ServerURL.feedURL(feed.id, timeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier)
-        let request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
+        context.apply(to: &request)
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let status = (response as? HTTPURLResponse)?.statusCode else { throw FeedClientError.invalidResponse }
         if status == 404 { throw FeedClientError.unavailable }
@@ -64,6 +65,22 @@ enum FeedDirectoryClient {
     }
 
     private struct Directory: Decodable { let feeds: [Feed] }
+}
+
+/// Optional receipt headers; the server records them only for a registered installation.
+struct FeedRequestContext {
+    let caller: String
+    let family: String?
+    let purpose: String
+
+    static let appPreview = FeedRequestContext(caller: "app", family: nil, purpose: "preview")
+
+    func apply(to request: inout URLRequest) {
+        request.setValue(DeviceIdentity.deviceID, forHTTPHeaderField: "X-Clark-Installation")
+        request.setValue(caller, forHTTPHeaderField: "X-Clark-Caller")
+        request.setValue(family, forHTTPHeaderField: "X-Clark-Widget-Family")
+        request.setValue(purpose, forHTTPHeaderField: "X-Clark-Request-Purpose")
+    }
 }
 
 enum FeedClientError: Error, Equatable {

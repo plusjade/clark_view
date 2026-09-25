@@ -10,6 +10,13 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-09-25
 
+- Added device-reported widget inventory and feed-request receipts so operators can see
+  which feeds a device's widgets select and fetch. Widget timelines are the primary
+  trigger because they run without the app; app activation reconciles removals, which
+  run no timeline. Uploads are change-driven with a daily refresh and no polling, and
+  observations never affect public reads or subscriptions. See
+  [ios-widget.md](ios-widget.md) and the parent's `docs/widget-inventory.md`.
+
 - Retired assignment-driven reminders after the explicit subscription model was
   accepted, so widget feed state no longer authorizes alerts. Stopped the old jobs,
   voided pending legacy rows without sending, removed the assignment schema, and

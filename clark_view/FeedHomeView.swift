@@ -86,7 +86,7 @@ struct FeedHomeView: View {
         isLoading = true
         defer { if requestID == startedWith { isLoading = false } }
         do {
-            let result = try await FeedDirectoryClient.payload(for: feed)
+            let result = try await FeedDirectoryClient.payload(for: feed, context: .appPreview)
             guard requestID == startedWith, FeedSelection.current?.id == feed.id else { return }
             payload = result
             errorMessage = nil

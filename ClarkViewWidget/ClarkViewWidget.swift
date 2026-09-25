@@ -17,7 +17,7 @@ private enum WidgetDataService {
         "latestWidgetPayload:" + Data(feedID.utf8).base64EncodedString()
     }
 
-    static func fetchPayload(for feed: Feed?) async -> WidgetFetchResult {
+    static func fetchPayload(for feed: Feed?, context: FeedRequestContext) async -> WidgetFetchResult {
         guard !Task.isCancelled else { return WidgetFetchResult(payload: .empty) }
         guard let feed else { return WidgetFetchResult(payload: .empty) }
         if WidgetFocusStore.shouldReuseCachedPayload(for: feed.id),
@@ -27,7 +27,7 @@ private enum WidgetDataService {
 
         WidgetRefreshDiagnostics.recordAttempt()
         do {
-            let (payload, data) = try await FeedDirectoryClient.payloadWithData(for: feed)
+            let (payload, data) = try await FeedDirectoryClient.payloadWithData(for: feed, context: context)
             guard !Task.isCancelled else { return WidgetFetchResult(payload: .empty) }
             defaults.set(data, forKey: cacheKey(for: feed.id))
             WidgetRefreshDiagnostics.recordSuccess()
@@ -148,6 +148,12 @@ private extension JSONDecoder {
     }()
 }
 
+private extension FeedRequestContext {
+    static func widget(_ family: WidgetFamily, purpose: String) -> FeedRequestContext {
+        FeedRequestContext(caller: "widget", family: family.inventoryName, purpose: purpose)
+    }
+}
+
 private struct WidgetFetchResult {
     let payload: WidgetPayload
     var unavailable = false
@@ -197,7 +203,8 @@ struct Provider: AppIntentTimelineProvider {
             return WidgetEntry(date: .now, payload: WidgetDataService.mockPayload)
         }
         let selection = WidgetFeedContext(configuration: configuration)
-        let result = await WidgetDataService.fetchPayload(for: selection.feed)
+        let result = await WidgetDataService.fetchPayload(for: selection.feed,
+                                                          context: .widget(context.family, purpose: "snapshot"))
         return WidgetEntry(date: .now, payload: result.payload,
                            focusedItemID: selection.feed.flatMap { WidgetFocusStore.focusedItemID(for: $0.id) },
                            feedContext: selection, unavailable: result.unavailable)
@@ -205,7 +212,12 @@ struct Provider: AppIntentTimelineProvider {
 
     func timeline(for configuration: WidgetFeedIntent, in context: Context) async -> Timeline<WidgetEntry> {
         let selection = WidgetFeedContext(configuration: configuration)
-        let result = await WidgetDataService.fetchPayload(for: selection.feed)
+        // Every timeline reports, including unconfigured and cache-reuse paths; the reporter
+        // bounds itself so it never delays the timeline past its own deadline.
+        async let inventory: Void = WidgetInventoryReporter.shared.report(trigger: .timeline)
+        let result = await WidgetDataService.fetchPayload(for: selection.feed,
+                                                          context: .widget(context.family, purpose: "timeline"))
+        await inventory
         let payload = result.payload
         let now = Date.now
         let focusedItemID = selection.feed.flatMap { WidgetFocusStore.focusedItemID(for: $0.id) }

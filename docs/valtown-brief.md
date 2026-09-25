@@ -98,8 +98,8 @@ caching them here.
 ## Parent model and code map
 
 Canonical parent tables include `bunches`, `bunch_codes`, `devices`, `sources`,
-`feeds`, `feeds_sources`, `device_subscriptions`, `device_push_tokens`, and
-`subscription_notification_queue`. The retired `notification_queue` is retained
+`feeds`, `feeds_sources`, `device_subscriptions`, `device_push_tokens`,
+`subscription_notification_queue`, `device_widget_inventory`, and `device_feed_requests`. The retired `notification_queue` is retained
 as delivery history.
 `feeds` has independently allocated stable IDs, editable nonunique names,
 presentation, and timestamps. `feeds_sources` has a unique feed/source pair,
@@ -150,6 +150,7 @@ surface type, or ACL. Sources own their data separately.
 | `lib/presentation.ts` | Presentation defaults, stored JSON parsing, form validation |
 | `lib/deviceTokenStore.ts`, `lib/push.ts` | Token lifecycle and best-effort device notification (`notifyDevice`) |
 | `lib/subscriptionStore.ts` | Explicit subscription policy and notification ledger |
+| `lib/widgetObservationStore.ts`, `http/routes/widgetObservations.ts` | Device-reported widget inventory, feed-request receipts, `/devices/:id/views`; parent `docs/widget-inventory.md` |
 | `lib/subscriptionBuilder.ts`, `lib/subscriptionDrainer.ts` | Queue events from subscribed feeds; validate and send due alerts |
 | `crons/buildReminders.ts`, `crons/drainReminders.ts` | The two reminder schedules |
 | `lib/lifecycle.ts` | Global lifecycle label set; phase-to-word resolution and the derived legacy caption |
@@ -174,7 +175,8 @@ Browser tab titles retain resource names. The root remains a standalone jump-off
 | Method / route | Behavior |
 | --- | --- |
 | `GET /feeds` | Public, unpaired directory: `{feeds:[{id,name}]}`. IDs are decimal row IDs carried as opaque strings by Swift; no installation identity in the response. Read-only and `no-store`. |
-| `GET /feeds/:feedId` | Public, unpaired schema-3 composition from an independent feed's enabled and verified assignments and presentation. Optional `timeZone` reader context. Unknown or deleted IDs return JSON 404; a valid empty feed succeeds. Reads use `no-store`. |
+| `GET /feeds/:feedId` | Public, unpaired schema-3 composition from an independent feed's enabled and verified assignments and presentation. Optional `timeZone` reader context. Unknown or deleted IDs return JSON 404; a valid empty feed succeeds. Reads use `no-store`. Optional `X-Clark-Installation`, `X-Clark-Caller`, `X-Clark-Widget-Family`, `X-Clark-Request-Purpose` headers record a receipt for a registered device only; they never change the response. |
+| `POST /device/widget-inventory` | `{device,observedAt,widgets:[{kind,family,state,feedId?}]}` complete snapshot; `state` is `configured`/`unconfigured`/`unreadable`. Replaces the stored snapshot unless older (`{ok:true,stale:true}`). Unknown install 404, malformed 400. |
 | `GET /installations/:installId/feed` | One-time native migration lookup through frozen `legacy_installation_feeds`, returning `{id,name}` or JSON 404. New installations have no mapping. |
 | `GET /config/resolve` | Temporary legacy client feed through the frozen installation mapping: `device=<install UUID>`, `tz=<seconds east of GMT>`, optional `timeZone=<named zone>`. Unmapped requests return an empty schema-3 feed. Retain until client cutover is confirmed. |
 | `GET /devices/resolve` | Temporary alias through the same frozen mapping |
@@ -187,6 +189,7 @@ Browser tab titles retain resource names. The root remains a standalone jump-off
 | `/feeds/manage`, `/feeds/new` | Browser feed index and creation; `/feeds` remains JSON |
 | `/feeds/:id/manage` | Feed preview, source attachment/state/removal, presentation, rename, and deletion |
 | `/devices/:id`, `/devices/:id/settings`, `/devices/:id/subscriptions` | Device identity and name edit, explicit feed subscriptions, enrollment and merge entry |
+| `/devices/:id/views` | Latest reported widget inventory and per feed/caller/family/purpose request receipts, labeled with report times |
 | `/devices/:id/merge` | Move a reinstalled app's install ID onto the device it replaces; the chosen target survives and the origin row is deleted |
 | `/sources` | Read-only registry explorer with the source gallery in place of the device gallery |
 | `/sources/:id` | Source Feed tab: reads the implementing source with its schema defaults and renders temporal items plus the raw source response; failures and empty feeds remain ordinary page states |

@@ -53,6 +53,7 @@ struct ContentView: View {
                 PairingView(onPaired: {
                     isPaired = true
                     showsPairing = false
+                    Task { await WidgetInventoryReporter.shared.report(trigger: .pairing) }
                     if selectedFeed == nil {
                         Task {
                             if let feed = try? await FeedDirectoryClient.existingFeed(for: DeviceIdentity.deviceID),
@@ -87,6 +88,7 @@ struct ContentView: View {
     }
 
     private func refresh() async {
+        Task { await WidgetInventoryReporter.shared.report(trigger: .appActivation) }
         await liveActivities.refresh()
         await notifications.refresh()
         // A failed fetch must not erase pairing; a lost pairing response can be recovered here.
