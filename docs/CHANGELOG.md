@@ -14,7 +14,7 @@ for routing current guidance, operational evidence, and routine validation.
   accepted, so widget feed state no longer authorizes alerts. Stopped the old jobs,
   voided pending legacy rows without sending, removed the assignment schema, and
   merged the subscription path to parent `main` version 390. Schedule activation
-  remains an operational step; see [valtown-brief.md](valtown-brief.md) and the
+  was a separate operational step; see [valtown-brief.md](valtown-brief.md) and the
   parent's `docs/subscriptions.md`.
 
 - Chose explicit device-to-feed subscriptions for reminders, with a typed lead

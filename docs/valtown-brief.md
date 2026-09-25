@@ -364,16 +364,16 @@ pending. Recheck and close this status after one widget is configured with a
 named feed, that feed is edited in the browser, and the refreshed widget shows
 the edit without changing its stored ID.
 
-**Reminder activation status (observed 2026-09-25).** Subscription code was merged
-from `codex-device-subscriptions` to parent `main` version 390. The old jobs were
-stopped, five pending legacy queue rows were voided without sending, and
-`device_sources` plus the obsolete device reminder columns were removed. The old
-`notification_queue` remains as history. Parent `tools/check.ts` passed, as did a
-disposable disabled-send subscription smoke on main. Both replacement cron files
-have type `interval`, but `read_interval_settings` reports `isActive:false` for each;
-scheduled reminders are currently off. Activate both schedules in the Val Town UI,
-then verify `isActive:true` for each and observe a scheduled run before closing this
-status. The parent `docs/subscriptions.md` owns the current contract.
+Subscription code was merged from `codex-device-subscriptions` to parent `main`
+version 390 on 2026-09-25. The old jobs were stopped, five pending legacy queue
+rows were voided without sending, and `device_sources` plus the obsolete device
+reminder columns were removed. The old `notification_queue` remains as history.
+Both replacement schedules are active: builder at :00/:15/:30/:45 UTC and drainer
+at :05/:20/:35/:50 UTC. Parent `tools/check.ts` and a disposable disabled-send
+smoke passed after schema removal. Scheduled runs at 17:00 and 17:05 UTC on
+2026-09-25 logged zero work and no failures because no subscriptions existed.
+For current operation, check `read_interval_settings` and the two cron file logs;
+the parent `docs/subscriptions.md` owns the reminder contract.
 
 Subscriptions follow current enabled, verified `feeds_sources` and canonical source
 items, independent of feed presentation and widget selection. The ledger deduplicates
