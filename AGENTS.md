@@ -36,6 +36,10 @@ Unit tests (`clark_viewTests`) use the **Swift Testing** framework (`import Test
 
 Checks are a black box. Run them; don't read them unless they fail.
 
+Follow [Testing and manual acceptance](docs/testing.md) for the boundary between
+core-flow verification and manual end-to-end acceptance. Every implementation
+handoff includes a change-specific manual testing plan.
+
 - **Run the core.** Parent (`plusjade/app-clarkview`) changes: `run_file` on `tools/check.ts`. Source or SDK changes: that val's own checks. iOS changes: `xcodebuild … test`.
 - **Read a check only when it fails**, and only that one. Fix the code, not the check.
 - **Edit a check only when the contract it asserts intentionally changed**, or when asked to work on tests. Change the minimum. Don't tidy or extend checks in passing.

@@ -10,6 +10,11 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-09-24
 
+- Bounded agent verification to required checks and a representative core-flow
+  smoke test, with broader end-to-end combinations handed off in an explicit
+  manual testing plan. This limits repeated runtime setup and acceptance-matrix
+  exploration during implementation; see [testing.md](testing.md).
+
 - Retired the original static widget and Follow app mode so each placed widget has
   one explicit Feed setting independent of the app's preview choice. The configurable
   kind and `feed` parameter stay stable for existing pinned widgets; static placements
