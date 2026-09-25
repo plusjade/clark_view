@@ -10,6 +10,16 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-09-24
 
+- Migrated projected device compositions into independent `feeds` and
+  `feeds_sources`, copying IDs once so existing widget selections continue to
+  resolve. New feeds can be named and edited without a device; legacy installation
+  lookup uses a frozen mapping so later device changes cannot change content.
+  Kept reminder assignments temporarily pending an explicit subscription decision.
+  See parent `lib/feedStore.ts`, `http/routes/feeds.ts`, and
+  [valtown-brief.md](valtown-brief.md).
+
+## 2026-09-24
+
 - Bounded agent verification to required checks and a representative core-flow
   smoke test, with broader end-to-end combinations handed off in an explicit
   manual testing plan. This limits repeated runtime setup and acceptance-matrix

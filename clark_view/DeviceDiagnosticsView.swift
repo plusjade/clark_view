@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Registration identity and the sources the server has assigned to this device.
+/// Registration identity and enrollment diagnostics for this installation.
 struct DeviceDiagnosticsView: View {
     @State private var status: DeviceStatusClient.DeviceStatus?
     @State private var isLoading = false
@@ -16,25 +16,6 @@ struct DeviceDiagnosticsView: View {
                     ProgressView()
                 } else {
                     Text("Couldn’t load status").foregroundStyle(.secondary)
-                }
-            }
-
-            if let status {
-                Section("Assigned Sources") {
-                    if let sources = status.sources {
-                        if sources.isEmpty {
-                            Text("No sources assigned. Add a source in the browser to populate the widget.")
-                                .foregroundStyle(.secondary)
-                        } else {
-                            // Kind is metadata, not unique identity; preserve each association in response order.
-                            ForEach(Array(sources.enumerated()), id: \.offset) { _, source in
-                                Text(source.kind)
-                            }
-                        }
-                    } else {
-                        Text(status.paired ? "Source associations unavailable." : "Pair this device to assign sources.")
-                            .foregroundStyle(.secondary)
-                    }
                 }
             }
 

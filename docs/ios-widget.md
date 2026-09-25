@@ -44,12 +44,15 @@ Reduce Motion and Reduce Transparency. Consult Swift for geometry, not this file
 The app opens the feed picker when no selection exists; pairing is optional for
 browsing. The app reads `/feeds/:feedId` from its persistent App Group selection,
 which is only for its own preview. On first launch, it asks
-`/installations/:installId/feed` for the old row before offering the picker.
+`/installations/:installId/feed` for the frozen pre-migration feed mapping before
+offering the picker. Later device changes do not alter that mapping.
 Switching clears the app's previous payload and has no effect on widgets. The one
 registered Clark View widget kind is configurable for home and lock screens. Its
 native editor has one Feed setting populated from `/feeds`; each widget needs an
 explicit choice and retains its opaque feed ID. Old static placements must be
 replaced, and old Follow app configurations must be edited to choose a feed.
+The intent query resolves names from `/feeds`, so a server rename appears when
+the editor next resolves the stored ID.
 Widget choice creates no notification subscription. A missing feed asks the user
 to Edit Widget; an unconfigured widget asks for a feed. Temporary network failure
 does not replace a configured ID. Widgets showing the same feed share focus and

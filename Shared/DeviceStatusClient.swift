@@ -1,20 +1,13 @@
 import Foundation
 
-/// Reads registration and assigned sources; widget content uses the resolver separately.
+/// Reads installation registration; feed selection is independent of this device.
 enum DeviceStatusClient {
     struct DeviceStatus: Decodable {
         let deviceId: String
         let registered: Bool
         let name: String?
-        let sources: [SourceAssociation]?
 
         var paired: Bool { registered }
-    }
-
-    /// Kind is diagnostic metadata, not identity. Sources have no settings; the
-    /// response's retired `settings` key is ignored here.
-    struct SourceAssociation: Decodable {
-        let kind: String
     }
 
     static func fetch(device: String) async -> DeviceStatus? {

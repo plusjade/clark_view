@@ -7,16 +7,16 @@ struct DeviceStatusClientTests {
     @Test func unknownInstallRemainsUnpaired() throws {
         let status = try decode(#"{"deviceId":"test-install","registered":false}"#)
         #expect(!status.paired)
-        #expect(status.sources == nil)
+        #expect(status.name == nil)
     }
 
-    @Test func registeredDeviceCanHaveNoAssignments() throws {
-        let status = try decode(#"{"deviceId":"test-install","registered":true,"name":null,"sources":[]}"#)
+    @Test func registeredDeviceHasIndependentIdentity() throws {
+        let status = try decode(#"{"deviceId":"test-install","registered":true,"name":null}"#)
         #expect(status.paired)
-        #expect(status.sources?.isEmpty == true)
+        #expect(status.name == nil)
     }
 
-    @Test func associationsPreserveDuplicateKindsAndIgnoreSourceOwnedSettings() throws {
+    @Test func legacySourceFieldsDoNotAffectRegistration() throws {
         let status = try decode("""
         {"deviceId":"test-install","registered":true,"name":"Example","sources":[
           {"kind":"example","settings":{"choices":["one","two"],"enabled":false}},
@@ -25,8 +25,7 @@ struct DeviceStatusClientTests {
         ]}
         """)
         #expect(status.paired)
-        let sources = try #require(status.sources)
-        #expect(sources.map(\.kind) == ["example", "example", "another-source"])
+        #expect(status.name == "Example")
     }
 
     @Test func missingRegistrationDoesNotBecomeUnpaired() {
