@@ -98,7 +98,9 @@ caching them here.
 ## Parent model and code map
 
 Canonical parent tables include `bunches`, `bunch_codes`, `devices`, `sources`,
-`feeds`, `feeds_sources`, `device_push_tokens`, and `notification_queue`.
+`feeds`, `feeds_sources`, `device_subscriptions`, `device_push_tokens`, and
+`subscription_notification_queue`. The retired `notification_queue` is retained
+as delivery history.
 `feeds` has independently allocated stable IDs, editable nonunique names,
 presentation, and timestamps. `feeds_sources` has a unique feed/source pair,
 foreign keys, and a Live/Disabled flag. Neither table has device ownership,
@@ -115,16 +117,14 @@ surface type, or ACL. Sources own their data separately.
 - `feeds_sources` stores source instance IDs independently of bunch membership.
   Feed attachment does not require a device or matching bunch. The obsolete bunch
   triggers stay retired.
-- `device_sources` remains temporarily for assignment-driven reminders only.
-  Public feed composition, browser editing, and device diagnostics never read it.
-  Do not remove it or change reminder scheduling before the explicit subscription decision.
+- Reminders require an explicit `device_subscriptions` row. Feed attachment,
+  widget selection, and device enrollment never create one implicitly.
 - The legacy `priority` column is inert. Composition orders by item start time, then
   source ID and source-local item ID. No current form sets priority.
 - Feed assignment `enabled` is a non-null 0/1 flag. Live (1, default) contributes
   to public composition; Disabled (0) stays attached. An enabled unverified source
   is withheld and diagnosed. State controls work without source availability.
   Both legacy resolver aliases use a frozen installation-to-feed mapping.
-  Reminder delivery still checks its separate device assignment state.
 - Source pointers are trusted parent configuration; nothing device-side can override
   destinations. Item IDs become `<source-id>:<local-id>`, remaining stable across a
   compatible endpoint change.
@@ -145,17 +145,17 @@ surface type, or ACL. Sources own their data separately.
 | `lib/sourceClient.ts` | Source lookup, canonical GET read, item guards, `composeFeed` |
 | `lib/feedStore.ts` | Independent feed CRUD, source attachment, composition lookup, frozen legacy mapping |
 | `lib/sourceStore.ts` | Registry and browser source projections |
-| `lib/deviceStore.ts`, `lib/deviceSourceStore.ts` | Device identity and temporary reminder assignment storage |
+| `lib/deviceStore.ts` | Device identity |
 | `lib/bunchStore.ts` | Bunch administration, reusable 30-minute codes, registration |
 | `lib/presentation.ts` | Presentation defaults, stored JSON parsing, form validation |
 | `lib/deviceTokenStore.ts`, `lib/push.ts` | Token lifecycle and best-effort device notification (`notifyDevice`) |
-| `lib/reminderStore.ts` | `notification_queue` ledger, device reminder columns, claim and settlement |
-| `lib/reminderBuilder.ts`, `lib/reminderDrainer.ts` | Queue events from composed feeds; send due reminders as alerts |
+| `lib/subscriptionStore.ts` | Explicit subscription policy and notification ledger |
+| `lib/subscriptionBuilder.ts`, `lib/subscriptionDrainer.ts` | Queue events from subscribed feeds; validate and send due alerts |
 | `crons/buildReminders.ts`, `crons/drainReminders.ts` | The two reminder schedules |
 | `lib/lifecycle.ts` | Global lifecycle label set; phase-to-word resolution and the derived legacy caption |
 | `lib/guards.ts` | Domain-free runtime guards |
 | `render/pageShell.ts` | Browser styles, semantic hierarchy, navigation and shared form/table rules |
-| `render/feedHtml.tsx`, `render/deviceHtml.tsx`, `render/sourceHtml.tsx`, `render/bunchHtml.tsx` | Feed administration, device identity, source explorer, enrollment |
+| `render/feedHtml.tsx`, `render/deviceHtml.tsx`, `render/sourceHtml.tsx`, `render/bunchHtml.tsx` | Feed administration, device identity and subscriptions, source explorer, enrollment |
 | `render/rootHtml.ts`, `render/dataTable.tsx` | HTML root and shared tables |
 
 Browser work follows `AGENTS.md`: native semantic HTML, compact data-dense views,
@@ -186,12 +186,12 @@ Browser tab titles retain resource names. The root remains a standalone jump-off
 | `GET /` | HTML entry with links to `/bunches`, `/devices`, `/feeds/manage`, and `/sources` |
 | `/feeds/manage`, `/feeds/new` | Browser feed index and creation; `/feeds` remains JSON |
 | `/feeds/:id/manage` | Feed preview, source attachment/state/removal, presentation, rename, and deletion |
-| `/devices/:id`, `/devices/:id/settings` | Device identity and name edit, with enrollment and merge entry |
+| `/devices/:id`, `/devices/:id/settings`, `/devices/:id/subscriptions` | Device identity and name edit, explicit feed subscriptions, enrollment and merge entry |
 | `/devices/:id/merge` | Move a reinstalled app's install ID onto the device it replaces; the chosen target survives and the origin row is deleted |
 | `/sources` | Read-only registry explorer with the source gallery in place of the device gallery |
 | `/sources/:id` | Source Feed tab: reads the implementing source with its schema defaults and renders temporal items plus the raw source response; failures and empty feeds remain ordinary page states |
 | `/sources/:id/overview`, `/sources/:id/diagnostics`, `/sources/:id/feeds` | Source tabs for registry metadata and verification, stored coverage, and attached feeds |
-| `POST /internal/reminders/{build,drain}` | Reminder jobs behind `REMINDERS_TOKEN` bearer auth; unset returns 401. Drain accepts an optional row `id`, keeping an external scheduler swappable for the cron. |
+| `POST /internal/reminders/{build,drain}` | Subscription reminder jobs behind `REMINDERS_TOKEN` bearer auth; unset returns 401. Drain accepts an optional row `id`, keeping an external scheduler swappable for the cron. |
 | `/bunches`, `/bunches/new`, `/bunches/:id`, `/bunches/:id/pair`, `/bunches/:id/codes` | Enrollment administration and pairing-code creation |
 
 Resolver diagnostics include `x-device-feed-provider: source-registry-v1`,
@@ -225,8 +225,8 @@ capability that would need selection is a separate source, not a setting. Succes
 responses carry `{sourceKey,items}` and use the temporal item contract.
 
 iOS reads `TimeZone.autoupdatingCurrent` when fetching a selected feed and sends only
-its identifier. Legacy resolver clients may send a `tz` offset, used only to stamp
-`devices.last_tz_offset_seconds` for reminder wording; it never reaches a source.
+its identifier. Legacy resolver clients may still send a `tz` offset, but the parent
+does not persist or forward it to a source.
 `timeZone` is a no-op placeholder: one optional value of 1–128 ASCII letters, digits,
 or `_+./-`, passed unchanged to the source. No zone lookup, conversion, or
 missing-zone policy is defined yet. The template ignores the argument. Named zones
@@ -364,29 +364,24 @@ pending. Recheck and close this status after one widget is configured with a
 named feed, that feed is edited in the browser, and the refreshed widget shows
 the edit without changing its stored ID.
 
-**Open cutover decision (observed 2026-09-24).** Public feed reads and browser
-editing use `feeds_sources`. Scheduled reminders still use `device_sources` and
-`devices.presentation`, which were retained expressly for this deferred decision.
-Choose retirement with pending-delivery settlement or a separate notification
-subscription relationship before removing that storage. Recheck and close this
-section when the chosen reminder path has been implemented and verified. The
-parent runner `tools/check.ts` covers the current behavior.
+**Reminder activation status (observed 2026-09-25).** Subscription code was merged
+from `codex-device-subscriptions` to parent `main` version 390. The old jobs were
+stopped, five pending legacy queue rows were voided without sending, and
+`device_sources` plus the obsolete device reminder columns were removed. The old
+`notification_queue` remains as history. Parent `tools/check.ts` passed, as did a
+disposable disabled-send subscription smoke on main. Both replacement cron files
+have type `interval`, but `read_interval_settings` reports `isActive:false` for each;
+scheduled reminders are currently off. Activate both schedules in the Val Town UI,
+then verify `isActive:true` for each and observe a scheduled run before closing this
+status. The parent `docs/subscriptions.md` owns the current contract.
 
-Event reminders remain on the pre-migration device assignment path while the
-notification subscription decision is deferred. `crons/buildReminders.ts` queues one
-`notification_queue` row per upcoming legacy composed item per device, and
-`crons/drainReminders.ts` sends each row as a visible alert once `send_after` passes.
-Alert channel only; a reminder does not refresh the widget. `UNIQUE(device_id,item_id,rule)`
-plus a compare-and-swap claim make delivery at-most-once under overlapping runs and
-repeated triggers, so an abandoned claim is failed rather than retried. `REMINDERS_ENABLED`
-gates sending: while unset the queue still drains and records what each row would have
-sent, which is the intended dry-run posture before enabling. The correctness constraint
-is coverage, not latency — every device must be built at least once inside its own
-reminder lead, so watch the oldest `devices.reminders_built_at` as the fleet grows.
-`devices.last_tz_offset_seconds` is captured from the resolver's `tz`, conditionally and
-best-effort; it is an offset, not a timezone. The app's new `timeZone` context is not
-persisted; quiet hours still need a named-zone policy and storage before they can be
-correct. Details in the parent's `docs/event-reminders.md`.
+Subscriptions follow current enabled, verified `feeds_sources` and canonical source
+items, independent of feed presentation and widget selection. The ledger deduplicates
+overlapping feeds by device, namespaced item ID, and lead; terminal results are not
+replayed. `REMINDERS_ENABLED` gates APNs delivery. Alerts do not refresh the widget.
+No old assignment becomes a subscription automatically. Quiet hours require a
+named-zone policy and storage before they can be correct. Details in the parent's
+`docs/subscriptions.md` and `docs/event-reminders.md`.
 
 **Parent timestamp convention: ISO-8601 UTC text matching `Date.toISOString()`.** Every
 stored time now follows it, `device_alert_tokens.last_test_at` included (a never-tested
@@ -506,8 +501,7 @@ Keep these constraints; use Git/Val Town history for change lists and old probes
   Each non-sports source retains its own date-selection semantics; a timezone redesign requires
   source-specific fixtures, not a blanket shift of timestamps.
 - **Never rebuild `sources` to change a constraint.** Foreign keys are on and
-  both `feeds_sources` and the temporary `device_sources` cascade on delete, so
-  dropping the table wipes assignments.
+  `feeds_sources` cascades on delete, so dropping the table wipes assignments.
   Add a column instead.
 - **Do not replay completed token backfills.** `INSERT OR IGNORE` only skips rows
   still present, so replaying a backfill after a dead-token cleanup can resurrect

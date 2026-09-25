@@ -8,6 +8,23 @@ pointer. Preserve historical meaning; record reversals as new entries. Typo and
 broken-link corrections are allowed. See [AGENTS.md](../AGENTS.md#documenting-decisions)
 for routing current guidance, operational evidence, and routine validation.
 
+## 2026-09-25
+
+- Retired assignment-driven reminders after the explicit subscription model was
+  accepted, so widget feed state no longer authorizes alerts. Stopped the old jobs,
+  voided pending legacy rows without sending, removed the assignment schema, and
+  merged the subscription path to parent `main` version 390. Schedule activation
+  remains an operational step; see [valtown-brief.md](valtown-brief.md) and the
+  parent's `docs/subscriptions.md`.
+
+- Chose explicit device-to-feed subscriptions for reminders, with a typed lead
+  before start and a separate ledger keyed by device, namespaced item, and lead.
+  This keeps notification policy independent of public feed and widget selection,
+  while overlapping subscribed feeds authorize one alert. Staged steps 1–5 on
+  parent branch `codex-device-subscriptions`; legacy scheduling remains active
+  pending the requested cutover check-in. See [valtown-brief.md](valtown-brief.md)
+  and the parent's `docs/subscriptions.md`.
+
 ## 2026-09-24
 
 - Migrated projected device compositions into independent `feeds` and
