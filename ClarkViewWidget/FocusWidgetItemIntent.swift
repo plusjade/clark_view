@@ -19,22 +19,16 @@ struct FocusWidgetItemIntent: AppIntent {
     @Parameter(title: "Feed")
     var feedID: String
 
-    @Parameter(title: "Selection")
-    var selectionRevision: String
-
     init() {}
 
-    init(itemID: String, changesFocus: Bool, feedID: String, selectionRevision: String) {
+    init(itemID: String, changesFocus: Bool, feedID: String) {
         self.itemID = itemID
         self.changesFocus = changesFocus
         self.feedID = feedID
-        self.selectionRevision = selectionRevision
     }
 
     func perform() async throws -> some IntentResult {
-        if FeedSelection.current?.id == feedID, FeedSelection.revision == selectionRevision {
-            WidgetFocusStore.handleTap(on: itemID, changesFocus: changesFocus)
-        }
+        WidgetFocusStore.handleTap(on: itemID, in: feedID, changesFocus: changesFocus)
         return .result()
     }
 }

@@ -10,6 +10,23 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-09-24
 
+- Retired the original static widget and Follow app mode so each placed widget has
+  one explicit Feed setting independent of the app's preview choice. The configurable
+  kind and `feed` parameter stay stable for existing pinned widgets; static placements
+  and former Follow app configurations need manual replacement or editing. This keeps
+  widget choice local without adding server-managed defaults or migration machinery.
+
+## 2026-09-24
+
+- Made widget feed choice an App Intent configuration with Follow app as the default.
+  Kept the original static widget kind for placed instances after WidgetKit refused
+  to give them an intent on upgrade; new configurable instances use a separate kind.
+  Pinned widgets carry their own feed context and share focus/cache only with widgets
+  on that feed, so changing the app feed cannot invalidate another widget. See
+  `Shared/WidgetFeedIntent.swift` and `ClarkViewWidget/ClarkViewWidget.swift`.
+
+## 2026-09-24
+
 - Projected existing device rows as public feeds and moved native reads to one
   App Group selection, preserving installation identity for pairing and tokens.
   This provides unpaired browsing and a reversible client cutover without changing

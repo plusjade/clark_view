@@ -28,8 +28,8 @@ struct FeedPickerView: View {
                     if isLoading { ProgressView("Loading feeds") }
                     if feeds.isEmpty && !isLoading && errorMessage == nil { Text("No feeds available") }
                 } footer: {
-                    Text("This feed is used by the app and all Clark View widgets. " +
-                         "Selecting it does not subscribe this device to its notifications.")
+                    Text("This choice previews a feed in the app. Configure each widget separately. " +
+                         "Selecting a feed does not subscribe this device to its notifications.")
                 }
                 if let errorMessage {
                     Section {

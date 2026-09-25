@@ -20,7 +20,7 @@ and SQLite schema. No browser UI or event scheduling is part of the spike.
 | [ServerURL.swift](../Shared/ServerURL.swift), [FeedSelection.swift](../Shared/FeedSelection.swift) | Base URL, public feed client, App Group selection |
 | [WidgetPayload.swift](../Shared/WidgetPayload.swift), [WidgetPresentation.swift](../Shared/WidgetPresentation.swift) | Wire decoding and presentation fallback |
 | [BeaconDateTimeView.swift](../Shared/BeaconDateTimeView.swift) | Shared widget/app lifecycle date line and local day label |
-| [ClarkViewWidget.swift](../ClarkViewWidget/ClarkViewWidget.swift) | Fetch/cache, preview fixtures, hourly timeline, entry view |
+| [ClarkViewWidget.swift](../ClarkViewWidget/ClarkViewWidget.swift), [WidgetFeedIntent.swift](../Shared/WidgetFeedIntent.swift) | Configurable feed choice, fetch/cache, preview fixtures, timeline, entry view |
 | [BeaconWidgetTemplate.swift](../ClarkViewWidget/BeaconWidgetTemplate.swift), [BeaconWidgetFocusLayouts.swift](../ClarkViewWidget/BeaconWidgetFocusLayouts.swift) | Default layout and focus transition |
 | [ContentView.swift](../clark_view/ContentView.swift), [FeedHomeView.swift](../clark_view/FeedHomeView.swift) | Paired/unpaired entry and the app's full feed list |
 | [WidgetFocusStore.swift](../Shared/WidgetFocusStore.swift), [FocusWidgetItemIntent.swift](../ClarkViewWidget/FocusWidgetItemIntent.swift) | Shared local focus and short interaction-cache window |
@@ -31,9 +31,9 @@ and SQLite schema. No browser UI or event scheduling is part of the spike.
 | [WidgetRefreshDiagnostics.swift](../Shared/WidgetRefreshDiagnostics.swift), [WidgetDiagnosticsView.swift](../clark_view/WidgetDiagnosticsView.swift) | Last manual request, network attempt, success/failure and app reload controls |
 
 Beacon small/medium show the first item; large shows the first two. Local focus
-expands either item in place without reordering server items (`StaticConfiguration`
-means focus is shared across instances) and uses a 15-second cache-reuse window on the
-last decoded App Group payload; explicit refresh clears that window. Ordinary
+expands either item in place without reordering server items. Widgets showing the
+same feed share focus; each feed has its own focus and a 15-second cache-reuse window.
+Explicit refresh bypasses that window. Ordinary
 network/decoding failure currently returns an empty payload, not stale cached content
 — distinguish failed fetches from successful empty feeds in diagnostics. Beacon has no
 refresh button; manual refresh lives in the app only. Reload requests ask WidgetKit
@@ -42,12 +42,19 @@ an hourly refresh. Native accented/vibrant appearances remain system-owned; Beac
 Reduce Motion and Reduce Transparency. Consult Swift for geometry, not this file.
 
 The app opens the feed picker when no selection exists; pairing is optional for
-browsing. App and widget read `/feeds/:feedId` using one App Group selection. On
-first launch, the app asks `/installations/:installId/feed` for the old row before
-offering the picker. Switching clears local payload, focus and widget cache, and
-requests a timeline reload. In-flight results check the selection revision before
-publishing; a vanished feed stays selected and shows an unavailable state. WidgetKit
-controls when the replacement timeline appears. The first item follows the large widget's focused card hierarchy;
+browsing. The app reads `/feeds/:feedId` from its persistent App Group selection,
+which is only for its own preview. On first launch, it asks
+`/installations/:installId/feed` for the old row before offering the picker.
+Switching clears the app's previous payload and has no effect on widgets. The one
+registered Clark View widget kind is configurable for home and lock screens. Its
+native editor has one Feed setting populated from `/feeds`; each widget needs an
+explicit choice and retains its opaque feed ID. Old static placements must be
+replaced, and old Follow app configurations must be edited to choose a feed.
+Widget choice creates no notification subscription. A missing feed asks the user
+to Edit Widget; an unconfigured widget asks for a feed. Temporary network failure
+does not replace a configured ID. Widgets showing the same feed share focus and
+cache. The app's manual widget refresh control still requests a timeline reload;
+WidgetKit controls when it runs. The first item follows the large widget's focused card hierarchy;
 the remaining items use compact cards. The app reuses the widget's date line, refreshes
 when opened or foregrounded, and supports pull to refresh. Notification setup and its
 diagnostics live under the toolbar menu's Notifications entry.
@@ -56,6 +63,17 @@ Widget and Live Activity taps carry their displayed snapshot through the app-own
 `clarkview` URL scheme and push a native detail destination. In the large widget, a
 compact item still expands in place first; tapping the focused item opens its detail.
 The route is presentation-only and performs no mutation or server lookup.
+
+### Widget configuration verification (2026-09-24)
+
+Manual testing of the prior configurable build confirmed that widgets retained
+individually assigned feeds. This change keeps the configurable kind and `feed`
+intent parameter. The app/widget build and existing iOS tests passed during this
+change. The single-widget editor/render smoke test awaits a team-signed build:
+the local simulator artifact is ad hoc signed with no team identity, so it cannot
+reliably register the feed App Entity. Recheck one placement on a team-signed build.
+Multiple-widget combinations and replacement of retired placements remain manual
+acceptance checks.
 
 The widget extension owns its push entitlement and `.pushHandler`. The containing app
 separately requests visible-notification permission, registers an app token, and

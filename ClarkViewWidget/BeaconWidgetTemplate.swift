@@ -70,8 +70,7 @@ struct BeaconWidgetTemplate: View {
                                 isPrimary: item.id == focusedItemID,
                                 reduceMotion: reduceMotion,
                                 usesTranslucency: usesTranslucentSurfaces,
-                                feedID: entry.feedID ?? "",
-                                selectionRevision: entry.selectionRevision
+                                feedID: entry.feedContext.feed?.id ?? ""
                             )
                         }
                     } else if let primary = visibleItems.first {
@@ -161,7 +160,6 @@ private struct BeaconFocusableItemView: View {
     let reduceMotion: Bool
     let usesTranslucency: Bool
     let feedID: String
-    let selectionRevision: String
 
     var body: some View {
         Group {
@@ -174,7 +172,7 @@ private struct BeaconFocusableItemView: View {
             } else {
                 Button(intent: FocusWidgetItemIntent(
                     itemID: item.id, changesFocus: true,
-                    feedID: feedID, selectionRevision: selectionRevision
+                    feedID: feedID
                 )) {
                     card
                 }

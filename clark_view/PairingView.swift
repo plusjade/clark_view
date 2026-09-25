@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import WidgetKit
 
 /// Pairs the device before handing off to the live feed.
 struct PairingView: View {
@@ -79,7 +78,6 @@ struct PairingView: View {
             switch outcome {
             case .paired:
                 DeviceIdentity.isPaired = true
-                WidgetCenter.shared.reloadTimelines(ofKind: WidgetKind.main)
                 onPaired()
             case .invalidOrExpiredCode:
                 errorMessage = "That code didn't work — ask for a new one."

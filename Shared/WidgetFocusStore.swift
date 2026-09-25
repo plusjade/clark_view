@@ -1,58 +1,38 @@
-//
-//  WidgetFocusStore.swift
-//  Shared
-//
-
 import Foundation
 
-/// Keeps Beacon's local focus separate from the server-owned feed while allowing
-/// explicit refreshes from either target to bypass the short interaction cache.
+/// Beacon focus and its short interaction cache window are shared by widgets showing
+/// the same feed. A different feed never inherits either state.
 enum WidgetFocusStore {
-    private static let focusedItemIDKey = "beaconFocusedItemID"
-    private static let cacheReuseDeadlineKey = "beaconCacheReuseDeadline"
-    private static let focusFeedIDKey = "beaconFocusFeedID"
+    private static let refreshCutoffKey = "beaconRefreshCutoff"
     private static let defaults = UserDefaults(suiteName: DeviceIdentity.appGroupID) ?? .standard
 
-    static var shouldReuseCachedPayload: Bool {
-        guard defaults.string(forKey: focusFeedIDKey) == FeedSelection.current?.id else { return false }
-        guard let deadline = defaults.object(forKey: cacheReuseDeadlineKey) as? Date else {
-            return false
-        }
-        return deadline > .now
+    private static func key(_ prefix: String, feedID: String) -> String {
+        prefix + Data(feedID.utf8).base64EncodedString()
     }
 
-    static var focusedItemID: String? {
-        get {
-            guard defaults.string(forKey: focusFeedIDKey) == FeedSelection.current?.id else { return nil }
-            return defaults.string(forKey: focusedItemIDKey)
-        }
-        set {
-            defaults.set(FeedSelection.current?.id, forKey: focusFeedIDKey)
-            if let newValue {
-                defaults.set(newValue, forKey: focusedItemIDKey)
-            } else {
-                defaults.removeObject(forKey: focusedItemIDKey)
-            }
-        }
+    static func shouldReuseCachedPayload(for feedID: String) -> Bool {
+        let deadline = defaults.object(forKey: key("beaconCacheDeadline:", feedID: feedID)) as? Date
+        let cutoff = defaults.object(forKey: refreshCutoffKey) as? Date ?? .distantPast
+        return deadline.map { $0 > .now && $0.addingTimeInterval(-15) > cutoff } ?? false
     }
 
-    static func handleTap(on itemID: String, changesFocus: Bool) {
-        defaults.set(FeedSelection.current?.id, forKey: focusFeedIDKey)
+    static func focusedItemID(for feedID: String) -> String? {
+        defaults.string(forKey: key("beaconFocusedItem:", feedID: feedID))
+    }
+
+    static func handleTap(on itemID: String, in feedID: String, changesFocus: Bool) {
         if changesFocus {
-            focusedItemID = itemID
+            defaults.set(itemID, forKey: key("beaconFocusedItem:", feedID: feedID))
         }
-        // A focus interaction reloads the timeline immediately. This short window also covers
-        // captured taps and multiple static widget instances without delaying ordinary refreshes.
-        defaults.set(Date.now.addingTimeInterval(15), forKey: cacheReuseDeadlineKey)
+        defaults.set(Date.now.addingTimeInterval(15), forKey: key("beaconCacheDeadline:", feedID: feedID))
     }
 
     static func requireNetworkRefresh() {
-        defaults.removeObject(forKey: cacheReuseDeadlineKey)
+        defaults.set(Date.now, forKey: refreshCutoffKey)
     }
 
-    static func clear() {
-        defaults.removeObject(forKey: focusedItemIDKey)
-        defaults.removeObject(forKey: focusFeedIDKey)
-        requireNetworkRefresh()
+    static func clear(for feedID: String) {
+        defaults.removeObject(forKey: key("beaconFocusedItem:", feedID: feedID))
+        defaults.removeObject(forKey: key("beaconCacheDeadline:", feedID: feedID))
     }
 }

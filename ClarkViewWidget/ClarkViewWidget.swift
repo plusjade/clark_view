@@ -11,44 +11,48 @@ import SwiftUI
 import UIKit
 
 private enum WidgetDataService {
-    private static let cachedPayloadKey = "latestWidgetPayload"
-    private static let cachedFeedIDKey = "latestWidgetPayloadFeedID"
-    private static let cachedRevisionKey = "latestWidgetPayloadRevision"
     private static let defaults = UserDefaults(suiteName: DeviceIdentity.appGroupID) ?? .standard
 
-    static func fetchPayload(context: Provider.Context) async -> WidgetPayload {
-        guard let feed = FeedSelection.current else { return .empty }
-        let revision = FeedSelection.revision
-        if WidgetFocusStore.shouldReuseCachedPayload, let cachedPayload = cachedPayload(for: feed) {
-            return cachedPayload
+    private static func cacheKey(for feedID: String) -> String {
+        "latestWidgetPayload:" + Data(feedID.utf8).base64EncodedString()
+    }
+
+    static func fetchPayload(for feed: Feed?) async -> WidgetFetchResult {
+        guard !Task.isCancelled else { return WidgetFetchResult(payload: .empty) }
+        guard let feed else { return WidgetFetchResult(payload: .empty) }
+        if WidgetFocusStore.shouldReuseCachedPayload(for: feed.id),
+           let cachedPayload = cachedPayload(for: feed.id) {
+            return WidgetFetchResult(payload: cachedPayload)
         }
 
         WidgetRefreshDiagnostics.recordAttempt()
         do {
             let (payload, data) = try await FeedDirectoryClient.payloadWithData(for: feed)
-            guard FeedSelection.current?.id == feed.id, FeedSelection.revision == revision else { return .empty }
-            defaults.set(data, forKey: cachedPayloadKey)
-            defaults.set(feed.id, forKey: cachedFeedIDKey)
-            defaults.set(revision, forKey: cachedRevisionKey)
+            guard !Task.isCancelled else { return WidgetFetchResult(payload: .empty) }
+            defaults.set(data, forKey: cacheKey(for: feed.id))
             WidgetRefreshDiagnostics.recordSuccess()
-            return payload
+            return WidgetFetchResult(payload: payload)
         } catch {
-            guard FeedSelection.revision == revision else { return .empty }
+            guard !Task.isCancelled else { return WidgetFetchResult(payload: .empty) }
+            if (error as? FeedClientError) == .unavailable {
+                clearCachedPayload(for: feed.id)
+            }
             let message = error is DecodingError
                 ? "Invalid widget response"
                 : error.localizedDescription
             WidgetRefreshDiagnostics.recordFailure(message)
-            return .empty
+            return WidgetFetchResult(payload: .empty, unavailable: (error as? FeedClientError) == .unavailable)
         }
     }
 
-    private static func cachedPayload(for feed: Feed) -> WidgetPayload? {
-        guard defaults.string(forKey: cachedFeedIDKey) == feed.id,
-              defaults.string(forKey: cachedRevisionKey) == FeedSelection.revision,
-              let data = defaults.data(forKey: cachedPayloadKey) else {
-            return nil
-        }
+    private static func cachedPayload(for feedID: String) -> WidgetPayload? {
+        guard let data = defaults.data(forKey: cacheKey(for: feedID)) else { return nil }
         return try? JSONDecoder.widgetPayload.decode(WidgetPayload.self, from: data)
+    }
+
+    private static func clearCachedPayload(for feedID: String) {
+        defaults.removeObject(forKey: cacheKey(for: feedID))
+        WidgetFocusStore.clear(for: feedID)
     }
 
     /// #Preview-only fixtures now that the live provider calls `fetchPayload` directly — keeps
@@ -144,65 +148,74 @@ private extension JSONDecoder {
     }()
 }
 
+private struct WidgetFetchResult {
+    let payload: WidgetPayload
+    var unavailable = false
+}
+
+/// Captures the configured feed for a widget timeline and its focus actions.
+struct WidgetFeedContext {
+    let feed: Feed?
+
+    init(configuration: WidgetFeedIntent) {
+        feed = configuration.feed.map { Feed(id: $0.id, name: $0.name) }
+    }
+
+    static var preview: WidgetFeedContext {
+        WidgetFeedContext(feed: Feed(id: "preview", name: "Preview"))
+    }
+
+    private init(feed: Feed?) {
+        self.feed = feed
+    }
+}
+
 struct WidgetEntry: TimelineEntry {
     let date: Date
     let payload: WidgetPayload
     let focusedItemID: String?
-    let selectionRevision: String
-    let feedID: String?
+    let feedContext: WidgetFeedContext
+    let unavailable: Bool
 
     init(date: Date, payload: WidgetPayload, focusedItemID: String? = nil,
-         selectionRevision: String = FeedSelection.revision) {
+         feedContext: WidgetFeedContext = .preview, unavailable: Bool = false) {
         self.date = date
         self.payload = payload
         self.focusedItemID = focusedItemID
-        self.selectionRevision = selectionRevision
-        self.feedID = FeedSelection.current?.id
+        self.feedContext = feedContext
+        self.unavailable = unavailable
     }
 }
 
-struct Provider: TimelineProvider {
+struct Provider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> WidgetEntry {
         WidgetEntry(date: .now, payload: .empty)
     }
 
-    func getSnapshot(in context: Context, completion: @escaping (WidgetEntry) -> Void) {
+    func snapshot(for configuration: WidgetFeedIntent, in context: Context) async -> WidgetEntry {
         if context.isPreview {
-            completion(WidgetEntry(date: .now, payload: WidgetDataService.mockPayload))
-            return
+            return WidgetEntry(date: .now, payload: WidgetDataService.mockPayload)
         }
-        Task {
-            let revision = FeedSelection.revision
-            let payload = await WidgetDataService.fetchPayload(context: context)
-            let currentPayload = revision == FeedSelection.revision ? payload : .empty
-            completion(WidgetEntry(
-                date: .now,
-                payload: currentPayload,
-                focusedItemID: WidgetFocusStore.focusedItemID,
-                selectionRevision: revision
-            ))
-        }
+        let selection = WidgetFeedContext(configuration: configuration)
+        let result = await WidgetDataService.fetchPayload(for: selection.feed)
+        return WidgetEntry(date: .now, payload: result.payload,
+                           focusedItemID: selection.feed.flatMap { WidgetFocusStore.focusedItemID(for: $0.id) },
+                           feedContext: selection, unavailable: result.unavailable)
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<WidgetEntry>) -> Void) {
-        Task {
-            let revision = FeedSelection.revision
-            let payload = await WidgetDataService.fetchPayload(context: context)
-            let currentPayload = revision == FeedSelection.revision ? payload : .empty
-            let now = Date.now
-            let focusedItemID = WidgetFocusStore.focusedItemID
-            // One entry now, then one at every later bound. The payload is identical across
-            // them — only the entry's date differs, which is what moves each item to its next
-            // lifecycle label without another fetch.
-            let entries = ([now] + lifecycleEntryDates(for: currentPayload, after: now)).map {
-                WidgetEntry(date: $0, payload: currentPayload, focusedItemID: focusedItemID,
-                            selectionRevision: revision)
-            }
-            // The next moment any item's wording can change is one of its own bounds, so the
-            // reload is asked for then rather than an hour later. Absent a bound in the next
-            // hour this is still the hourly refresh it always was.
-            completion(Timeline(entries: entries, policy: .after(nextRefreshDate(for: currentPayload))))
+    func timeline(for configuration: WidgetFeedIntent, in context: Context) async -> Timeline<WidgetEntry> {
+        let selection = WidgetFeedContext(configuration: configuration)
+        let result = await WidgetDataService.fetchPayload(for: selection.feed)
+        let payload = result.payload
+        let now = Date.now
+        let focusedItemID = selection.feed.flatMap { WidgetFocusStore.focusedItemID(for: $0.id) }
+        // One entry now, then one at every later bound. The payload is identical across
+        // them — only the entry's date differs, which moves lifecycle wording without a fetch.
+        let entries = ([now] + lifecycleEntryDates(for: payload, after: now)).map {
+            WidgetEntry(date: $0, payload: payload, focusedItemID: focusedItemID,
+                        feedContext: selection, unavailable: result.unavailable)
         }
+        return Timeline(entries: entries, policy: .after(nextRefreshDate(for: payload)))
     }
 }
 
@@ -230,10 +243,10 @@ struct ClarkViewWidgetEntryView: View {
     }
 
     var body: some View {
-        if entry.selectionRevision != FeedSelection.revision {
-            Text("Choose feed in Clark View")
-        } else if FeedSelection.isUnavailable {
-            Text("Feed unavailable. Choose a feed in Clark View.")
+        if entry.feedContext.feed == nil {
+            Text("Edit widget to choose a feed")
+        } else if entry.unavailable {
+            Text("Feed unavailable—edit widget to choose another.")
         } else if family == .accessoryRectangular {
             BeaconLockScreenView(entry: entry)
                 .widgetURL(destinationURL)
@@ -246,14 +259,14 @@ struct ClarkViewWidgetEntryView: View {
 }
 
 struct ClarkViewWidget: Widget {
-    let kind: String = WidgetKind.main
+    let kind: String = WidgetKind.configurable
 
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: Provider()) { entry in
+        AppIntentConfiguration(kind: kind, intent: WidgetFeedIntent.self, provider: Provider()) { entry in
             ClarkViewWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("Clark View")
-        .description("Shows upcoming items from your paired sources.")
+        .description("Choose a feed for this widget. Selection does not subscribe to notifications.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryRectangular])
         .contentMarginsDisabled()
         .pushHandler(ClarkViewWidgetPushHandler.self)

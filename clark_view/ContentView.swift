@@ -1,5 +1,4 @@
 import SwiftUI
-import WidgetKit
 
 /// Feed selection is independent of pairing; pairing remains available for notifications.
 struct ContentView: View {
@@ -96,9 +95,6 @@ struct ContentView: View {
               isPaired == pairingAtStart else { return }
         DeviceIdentity.isPaired = status.paired
         isPaired = status.paired
-        if status.paired && !pairingAtStart {
-            WidgetCenter.shared.reloadTimelines(ofKind: WidgetKind.main)
-        }
     }
 }
 

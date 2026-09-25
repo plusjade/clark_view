@@ -7,9 +7,7 @@
 
 import Foundation
 
-/// The one widget kind this app ships, shared between the app (which calls
-/// `WidgetCenter.shared.reloadTimelines(ofKind:)`) and the extension (whose
-/// `Widget.kind` this must match exactly).
+/// The configurable kind remains stable for existing configured placements.
 enum WidgetKind {
-    static let main = "ClarkViewWidget"
+    static let configurable = "ClarkViewWidgetConfigurable"
 }

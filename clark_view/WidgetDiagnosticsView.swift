@@ -22,7 +22,7 @@ struct WidgetDiagnosticsView: View {
                 Button("Request Widget Refresh", systemImage: "arrow.clockwise") {
                     WidgetRefreshDiagnostics.recordManualRequest()
                     WidgetFocusStore.requireNetworkRefresh()
-                    WidgetCenter.shared.reloadTimelines(ofKind: WidgetKind.main)
+                    WidgetCenter.shared.reloadTimelines(ofKind: WidgetKind.configurable)
                     refresh = WidgetRefreshDiagnostics.snapshot
                 }
             } footer: {

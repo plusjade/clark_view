@@ -16,9 +16,10 @@ to the task, not as re-confirmed fact.
 
 ## Start here: ownership and request flow
 
-Clark View is widget-first. The containing iOS app pairs an install, displays the
-same live feed, and exposes notification setup and diagnostics through its menu. A
-browser helper configures sources. The widget displays server-composed temporal items.
+Clark View is widget-first. The containing iOS app pairs an install, previews its
+independently selected feed, and exposes notification setup and diagnostics through
+its menu. A browser helper configures sources. Each widget explicitly selects a
+server-composed temporal feed in its native editor.
 
 ```text
 Browser → app-clarkview → bunches, devices, source registry, assignments

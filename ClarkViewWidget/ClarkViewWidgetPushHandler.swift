@@ -9,7 +9,7 @@ import WidgetKit
 /// without waking or launching the containing app.
 struct ClarkViewWidgetPushHandler: WidgetPushHandler {
     func pushTokenDidChange(_ pushInfo: WidgetPushInfo, widgets: [WidgetInfo]) {
-        let isActive = widgets.contains { $0.kind == WidgetKind.main }
+        let isActive = widgets.contains { $0.kind == WidgetKind.configurable }
         Task {
             await PushTokenClient.updateWidgetToken(
                 device: DeviceIdentity.deviceID,
