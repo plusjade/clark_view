@@ -10,6 +10,13 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-09-25
 
+- Made the iOS home screen the device's subscriptions (index, show, new, edit) and
+  nested the feed preview inside a subscription, retiring the app's standalone feed
+  picker and stored selection. Subscriptions are the device-owned concept; feeds are
+  shared. The app reuses the browser's `/devices/:id/subscriptions` routes via
+  `Accept: application/json` rather than a parallel API, and new subscriptions default
+  to a one-hour lead in both clients. See [valtown-brief.md](valtown-brief.md).
+
 - Added device-reported widget inventory and feed-request receipts so operators can see
   which feeds a device's widgets select and fetch. Widget timelines are the primary
   trigger because they run without the app; app activation reconciles removals, which

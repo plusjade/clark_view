@@ -17,12 +17,12 @@ and SQLite schema. No browser UI or event scheduling is part of the spike.
 
 | Local file | Role |
 | --- | --- |
-| [ServerURL.swift](../Shared/ServerURL.swift), [FeedSelection.swift](../Shared/FeedSelection.swift) | Base URL, public feed client, App Group selection |
+| [ServerURL.swift](../Shared/ServerURL.swift), [Feed.swift](../Shared/Feed.swift) | Base URL and public feed client |
 | [WidgetPayload.swift](../Shared/WidgetPayload.swift), [WidgetPresentation.swift](../Shared/WidgetPresentation.swift) | Wire decoding and presentation fallback |
 | [BeaconDateTimeView.swift](../Shared/BeaconDateTimeView.swift) | Shared widget/app lifecycle date line and local day label |
 | [ClarkViewWidget.swift](../ClarkViewWidget/ClarkViewWidget.swift), [WidgetFeedIntent.swift](../Shared/WidgetFeedIntent.swift) | Configurable feed choice, fetch/cache, preview fixtures, timeline, entry view |
 | [BeaconWidgetTemplate.swift](../ClarkViewWidget/BeaconWidgetTemplate.swift), [BeaconWidgetFocusLayouts.swift](../ClarkViewWidget/BeaconWidgetFocusLayouts.swift) | Default layout and focus transition |
-| [ContentView.swift](../clark_view/ContentView.swift), [FeedHomeView.swift](../clark_view/FeedHomeView.swift) | Paired/unpaired entry and the app's full feed list |
+| [ContentView.swift](../clark_view/ContentView.swift), `clark_view/Subscription*.swift`, [FeedPreviewView.swift](../clark_view/FeedPreviewView.swift) | Home: the device's subscriptions index, show (with nested feed preview), new, and edit |
 | [WidgetFocusStore.swift](../Shared/WidgetFocusStore.swift), [FocusWidgetItemIntent.swift](../ClarkViewWidget/FocusWidgetItemIntent.swift) | Shared local focus and short interaction-cache window |
 | [AppDeepLink.swift](../Shared/AppDeepLink.swift), [DeepLinkRouter.swift](../clark_view/DeepLinkRouter.swift) | `clarkview` subject routes shared by widgets, Live Activities, alert responses, and in-app navigation |
 | [DeviceIdentity.swift](../Shared/DeviceIdentity.swift) | Per-install UUID in `group.plusjade.clark-view`; local paired flag is copy-only |

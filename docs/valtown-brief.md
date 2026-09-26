@@ -16,14 +16,14 @@ to the task, not as re-confirmed fact.
 
 ## Start here: ownership and request flow
 
-Clark View is widget-first. The containing iOS app pairs an install, previews its
-independently selected feed, and exposes notification setup and diagnostics through
-its menu. A browser helper configures sources. Each widget explicitly selects a
+Clark View is widget-first. The containing iOS app pairs an install, manages its feed
+subscriptions (each showing a preview of its feed) on the home screen, and exposes
+notification setup and diagnostics through its menu. A browser helper configures sources. Each widget explicitly selects a
 server-composed temporal feed in its native editor.
 
 ```text
 Browser → app-clarkview → feeds, devices, bunches, source registry
-App     → app-clarkview /feeds, /feeds/:feedId; /pair and status remain installation routes
+App     → app-clarkview /devices/:id/subscriptions (JSON), /feeds, /feeds/:feedId; /pair and status remain installation routes
 Widget  → app-clarkview /feeds/:feedId
                          → feed assignments + source pointers
                          → public HTTP reads of assigned source vals
@@ -177,18 +177,19 @@ Browser tab titles retain resource names. The root remains a standalone jump-off
 | `GET /feeds` | Public, unpaired directory: `{feeds:[{id,name}]}`. IDs are decimal row IDs carried as opaque strings by Swift; no installation identity in the response. Read-only and `no-store`. |
 | `GET /feeds/:feedId` | Public, unpaired schema-3 composition from an independent feed's enabled and verified assignments and presentation. Optional `timeZone` reader context. Unknown or deleted IDs return JSON 404; a valid empty feed succeeds. Reads use `no-store`. Optional `X-Clark-Installation`, `X-Clark-Caller`, `X-Clark-Widget-Family`, `X-Clark-Request-Purpose` headers record a receipt for a registered device only; they never change the response. |
 | `POST /device/widget-inventory` | `{device,observedAt,widgets:[{kind,family,state,feedId?}]}` complete snapshot; `state` is `configured`/`unconfigured`/`unreadable`. Replaces the stored snapshot unless older (`{ok:true,stale:true}`). Unknown install 404, malformed 400. |
-| `GET /installations/:installId/feed` | One-time native migration lookup through frozen `legacy_installation_feeds`, returning `{id,name}` or JSON 404. New installations have no mapping. |
+| `GET /installations/:installId/feed` | Native migration lookup through frozen `legacy_installation_feeds`, returning `{id,name}` or JSON 404. The current app no longer calls it; retained for older builds. |
 | `GET /config/resolve` | Temporary legacy client feed through the frozen installation mapping: `device=<install UUID>`, `tz=<seconds east of GMT>`, optional `timeZone=<named zone>`. Unmapped requests return an empty schema-3 feed. Retain until client cutover is confirmed. |
 | `GET /devices/resolve` | Temporary alias through the same frozen mapping |
 | `POST /pair` | App sends `{code,device}`. Success 200 `{ok:true,deviceId}`; unknown code 404; expired code 422. Swift requires only `ok`. Codes are six characters and reusable for 30 minutes. |
 | `POST /devices/register` | Same enrollment with optional `name` |
 | `GET /config/status/:deviceId` | Legacy diagnostics using the install UUID. Unknown install returns `{deviceId,paired:false}`. Registered response carries name and compatibility-only empty `teams`. |
-| `GET /devices/status/:installId` | App registration diagnostics: `{deviceId,registered,name}`; unknown install omits name and returns `registered:false`. |
+| `GET /devices/status/:installId` | App registration diagnostics: `{deviceId,registered,name,id}` where `id` is the numeric device row for `/devices/:id` routes; unknown install omits name and id and returns `registered:false`. The app re-resolves `id` on each load because a merge moves the install to another row. |
 | `POST /device/token` | `{device,token,kind:"widget",environment:"sandbox"\|"production",active}`; `active:false` removes the token. Legacy omitted fields support old app-background tokens. Registration may precede pairing. |
 | `GET /` | HTML entry with links to `/bunches`, `/devices`, `/feeds/manage`, and `/sources` |
 | `/feeds/manage`, `/feeds/new` | Browser feed index and creation; `/feeds` remains JSON |
 | `/feeds/:id/manage` | Feed preview, source attachment/state/removal, presentation, rename, and deletion |
 | `/devices/:id`, `/devices/:id/settings`, `/devices/:id/subscriptions` | Device identity and name edit, explicit feed subscriptions, enrollment and merge entry |
+| `/devices/:id/subscriptions` with `Accept: application/json` | iOS subscription API on the browser routes. GET returns `{subscriptions:[{id,feedId,feedName,enabled,reminderLeadSeconds,createdAt,updatedAt}],delivery}` with string `feedId` matching `/feeds`. POST `/`, `/:subscriptionId`, and `/:subscriptionId/delete` take the same form-encoded fields as the browser and return `{ok:true}` (201 on create) or `{ok:false,error}` with the browser's status codes instead of a redirect. |
 | `/devices/:id/views` | Latest reported widget inventory and per feed/caller/family/purpose request receipts, labeled with report times |
 | `/devices/:id/merge` | Move a reinstalled app's install ID onto the device it replaces; the chosen target survives and the origin row is deleted |
 | `/sources` | Read-only registry explorer with the source gallery in place of the device gallery |
