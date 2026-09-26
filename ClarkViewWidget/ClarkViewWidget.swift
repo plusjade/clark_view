@@ -256,9 +256,9 @@ struct ClarkViewWidgetEntryView: View {
 
     var body: some View {
         if entry.feedContext.feed == nil {
-            Text("Edit widget to choose a feed")
+            WidgetMessageView(text: "Edit widget to choose a feed")
         } else if entry.unavailable {
-            Text("Feed unavailable—edit widget to choose another.")
+            WidgetMessageView(text: "Feed unavailable—edit widget to choose another.")
         } else if family == .accessoryRectangular {
             BeaconLockScreenView(entry: entry)
                 .widgetURL(destinationURL)
@@ -267,6 +267,19 @@ struct ClarkViewWidgetEntryView: View {
             BeaconWidgetTemplate(entry: entry, presentation: presentation)
                 .widgetURL(destinationURL)
         }
+    }
+}
+
+/// Status text for unconfigured or unavailable feeds; every widget view needs a container background.
+private struct WidgetMessageView: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.footnote)
+            .multilineTextAlignment(.center)
+            .padding()
+            .containerBackground(.fill.tertiary, for: .widget)
     }
 }
 
