@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// The app reads the installation's selected public feed.
-struct FeedHomeView: View {
+/// A subscription's nested feed, rendered like the large widget beneath the subscription's own header.
+struct FeedPreviewView<Header: View>: View {
     let feed: Feed
-    let chooseFeed: () -> Void
+    @ViewBuilder let header: Header
     @Environment(DeepLinkRouter.self) private var deepLinks
     @Environment(\.scenePhase) private var scenePhase
     @State private var payload: WidgetPayload?
@@ -14,11 +14,7 @@ struct FeedHomeView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    Text("Feed: \(feed.name)").font(.headline)
-                    Spacer()
-                    Button("Choose Feed", action: chooseFeed)
-                }
+                header
                 if let payload {
                     if payload.items.isEmpty {
                         ContentUnavailableView("Nothing here right now 🫨", systemImage: "sportscourt")
@@ -65,7 +61,7 @@ struct FeedHomeView: View {
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-        .accessibilityIdentifier("feedHome")
+        .accessibilityIdentifier("feedPreview")
         .refreshable { await load() }
         .task { await load() }
         .onChange(of: feed.id) { _, _ in
@@ -87,14 +83,14 @@ struct FeedHomeView: View {
         defer { if requestID == startedWith { isLoading = false } }
         do {
             let result = try await FeedDirectoryClient.payload(for: feed, context: .appPreview)
-            guard requestID == startedWith, FeedSelection.current?.id == feed.id else { return }
+            guard requestID == startedWith else { return }
             payload = result
             errorMessage = nil
         } catch {
             guard requestID == startedWith else { return }
             payload = nil
             errorMessage = error is FeedClientError && (error as? FeedClientError) == .unavailable
-                ? "This feed is unavailable. Choose another feed."
+                ? "This feed is no longer available."
                 : "Couldn’t refresh the feed. Pull down to retry."
         }
     }

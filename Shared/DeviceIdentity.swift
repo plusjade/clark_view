@@ -9,7 +9,6 @@ import Foundation
 
 /// Stable per-install identity, shared between the app and widget extension via an
 /// App Group so pairing and push tokens remain attached to the actual installation.
-/// Public feed selection is stored separately in FeedSelection.
 enum DeviceIdentity {
     static let appGroupID = "group.plusjade.clark-view"
     private static let deviceIDKey = "deviceID"

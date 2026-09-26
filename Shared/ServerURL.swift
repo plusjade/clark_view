@@ -13,11 +13,6 @@ enum ServerURL {
 
     static var feedsURL: URL { baseURL.appendingPathComponent("feeds") }
 
-    static func installationFeedURL(_ installationID: String) -> URL {
-        baseURL.appendingPathComponent("installations").appendingPathComponent(installationID)
-            .appendingPathComponent("feed")
-    }
-
     static func feedURL(_ feedID: String, timeZoneIdentifier: String) -> URL {
         var components = URLComponents(url: feedsURL.appendingPathComponent(feedID), resolvingAgainstBaseURL: false)!
         components.queryItems = [URLQueryItem(name: "timeZone", value: timeZoneIdentifier)]
