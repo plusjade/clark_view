@@ -15,7 +15,7 @@ struct ContentView: View {
         @Bindable var deepLinks = deepLinks
 
         NavigationStack {
-            SubscriptionListView()
+            SubscriptionListView(openNotifications: { diagnosticsPanel = .notifications })
                 .navigationTitle("Subscriptions")
                 .toolbar {
                     if !isPaired {
@@ -28,6 +28,10 @@ struct ContentView: View {
                     }
                 }
                 .diagnosticsPanel($diagnosticsPanel)
+                .onChange(of: diagnosticsPanel) { previous, _ in
+                    // Notification setup changes the delivery note under the subscriptions.
+                    if previous == .notifications { Task { await subscriptions.load() } }
+                }
                 .sheet(isPresented: $showsPairing) {
                     PairingView(onPaired: {
                         isPaired = true

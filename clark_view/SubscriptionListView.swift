@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Home screen: this device's feed subscriptions. Each subscription opens its reminder policy and nested feed.
 struct SubscriptionListView: View {
+    let openNotifications: () -> Void
     @Environment(SubscriptionStore.self) private var store
     @State private var showsNew = false
     @State private var actionError: String?
@@ -66,7 +67,13 @@ struct SubscriptionListView: View {
                     }
                 }
             } footer: {
-                if let note = deliveryNote { Text(note) }
+                if let note = deliveryNote {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(note)
+                        Button("Open Notifications", action: openNotifications)
+                            .font(.footnote.weight(.semibold))
+                    }
+                }
             }
             if let actionError {
                 Section { Text(actionError).foregroundStyle(.red) }
@@ -80,8 +87,8 @@ struct SubscriptionListView: View {
 
     private var deliveryNote: String? {
         switch store.delivery {
-        case "permission_denied": "Notifications are off for this app, so reminders can’t arrive."
-        case "no_token": "This device hasn’t registered for reminders yet. Open Notifications from the menu."
+        case "permission_denied": "Push notifications are off for this app, so reminders can’t arrive."
+        case "no_token": "This device hasn’t registered for push notifications yet, so reminders can’t arrive."
         default: nil
         }
     }
