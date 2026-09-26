@@ -67,13 +67,7 @@ struct SubscriptionListView: View {
                     }
                 }
             } footer: {
-                if let note = deliveryNote {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(note)
-                        Button("Open Notifications", action: openNotifications)
-                            .font(.footnote.weight(.semibold))
-                    }
-                }
+                deliveryFooter
             }
             if let actionError {
                 Section { Text(actionError).foregroundStyle(.red) }
@@ -85,11 +79,26 @@ struct SubscriptionListView: View {
         .refreshable { await store.load() }
     }
 
-    private var deliveryNote: String? {
+    @ViewBuilder private var deliveryFooter: some View {
         switch store.delivery {
-        case "permission_denied": "Push notifications are off for this app, so reminders can’t arrive."
-        case "no_token": "This device hasn’t registered for push notifications yet, so reminders can’t arrive."
-        default: nil
+        case "ready":
+            Label("Push notifications are on. Reminders will arrive on this device.",
+                  systemImage: "checkmark.circle.fill")
+                .foregroundStyle(.mint)
+        case "permission_denied":
+            needsSetup("Push notifications are off for this app, so reminders can’t arrive.")
+        case "no_token":
+            needsSetup("This device hasn’t registered for push notifications yet, so reminders can’t arrive.")
+        default:
+            EmptyView()
+        }
+    }
+
+    private func needsSetup(_ note: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(note)
+            Button("Open Notifications", action: openNotifications)
+                .font(.footnote.weight(.semibold))
         }
     }
 }
