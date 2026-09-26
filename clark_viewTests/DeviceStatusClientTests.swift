@@ -11,9 +11,10 @@ struct DeviceStatusClientTests {
     }
 
     @Test func registeredDeviceHasIndependentIdentity() throws {
-        let status = try decode(#"{"deviceId":"test-install","registered":true,"name":null}"#)
+        let status = try decode(#"{"deviceId":"test-install","registered":true,"name":null,"id":7}"#)
         #expect(status.paired)
         #expect(status.name == nil)
+        #expect(status.id == 7)
     }
 
     @Test func legacySourceFieldsDoNotAffectRegistration() throws {

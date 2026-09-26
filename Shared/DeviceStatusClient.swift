@@ -6,6 +6,8 @@ enum DeviceStatusClient {
         let deviceId: String
         let registered: Bool
         let name: String?
+        /// Server device row for `/devices/:id` routes; present only when registered.
+        let id: Int?
 
         var paired: Bool { registered }
     }
