@@ -256,9 +256,9 @@ struct ClarkViewWidgetEntryView: View {
 
     var body: some View {
         if entry.feedContext.feed == nil {
-            WidgetMessageView(text: "Edit widget to choose a feed")
+            WidgetMessageView(text: "Long Press\n→ Edit Widget\n→ Choose Feed")
         } else if entry.unavailable {
-            WidgetMessageView(text: "Feed unavailable—edit widget to choose another.")
+            WidgetMessageView(text: "Feed unavailable\nlong press to edit widget & choose another.")
         } else if family == .accessoryRectangular {
             BeaconLockScreenView(entry: entry)
                 .widgetURL(destinationURL)
