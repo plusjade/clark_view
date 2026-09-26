@@ -10,6 +10,12 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-09-25
 
+- Made pairing optional: an install now creates its own unpaired device row
+  (`POST /devices`, nullable `devices.bunch_id`) and goes straight to its
+  subscriptions. Bunches model no real ACL in the prototype, so they shouldn't gate
+  first run; pairing remains for helpers and joins the same row, keeping its
+  subscriptions. Status `paired` now means bunch membership, not registration.
+
 - Made the iOS home screen the device's subscriptions (index, show, new, edit) and
   nested the feed preview inside a subscription, retiring the app's standalone feed
   picker and stored selection. Subscriptions are the device-owned concept; feeds are

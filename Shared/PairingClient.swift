@@ -16,8 +16,7 @@ private struct PairResponse: Decodable {
     }
 }
 
-/// The one network write the app makes: redeeming a bunch-issued code to register
-/// this install as a device (`POST /pair`).
+/// Optional pairing: redeems a bunch-issued code to join this install's device to a bunch (`POST /pair`).
 enum PairingClient {
     private static let logger = Logger(subsystem: "plusjade.clark-view", category: "Pairing")
 

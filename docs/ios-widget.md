@@ -26,7 +26,7 @@ and SQLite schema. No browser UI or event scheduling is part of the spike.
 | [WidgetFocusStore.swift](../Shared/WidgetFocusStore.swift), [FocusWidgetItemIntent.swift](../ClarkViewWidget/FocusWidgetItemIntent.swift) | Shared local focus and short interaction-cache window |
 | [AppDeepLink.swift](../Shared/AppDeepLink.swift), [DeepLinkRouter.swift](../clark_view/DeepLinkRouter.swift) | `clarkview` subject routes shared by widgets, Live Activities, alert responses, and in-app navigation |
 | [DeviceIdentity.swift](../Shared/DeviceIdentity.swift) | Per-install UUID in `group.plusjade.clark-view`; local paired flag is copy-only |
-| [PairingClient.swift](../Shared/PairingClient.swift), [DeviceStatusClient.swift](../Shared/DeviceStatusClient.swift) | Enrollment and diagnostic reads |
+| [PairingClient.swift](../Shared/PairingClient.swift), [DeviceStatusClient.swift](../Shared/DeviceStatusClient.swift) | Self-registration, optional pairing, and diagnostic reads |
 | [PushTokenClient.swift](../Shared/PushTokenClient.swift), [ClarkViewWidgetPushHandler.swift](../ClarkViewWidget/ClarkViewWidgetPushHandler.swift) | Native widget token upload/removal |
 | [WidgetInventory.swift](../Shared/WidgetInventory.swift), [WidgetInventoryReporter.swift](../Shared/WidgetInventoryReporter.swift) | Widget inventory snapshot, upload policy, and coalesced reporter |
 | [WidgetRefreshDiagnostics.swift](../Shared/WidgetRefreshDiagnostics.swift), [WidgetDiagnosticsView.swift](../clark_view/WidgetDiagnosticsView.swift) | Last manual request, network attempt, success/failure and app reload controls |
@@ -42,12 +42,10 @@ for a timeline and do not guarantee immediate execution; the normal timeline req
 an hourly refresh. Native accented/vibrant appearances remain system-owned; Beacon respects
 Reduce Motion and Reduce Transparency. Consult Swift for geometry, not this file.
 
-The app opens the feed picker when no selection exists; pairing is optional for
-browsing. The app reads `/feeds/:feedId` from its persistent App Group selection,
-which is only for its own preview. On first launch, it asks
-`/installations/:installId/feed` for the frozen pre-migration feed mapping before
-offering the picker. Later device changes do not alter that mapping.
-Switching clears the app's previous payload and has no effect on widgets. The one
+The app home screen is the device's subscriptions. On first launch the install
+creates its own unpaired device row (`POST /devices`), so subscriptions never wait
+on pairing; the Pair button stays until the device joins a bunch. The app's feed
+preview has no effect on widgets. The one
 registered Clark View widget kind is configurable for home and lock screens. Its
 native editor has one Feed setting populated from `/feeds`; each widget needs an
 explicit choice and retains its opaque feed ID. Old static placements must be

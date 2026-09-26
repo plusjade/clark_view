@@ -2,7 +2,6 @@ import SwiftUI
 
 /// Home screen: this device's feed subscriptions. Each subscription opens its reminder policy and nested feed.
 struct SubscriptionListView: View {
-    let pair: () -> Void
     @Environment(SubscriptionStore.self) private var store
     @State private var showsNew = false
     @State private var actionError: String?
@@ -25,14 +24,6 @@ struct SubscriptionListView: View {
         switch store.phase {
         case .loading where store.subscriptions.isEmpty:
             ProgressView("Loading subscriptions")
-        case .unregistered:
-            ContentUnavailableView {
-                Label("Pair this device", systemImage: "bell.badge")
-            } description: {
-                Text("Subscriptions belong to a paired device.")
-            } actions: {
-                Button("Pair this device", action: pair)
-            }
         case .failed(let message) where store.subscriptions.isEmpty:
             ContentUnavailableView {
                 Label("Subscriptions unavailable", systemImage: "wifi.exclamationmark")

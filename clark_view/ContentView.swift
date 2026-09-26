@@ -15,7 +15,7 @@ struct ContentView: View {
         @Bindable var deepLinks = deepLinks
 
         NavigationStack {
-            SubscriptionListView(pair: { showsPairing = true })
+            SubscriptionListView()
                 .navigationTitle("Subscriptions")
                 .toolbar {
                     if !isPaired {
@@ -49,8 +49,11 @@ struct ContentView: View {
     }
 
     private func refresh() async {
-        Task { await WidgetInventoryReporter.shared.report(trigger: .appActivation) }
-        Task { await subscriptions.load() }
+        // Loading registers a first-run install, which the inventory report requires.
+        Task {
+            await subscriptions.load()
+            await WidgetInventoryReporter.shared.report(trigger: .appActivation)
+        }
         await liveActivities.refresh()
         await notifications.refresh()
         // A failed fetch must not erase pairing; a lost pairing response can be recovered here.

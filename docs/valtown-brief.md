@@ -16,14 +16,15 @@ to the task, not as re-confirmed fact.
 
 ## Start here: ownership and request flow
 
-Clark View is widget-first. The containing iOS app pairs an install, manages its feed
+Clark View is widget-first. The containing iOS app registers its own install (pairing
+into a bunch is optional), manages its feed
 subscriptions (each showing a preview of its feed) on the home screen, and exposes
 notification setup and diagnostics through its menu. A browser helper configures sources. Each widget explicitly selects a
 server-composed temporal feed in its native editor.
 
 ```text
 Browser → app-clarkview → feeds, devices, bunches, source registry
-App     → app-clarkview /devices/:id/subscriptions (JSON), /feeds, /feeds/:feedId; /pair and status remain installation routes
+App     → app-clarkview /devices/:id/subscriptions (JSON), /feeds, /feeds/:feedId; POST /devices, /pair and status remain installation routes
 Widget  → app-clarkview /feeds/:feedId
                          → feed assignments + source pointers
                          → public HTTP reads of assigned source vals
@@ -111,7 +112,9 @@ surface type, or ACL. Sources own their data separately.
   and `settings_schema` are inert leftovers of the retired protocol. `kind` is unrestricted diagnostic metadata, neither unique
   nor the transport dispatch key. There is no separate definitions or
   `source_instances` table.
-- A reinstall pairs into a new device row; `/devices/:id/merge` moves its live
+- `devices.bunch_id` is nullable: an install creates its own unpaired row, and pairing
+  later sets the bunch on that same row. Bunches model no ACL yet.
+- A reinstall registers a new device row; `/devices/:id/merge` moves its live
   install ID onto the target and deletes the origin. Feed IDs and content are untouched.
   The retired install ID's push/alert token rows are dropped.
 - `feeds_sources` stores source instance IDs independently of bunch membership.
@@ -182,8 +185,9 @@ Browser tab titles retain resource names. The root remains a standalone jump-off
 | `GET /devices/resolve` | Temporary alias through the same frozen mapping |
 | `POST /pair` | App sends `{code,device}`. Success 200 `{ok:true,deviceId}`; unknown code 404; expired code 422. Swift requires only `ok`. Codes are six characters and reusable for 30 minutes. |
 | `POST /devices/register` | Same enrollment with optional `name` |
-| `GET /config/status/:deviceId` | Legacy diagnostics using the install UUID. Unknown install returns `{deviceId,paired:false}`. Registered response carries name and compatibility-only empty `teams`. |
-| `GET /devices/status/:installId` | App registration diagnostics: `{deviceId,registered,name,id}` where `id` is the numeric device row for `/devices/:id` routes; unknown install omits name and id and returns `registered:false`. The app re-resolves `id` on each load because a merge moves the install to another row. |
+| `GET /config/status/:deviceId` | Legacy diagnostics using the install UUID. Unknown install returns `{deviceId,paired:false}`. Registered response carries bunch-membership `paired`, name and compatibility-only empty `teams`. |
+| `POST /devices` | App sends `{device}` on first run. Creates an unpaired row if missing and returns 200 `{ok:true,id,paired}`; an existing row is never changed. |
+| `GET /devices/status/:installId` | App registration diagnostics: `{deviceId,registered,paired,name,id}` where `paired` is bunch membership and `id` is the numeric device row for `/devices/:id` routes; unknown install omits name and id and returns `registered:false,paired:false`. The app re-resolves `id` on each load because a merge moves the install to another row. |
 | `POST /device/token` | `{device,token,kind:"widget",environment:"sandbox"\|"production",active}`; `active:false` removes the token. Legacy omitted fields support old app-background tokens. Registration may precede pairing. |
 | `GET /` | HTML entry with links to `/bunches`, `/devices`, `/feeds/manage`, and `/sources` |
 | `/feeds/manage`, `/feeds/new` | Browser feed index and creation; `/feeds` remains JSON |
