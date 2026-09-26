@@ -100,8 +100,8 @@ caching them here.
 
 Canonical parent tables include `bunches`, `bunch_codes`, `devices`, `sources`,
 `feeds`, `feeds_sources`, `device_subscriptions`, `device_push_tokens`,
-`subscription_notification_queue`, `device_widget_inventory`, and `device_feed_requests`. The retired `notification_queue` is retained
-as delivery history.
+`device_alert_tokens`, `subscription_notification_queue`, `device_widget_inventory`, and
+`device_feed_requests`.
 `feeds` has independently allocated stable IDs, editable nonunique names,
 presentation, and timestamps. `feeds_sources` has a unique feed/source pair,
 foreign keys, and a Live/Disabled flag. Neither table has device ownership,
@@ -361,8 +361,8 @@ entrypoints and environment metadata when remixing.
 ## Reminders and stored time
 
 **Cutover status (observed 2026-09-24).** The implementation was merged from
-`independent-feeds` into parent `main` version 387. The shared database copy is recorded by
-`feed_migrations.independent-feeds-v1`; both-direction value comparisons matched
+`independent-feeds` into parent `main` version 387. The shared database copy's
+both-direction value comparisons matched
 five copied feeds and seventeen assignments. Live `/feeds`, `/feeds/:id`, and
 `/feeds/manage` respond, parent `tools/check.ts` passes on `main`, and a
 disposable feed/device isolation fixture passed and was removed. One iPhone 17
@@ -375,7 +375,7 @@ the edit without changing its stored ID.
 Subscription code was merged from `codex-device-subscriptions` to parent `main`
 version 390 on 2026-09-25. The old jobs were stopped, five pending legacy queue
 rows were voided without sending, and `device_sources` plus the obsolete device
-reminder columns were removed. The old `notification_queue` remains as history.
+reminder columns were removed. The old `notification_queue` was dropped.
 Both replacement schedules are active: builder at :00/:15/:30/:45 UTC and drainer
 at :05/:20/:35/:50 UTC. Parent `tools/check.ts` and a disposable disabled-send
 smoke passed after schema removal. Scheduled runs at 17:00 and 17:05 UTC on
