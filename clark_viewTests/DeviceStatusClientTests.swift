@@ -4,23 +4,22 @@ import Testing
 
 @MainActor
 struct DeviceStatusClientTests {
-    @Test func unknownInstallRemainsUnpaired() throws {
+    @Test func unknownInstallRemainsUnregistered() throws {
         let status = try decode(#"{"deviceId":"test-install","registered":false}"#)
-        #expect(!status.paired)
+        #expect(!status.registered)
         #expect(status.name == nil)
     }
 
     @Test func registeredDeviceHasIndependentIdentity() throws {
         let status = try decode(#"{"deviceId":"test-install","registered":true,"paired":true,"name":null,"id":7}"#)
-        #expect(status.paired)
+        #expect(status.registered)
         #expect(status.name == nil)
         #expect(status.id == 7)
     }
 
-    @Test func selfRegisteredDeviceIsUnpaired() throws {
+    @Test func selfRegisteredDeviceHasIdentity() throws {
         let status = try decode(#"{"deviceId":"test-install","registered":true,"paired":false,"id":8}"#)
         #expect(status.registered)
-        #expect(!status.paired)
         #expect(status.id == 8)
     }
 
@@ -32,11 +31,11 @@ struct DeviceStatusClientTests {
           {"kind":"another-source"}
         ]}
         """)
-        #expect(status.paired)
+        #expect(status.registered)
         #expect(status.name == "Example")
     }
 
-    @Test func missingRegistrationDoesNotBecomeUnpaired() {
+    @Test func missingRegistrationIsInvalid() {
         #expect(throws: DecodingError.self) {
             try decode(#"{"deviceId":"test-install","sources":[]}"#)
         }

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Registration identity and enrollment diagnostics for this installation.
+/// Registration identity diagnostics for this installation.
 struct DeviceDiagnosticsView: View {
     @State private var status: DeviceStatusClient.DeviceStatus?
     @State private var isLoading = false
@@ -11,7 +11,7 @@ struct DeviceDiagnosticsView: View {
                 if let status {
                     DiagnosticRow("Device ID", status.deviceId)
                     DiagnosticRow("Device Name", status.name ?? "—")
-                    DiagnosticRow("Paired", status.paired ? "Yes" : "No")
+                    DiagnosticRow("Registered", status.registered ? "Yes" : "No")
                 } else if isLoading {
                     ProgressView()
                 } else {

@@ -43,7 +43,7 @@ struct WidgetInventoryTests {
         #expect(WidgetInventoryPolicy.shouldUpload(signature: "a", state: state, now: now.addingTimeInterval(86_400)))
     }
 
-    @Test func failureCooldownAppliesUnlessPairing() {
+    @Test func failureCooldownAppliesUnlessRegistration() {
         let state = WidgetInventoryReportState(lastUploadedSignature: "a", lastSuccessAt: now,
                                                lastFailureAt: now.addingTimeInterval(100))
         #expect(!WidgetInventoryPolicy.shouldUpload(signature: "b", state: state, now: now.addingTimeInterval(200)))

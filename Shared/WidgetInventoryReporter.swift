@@ -3,13 +3,13 @@ import OSLog
 import WidgetKit
 
 /// Uploads the device's current widget configurations when they change, when none has
-/// succeeded, or daily. Runs from widget timelines, app activation, and pairing; never polls
+/// succeeded, or daily. Runs from widget timelines, app activation, and registration; never polls
 /// or reloads timelines. Callers await it, so the extension never depends on an orphaned task.
 actor WidgetInventoryReporter {
     static let shared = WidgetInventoryReporter()
 
     enum Trigger {
-        case timeline, appActivation, pairing
+        case timeline, appActivation, registration
     }
 
     private static let deadline: Duration = .seconds(3)
@@ -18,14 +18,14 @@ actor WidgetInventoryReporter {
 
     private var inFlight: Task<Void, Never>?
 
-    /// Overlapping calls share one run. Pairing follows any run in progress with its own,
-    /// because a pre-pairing attempt was rejected and must not hold the retry cooldown.
+    /// Registration follows any earlier run so a pre-registration rejection cannot
+    /// hold the retry cooldown after the device row exists.
     func report(trigger: Trigger) async {
         if let inFlight {
             await inFlight.value
-            guard trigger == .pairing else { return }
+            guard trigger == .registration else { return }
         }
-        let task = Task { await Self.runWithDeadline(ignoringCooldown: trigger == .pairing) }
+        let task = Task { await Self.runWithDeadline(ignoringCooldown: trigger == .registration) }
         inFlight = task
         await task.value
         if inFlight == task { inFlight = nil }

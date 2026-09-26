@@ -8,6 +8,16 @@ pointer. Preserve historical meaning; record reversals as new entries. Typo and
 broken-link corrections are allowed. See [AGENTS.md](../AGENTS.md#documenting-decisions)
 for routing current guidance, operational evidence, and routine validation.
 
+## 2026-09-26
+
+- Made joining a public feed the receiver's core flow: a join keeps the feed in
+  Your feeds, while this device independently enables reminders. Moved one lead
+  time to the feed so curation owns timing, and retired bunch pairing and its
+  storage because public content and device registration do not need enrollment.
+  Kept widget selection independent and old resolver mappings for pre-cutover
+  clients. See [valtown-brief.md](valtown-brief.md), parent
+  `docs/subscriptions.md`, and [join-feed-cutover.md](join-feed-cutover.md).
+
 ## 2026-09-25
 
 - Made pairing optional: an install now creates its own unpaired device row

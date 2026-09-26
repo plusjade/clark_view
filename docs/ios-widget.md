@@ -22,11 +22,10 @@ and SQLite schema. No browser UI or event scheduling is part of the spike.
 | [BeaconDateTimeView.swift](../Shared/BeaconDateTimeView.swift) | Shared widget/app lifecycle date line and local day label |
 | [ClarkViewWidget.swift](../ClarkViewWidget/ClarkViewWidget.swift), [WidgetFeedIntent.swift](../Shared/WidgetFeedIntent.swift) | Configurable feed choice, fetch/cache, preview fixtures, timeline, entry view |
 | [BeaconWidgetTemplate.swift](../ClarkViewWidget/BeaconWidgetTemplate.swift), [BeaconWidgetFocusLayouts.swift](../ClarkViewWidget/BeaconWidgetFocusLayouts.swift) | Default layout and focus transition |
-| [ContentView.swift](../clark_view/ContentView.swift), `clark_view/Subscription*.swift`, [FeedPreviewView.swift](../clark_view/FeedPreviewView.swift) | Home: the device's subscriptions index, show (with nested feed preview), new, and edit |
+| [ContentView.swift](../clark_view/ContentView.swift), `clark_view/Subscription*.swift`, [FeedPreviewView.swift](../clark_view/FeedPreviewView.swift) | Your feeds, public browse and pre-join preview, reminder switch, and leave |
 | [WidgetFocusStore.swift](../Shared/WidgetFocusStore.swift), [FocusWidgetItemIntent.swift](../ClarkViewWidget/FocusWidgetItemIntent.swift) | Shared local focus and short interaction-cache window |
 | [AppDeepLink.swift](../Shared/AppDeepLink.swift), [DeepLinkRouter.swift](../clark_view/DeepLinkRouter.swift) | `clarkview` subject routes shared by widgets, Live Activities, alert responses, and in-app navigation |
-| [DeviceIdentity.swift](../Shared/DeviceIdentity.swift) | Per-install UUID in `group.plusjade.clark-view`; local paired flag is copy-only |
-| [PairingClient.swift](../Shared/PairingClient.swift), [DeviceStatusClient.swift](../Shared/DeviceStatusClient.swift) | Self-registration, optional pairing, and diagnostic reads |
+| [DeviceIdentity.swift](../Shared/DeviceIdentity.swift), [DeviceStatusClient.swift](../Shared/DeviceStatusClient.swift) | Per-install UUID in `group.plusjade.clark-view`, self-registration, and diagnostic reads |
 | [PushTokenClient.swift](../Shared/PushTokenClient.swift), [ClarkViewWidgetPushHandler.swift](../ClarkViewWidget/ClarkViewWidgetPushHandler.swift) | Native widget token upload/removal |
 | [WidgetInventory.swift](../Shared/WidgetInventory.swift), [WidgetInventoryReporter.swift](../Shared/WidgetInventoryReporter.swift) | Widget inventory snapshot, upload policy, and coalesced reporter |
 | [WidgetRefreshDiagnostics.swift](../Shared/WidgetRefreshDiagnostics.swift), [WidgetDiagnosticsView.swift](../clark_view/WidgetDiagnosticsView.swift) | Last manual request, network attempt, success/failure and app reload controls |
@@ -42,9 +41,11 @@ for a timeline and do not guarantee immediate execution; the normal timeline req
 an hourly refresh. Native accented/vibrant appearances remain system-owned; Beacon respects
 Reduce Motion and Reduce Transparency. Consult Swift for geometry, not this file.
 
-The app home screen is the device's subscriptions. On first launch the install
-creates its own unpaired device row (`POST /devices`), so subscriptions never wait
-on pairing; the Pair button stays until the device joins a bunch. The app's feed
+The app home screen is Your feeds. On first launch the install creates its own
+device row (`POST /devices`). Public feeds can be browsed and previewed before
+joining. A join starts with Reminders off; the switch can be changed later, and
+Leave feed removes this device's join. The feed owns one shared reminder timing,
+shown in the preview, and browser configuration can change it. The app's feed
 preview has no effect on widgets. The one
 registered Clark View widget kind is configurable for home and lock screens. Its
 native editor has one Feed setting populated from `/feeds`; each widget needs an
@@ -60,12 +61,16 @@ WidgetKit controls when it runs. The first item follows the large widget's focus
 the remaining items use compact cards. The app reuses the widget's date line, refreshes
 when opened or foregrounded, and supports pull to refresh. Notification setup and its
 diagnostics live under the toolbar menu's Notifications entry.
+Ordinary public feed URLs retain their existing browser behavior. The app does
+not intercept them as a Join feed deep link; a receiver browses the in-app
+directory to join by name. Recheck this gap only if link-driven joining becomes
+a product requirement.
 
 Widget inventory is reported from `Provider.timeline` (including unconfigured and
-cache-reuse paths), app activation, and successful pairing — never from placeholders,
+cache-reuse paths), app activation, and successful registration — never from placeholders,
 snapshots, or rendering. It uploads `WidgetCenter.currentConfigurations()` only when the
 normalized contents changed, nothing has succeeded, or the last success is 24 hours old;
-a failure waits five minutes before the next natural trigger retries (pairing bypasses the
+a failure waits five minutes before the next natural trigger retries (registration bypasses the
 wait). The timeline awaits the reporter alongside the feed fetch; the reporter bounds
 itself to three seconds and never fails the timeline. A failed configuration query is not
 uploaded as an empty inventory. Feed reads send installation, caller, family, and purpose
@@ -93,7 +98,7 @@ acceptance checks.
 
 Server additions are live on parent `main` version 402 and `tools/check.ts` passes.
 The app/widget build and full test scheme pass with no new SwiftLint warnings. Pending
-on a team-signed device: pair, close the app, add a configured widget, and confirm
+on a team-signed device: register, close the app, add a configured widget, and confirm
 `/devices/:id/views` shows it without reopening the app, including whether configurations are readable during the initial
 timeline callback. Close this status once that is observed.
 

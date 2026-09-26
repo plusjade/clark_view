@@ -8,11 +8,10 @@
 import Foundation
 
 /// Stable per-install identity, shared between the app and widget extension via an
-/// App Group so pairing and push tokens remain attached to the actual installation.
+/// App Group so widget selection and push tokens share the installation identity.
 enum DeviceIdentity {
     static let appGroupID = "group.plusjade.clark-view"
     private static let deviceIDKey = "deviceID"
-    private static let pairedKey = "isPaired"
 
     // Falls back to .standard if the App Group entitlement isn't provisioned yet
     // (e.g. before Xcode has synced the capability with the signing team) — the app
@@ -28,12 +27,4 @@ enum DeviceIdentity {
         return generated
     }
 
-    /// Local cache of whether `/pair` has ever succeeded here — display-only. The
-    /// server owns actual pairing state, so this can go stale (re-paired from the
-    /// browser, App Group data restored to a new device) and must never gate a
-    /// fetch — only which empty-state copy the widget shows.
-    static var isPaired: Bool {
-        get { defaults.bool(forKey: pairedKey) }
-        set { defaults.set(newValue, forKey: pairedKey) }
-    }
 }

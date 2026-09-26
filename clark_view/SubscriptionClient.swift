@@ -1,6 +1,6 @@
 import Foundation
 
-/// A device's explicit reminder policy for one feed; the feed itself is nested beneath it.
+/// A device's join and reminder preference; timing belongs to the feed.
 struct Subscription: Decodable, Hashable, Identifiable {
     let id: Int
     let feedId: String
@@ -50,13 +50,13 @@ enum SubscriptionClient {
         return try JSONDecoder().decode(Index.self, from: data)
     }
 
-    static func create(deviceID: Int, feedID: String, leadSeconds: Int) async throws {
-        try await post(path(deviceID), form: ["feedId": feedID, "leadSeconds": String(leadSeconds)])
+    static func create(deviceID: Int, feedID: String, enabled: Bool) async throws {
+        try await post(path(deviceID), form: ["feedId": feedID, "enabled": enabled ? "1" : "0"])
     }
 
-    static func update(deviceID: Int, subscriptionID: Int, leadSeconds: Int, enabled: Bool) async throws {
+    static func update(deviceID: Int, subscriptionID: Int, enabled: Bool) async throws {
         try await post("\(path(deviceID))/\(subscriptionID)",
-                       form: ["leadSeconds": String(leadSeconds), "enabled": enabled ? "1" : "0"])
+                       form: ["enabled": enabled ? "1" : "0"])
     }
 
     static func delete(deviceID: Int, subscriptionID: Int) async throws {

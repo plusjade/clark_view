@@ -1,7 +1,7 @@
 import SwiftUI
 import WidgetKit
 
-/// Shared feed date line for the large widget and the paired app home screen.
+/// Shared feed date line for the large widget and the app's feed preview.
 struct WidgetLifecycleContext {
     var labels: WidgetLifecycleLabels?
     var now: Date = .now

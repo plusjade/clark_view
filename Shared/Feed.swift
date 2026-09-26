@@ -4,6 +4,13 @@ import Foundation
 struct Feed: Codable, Equatable, Identifiable {
     let id: String
     let name: String
+    let reminderLeadSeconds: Int?
+
+    init(id: String, name: String, reminderLeadSeconds: Int? = nil) {
+        self.id = id
+        self.name = name
+        self.reminderLeadSeconds = reminderLeadSeconds
+    }
 }
 
 enum FeedDirectoryClient {

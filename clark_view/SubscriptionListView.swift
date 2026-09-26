@@ -1,33 +1,32 @@
 import SwiftUI
 
-/// Home screen: this device's feed subscriptions. Each subscription opens its reminder policy and nested feed.
+/// Home screen: feeds joined by this installation, whether reminders are on or off.
 struct SubscriptionListView: View {
     let openNotifications: () -> Void
     @Environment(SubscriptionStore.self) private var store
     @State private var showsNew = false
-    @State private var actionError: String?
 
     var body: some View {
         content
             .toolbar {
                 if store.deviceID != nil {
                     ToolbarItem(placement: .primaryAction) {
-                        Button("New Subscription", systemImage: "plus") { showsNew = true }
+                        Button("Join feed", systemImage: "plus") { showsNew = true }
                     }
                 }
             }
-            .sheet(isPresented: $showsNew) { SubscriptionFormView(mode: .new) }
+            .sheet(isPresented: $showsNew) { SubscriptionFormView() }
             .navigationDestination(for: SubscriptionRoute.self) { SubscriptionDetailView(id: $0.id) }
-            .accessibilityIdentifier("subscriptions")
+            .accessibilityIdentifier("yourFeeds")
     }
 
     @ViewBuilder private var content: some View {
         switch store.phase {
         case .loading where store.subscriptions.isEmpty:
-            ProgressView("Loading subscriptions")
+            ProgressView("Loading your feeds")
         case .failed(let message) where store.subscriptions.isEmpty:
             ContentUnavailableView {
-                Label("Subscriptions unavailable", systemImage: "wifi.exclamationmark")
+                Label("Your feeds unavailable", systemImage: "wifi.exclamationmark")
             } description: {
                 Text(message)
             } actions: {
@@ -42,11 +41,11 @@ struct SubscriptionListView: View {
         List {
             if store.subscriptions.isEmpty {
                 ContentUnavailableView {
-                    Label("No subscriptions", systemImage: "bell")
+                    Label("No feeds joined", systemImage: "rectangle.stack")
                 } description: {
-                    Text("Subscribe to a feed to get reminders before its events.")
+                    Text("Join a public feed to keep it here. You can turn reminders on when you want them.")
                 } actions: {
-                    Button("New Subscription") { showsNew = true }
+                    Button("Join feed") { showsNew = true }
                 }
             }
             Section {
@@ -55,22 +54,8 @@ struct SubscriptionListView: View {
                         SubscriptionRow(subscription: subscription)
                     }
                 }
-                .onDelete { offsets in
-                    let removed = offsets.map { store.subscriptions[$0] }
-                    Task {
-                        do {
-                            for subscription in removed { try await store.delete(subscription) }
-                            actionError = nil
-                        } catch {
-                            actionError = error.localizedDescription
-                        }
-                    }
-                }
             } footer: {
-                deliveryFooter
-            }
-            if let actionError {
-                Section { Text(actionError).foregroundStyle(.red) }
+                if store.subscriptions.contains(where: \.enabled) { deliveryFooter }
             }
             if case .failed(let message) = store.phase {
                 Section { Text(message).foregroundStyle(.secondary) }
@@ -82,7 +67,7 @@ struct SubscriptionListView: View {
     @ViewBuilder private var deliveryFooter: some View {
         switch store.delivery {
         case "ready":
-            Label("Push notifications are on. Reminders will arrive on this device.",
+            Label("This device is ready to receive reminders when they are on.",
                   systemImage: "checkmark.circle.fill")
                 .foregroundStyle(.mint)
         case "permission_denied":
@@ -113,7 +98,9 @@ private struct SubscriptionRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(subscription.feedName)
-            Text(subscription.enabled ? ReminderLead.label(subscription.reminderLeadSeconds) : "Paused")
+            Text(subscription.enabled
+                 ? "Reminders on · \(ReminderLead.label(subscription.reminderLeadSeconds))"
+                 : "Reminders off")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }

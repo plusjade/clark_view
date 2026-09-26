@@ -1,144 +1,95 @@
 import SwiftUI
 
-/// New and edit screens for a subscription. A new subscription defaults to a one-hour reminder lead.
+/// Public directory and pre-join preview for this installation.
 struct SubscriptionFormView: View {
-    enum Mode {
-        case new
-        case edit(Subscription)
-    }
-
-    let mode: Mode
     @Environment(SubscriptionStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @State private var feeds: [Feed] = []
-    @State private var isLoadingFeeds = false
-    @State private var feedID: String?
-    @State private var leadSeconds: Int
-    @State private var enabled: Bool
-    @State private var isSaving = false
-    @State private var confirmsRemoval = false
+    @State private var isLoading = true
     @State private var errorMessage: String?
-
-    init(mode: Mode) {
-        self.mode = mode
-        switch mode {
-        case .new:
-            _leadSeconds = State(initialValue: ReminderLead.defaultSeconds)
-            _enabled = State(initialValue: true)
-        case .edit(let subscription):
-            _leadSeconds = State(initialValue: subscription.reminderLeadSeconds)
-            _enabled = State(initialValue: subscription.enabled)
-        }
-    }
 
     var body: some View {
         NavigationStack {
-            Form {
-                feedSection
-                Section {
-                    Picker("Reminder", selection: $leadSeconds) {
-                        ForEach(leadOptions, id: \.self) { Text(ReminderLead.label($0)).tag($0) }
-                    }
-                    if case .edit = mode { Toggle("Enabled", isOn: $enabled) }
-                } footer: {
-                    Text("Reminders arrive this long before each event in the feed starts.")
-                }
-                if case .edit = mode {
-                    Section {
-                        Button("Remove Subscription", role: .destructive) { confirmsRemoval = true }
-                    }
-                }
-                if let errorMessage {
-                    Section { Text(errorMessage).foregroundStyle(.red) }
-                }
-            }
-            .navigationTitle(isNew ? "New Subscription" : "Edit Subscription")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(isNew ? "Add" : "Save") { Task { await save() } }
-                        .disabled(isSaving || (isNew && feedID == nil))
-                }
-            }
-            .confirmationDialog("Remove this subscription?", isPresented: $confirmsRemoval, titleVisibility: .visible) {
-                Button("Remove Subscription", role: .destructive) { Task { await remove() } }
-            } message: {
-                Text("This device will stop getting reminders for this feed.")
-            }
-            .interactiveDismissDisabled(isSaving)
-            .task { if isNew { await loadFeeds() } }
-        }
-    }
-
-    @ViewBuilder private var feedSection: some View {
-        switch mode {
-        case .new:
-            Section("Feed") {
-                if isLoadingFeeds {
+            Group {
+                if isLoading {
                     ProgressView("Loading feeds")
-                } else if availableFeeds.isEmpty {
-                    Text("Every feed already has a subscription.").foregroundStyle(.secondary)
+                } else if let errorMessage {
+                    ContentUnavailableView {
+                        Label("Feeds unavailable", systemImage: "wifi.exclamationmark")
+                    } description: {
+                        Text(errorMessage)
+                    } actions: {
+                        Button("Try Again") { Task { await load() } }
+                    }
                 } else {
-                    Picker("Feed", selection: $feedID) {
-                        Text("Choose a feed").tag(String?.none)
-                        ForEach(availableFeeds) { Text($0.name).tag(Optional($0.id)) }
+                    List {
+                        if availableFeeds.isEmpty {
+                            ContentUnavailableView("All feeds joined", systemImage: "checkmark.circle")
+                        }
+                        ForEach(availableFeeds) { feed in
+                            NavigationLink(feed.name) { JoinFeedPreviewView(feed: feed, onJoined: { dismiss() }) }
+                        }
                     }
                 }
             }
-        case .edit(let subscription):
-            Section("Feed") { Text(subscription.feedName) }
+            .navigationTitle("Join feed")
+            .task { await load() }
         }
-    }
-
-    private var isNew: Bool {
-        if case .new = mode { return true }
-        return false
     }
 
     private var availableFeeds: [Feed] {
         feeds.filter { feed in !store.subscriptions.contains { $0.feedId == feed.id } }
     }
 
-    /// Presets plus a stored lead set elsewhere (e.g. the browser), so editing never silently changes it.
-    private var leadOptions: [Int] {
-        Set(ReminderLead.presets + [leadSeconds]).sorted()
-    }
-
-    private func loadFeeds() async {
-        isLoadingFeeds = true
-        defer { isLoadingFeeds = false }
+    private func load() async {
+        isLoading = true
+        defer { isLoading = false }
         do {
             feeds = try await FeedDirectoryClient.list()
+            errorMessage = nil
         } catch {
             errorMessage = "Couldn’t load feeds. Try again."
         }
     }
+}
 
-    private func save() async {
-        isSaving = true
-        defer { isSaving = false }
-        do {
-            switch mode {
-            case .new:
-                guard let feedID else { return }
-                try await store.create(feedID: feedID, leadSeconds: leadSeconds)
-            case .edit(let subscription):
-                try await store.update(subscription, leadSeconds: leadSeconds, enabled: enabled)
+private struct JoinFeedPreviewView: View {
+    let feed: Feed
+    let onJoined: () -> Void
+    @Environment(SubscriptionStore.self) private var store
+    @State private var reminders = false
+    @State private var isSaving = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        FeedPreviewView(feed: feed) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Shared reminder timing: " +
+                     ReminderLead.label(feed.reminderLeadSeconds ?? ReminderLead.defaultSeconds))
+                Text("The feed maintains this timing, and it can change.")
+                    .foregroundStyle(.secondary)
+                Toggle("Reminders", isOn: $reminders)
+                Button("Join feed") { Task { await join() } }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isSaving)
+                Text("Joining keeps this feed in Your feeds. Widget selection stays independent.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                if let errorMessage {
+                    Text(errorMessage).foregroundStyle(.red)
+                }
             }
-            dismiss()
-        } catch {
-            errorMessage = error.localizedDescription
         }
+        .navigationTitle(feed.name)
+        .navigationBarTitleDisplayMode(.inline)
     }
 
-    private func remove() async {
-        guard case .edit(let subscription) = mode else { return }
+    private func join() async {
         isSaving = true
         defer { isSaving = false }
         do {
-            try await store.delete(subscription)
-            dismiss()
+            try await store.create(feedID: feed.id, enabled: reminders)
+            onJoined()
         } catch {
             errorMessage = error.localizedDescription
         }

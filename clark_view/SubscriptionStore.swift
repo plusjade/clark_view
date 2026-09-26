@@ -2,7 +2,7 @@ import Foundation
 
 /// The home screen's subscriptions, shared by the index, show, and form screens.
 /// The numeric device ID is re-resolved on each load because a browser merge can move this install to another row.
-/// An unregistered install creates its own unpaired device row, so pairing never gates subscriptions.
+/// An unregistered install creates its own device row before loading joins.
 @MainActor @Observable
 final class SubscriptionStore {
     enum Phase: Equatable {
@@ -29,6 +29,9 @@ final class SubscriptionStore {
             return
         }
         deviceID = id
+        if !status.registered {
+            await WidgetInventoryReporter.shared.report(trigger: .registration)
+        }
         do {
             let index = try await SubscriptionClient.index(deviceID: id)
             subscriptions = index.subscriptions
@@ -43,14 +46,14 @@ final class SubscriptionStore {
         subscriptions.first { $0.id == id }
     }
 
-    func create(feedID: String, leadSeconds: Int) async throws {
-        try await SubscriptionClient.create(deviceID: try requireDevice(), feedID: feedID, leadSeconds: leadSeconds)
+    func create(feedID: String, enabled: Bool) async throws {
+        try await SubscriptionClient.create(deviceID: try requireDevice(), feedID: feedID, enabled: enabled)
         await load()
     }
 
-    func update(_ subscription: Subscription, leadSeconds: Int, enabled: Bool) async throws {
+    func update(_ subscription: Subscription, enabled: Bool) async throws {
         try await SubscriptionClient.update(deviceID: try requireDevice(), subscriptionID: subscription.id,
-                                            leadSeconds: leadSeconds, enabled: enabled)
+                                            enabled: enabled)
         await load()
     }
 

@@ -1,14 +1,12 @@
 import SwiftUI
 
-/// Home is this device's subscriptions; each subscription nests the feed it reminds about.
+/// Home is this device's joined feeds, with diagnostics in the menu.
 struct ContentView: View {
     @Environment(NotificationSettings.self) private var notifications
     @Environment(DeepLinkRouter.self) private var deepLinks
     @Environment(LiveActivityCoordinator.self) private var liveActivities
     @Environment(\.scenePhase) private var scenePhase
     @State private var subscriptions = SubscriptionStore()
-    @State private var isPaired = DeviceIdentity.isPaired
-    @State private var showsPairing = false
     @State private var diagnosticsPanel: DiagnosticsPanel?
 
     var body: some View {
@@ -16,13 +14,8 @@ struct ContentView: View {
 
         NavigationStack {
             SubscriptionListView(openNotifications: { diagnosticsPanel = .notifications })
-                .navigationTitle("Subscriptions")
+                .navigationTitle("Your feeds")
                 .toolbar {
-                    if !isPaired {
-                        ToolbarItem(placement: .topBarLeading) {
-                            Button("Pair") { showsPairing = true }
-                        }
-                    }
                     ToolbarItem(placement: .topBarTrailing) {
                         DiagnosticsMenu(selection: $diagnosticsPanel)
                     }
@@ -31,14 +24,6 @@ struct ContentView: View {
                 .onChange(of: diagnosticsPanel) { previous, _ in
                     // Notification setup changes the delivery note under the subscriptions.
                     if previous == .notifications { Task { await subscriptions.load() } }
-                }
-                .sheet(isPresented: $showsPairing) {
-                    PairingView(onPaired: {
-                        isPaired = true
-                        showsPairing = false
-                        Task { await WidgetInventoryReporter.shared.report(trigger: .pairing) }
-                        Task { await subscriptions.load() }
-                    })
                 }
                 .navigationDestination(item: $deepLinks.destination) { destination in
                     DeepLinkDetailView(destination: destination)
@@ -60,12 +45,6 @@ struct ContentView: View {
         }
         await liveActivities.refresh()
         await notifications.refresh()
-        // A failed fetch must not erase pairing; a lost pairing response can be recovered here.
-        let pairingAtStart = isPaired
-        guard let status = await DeviceStatusClient.fetch(device: DeviceIdentity.deviceID),
-              isPaired == pairingAtStart else { return }
-        DeviceIdentity.isPaired = status.paired
-        isPaired = status.paired
     }
 }
 

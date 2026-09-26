@@ -1,28 +1,13 @@
 import Foundation
 
-private enum DeviceStatusKeys: String, CodingKey {
-    case deviceId, registered, paired, name, id
-}
-
-/// Reads and creates this installation's device row. Pairing (bunch membership) is optional.
+/// Reads and creates this installation's device row.
 enum DeviceStatusClient {
     struct DeviceStatus: Decodable {
         let deviceId: String
         let registered: Bool
-        /// Bunch membership; older servers omit it and treat every registered device as paired.
-        let paired: Bool
         let name: String?
         /// Server device row for `/devices/:id` routes; present only when registered.
         let id: Int?
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: DeviceStatusKeys.self)
-            deviceId = try container.decode(String.self, forKey: .deviceId)
-            registered = try container.decode(Bool.self, forKey: .registered)
-            paired = try container.decodeIfPresent(Bool.self, forKey: .paired) ?? registered
-            name = try container.decodeIfPresent(String.self, forKey: .name)
-            id = try container.decodeIfPresent(Int.self, forKey: .id)
-        }
     }
 
     private struct RegisterResponse: Decodable {
@@ -39,7 +24,7 @@ enum DeviceStatusClient {
         return try? JSONDecoder().decode(DeviceStatus.self, from: data)
     }
 
-    /// Creates this installation's unpaired device row if missing (`POST /devices`) and returns its ID.
+    /// Creates this installation's device row if missing (`POST /devices`) and returns its ID.
     static func register(device: String) async -> Int? {
         var request = URLRequest(url: ServerURL.baseURL.appendingPathComponent("devices"))
         request.httpMethod = "POST"

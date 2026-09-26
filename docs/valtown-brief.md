@@ -16,15 +16,14 @@ to the task, not as re-confirmed fact.
 
 ## Start here: ownership and request flow
 
-Clark View is widget-first. The containing iOS app registers its own install (pairing
-into a bunch is optional), manages its feed
-subscriptions (each showing a preview of its feed) on the home screen, and exposes
+Clark View is widget-first. The containing iOS app registers its own install, manages
+joined public feeds (each showing a preview and device reminder switch) on the home screen, and exposes
 notification setup and diagnostics through its menu. A browser helper configures sources. Each widget explicitly selects a
 server-composed temporal feed in its native editor.
 
 ```text
-Browser → app-clarkview → feeds, devices, bunches, source registry
-App     → app-clarkview /devices/:id/subscriptions (JSON), /feeds, /feeds/:feedId; POST /devices, /pair and status remain installation routes
+Browser → app-clarkview → feeds, devices, source registry
+App     → app-clarkview /devices/:id/subscriptions (JSON), /feeds, /feeds/:feedId; POST /devices and status identify an install
 Widget  → app-clarkview /feeds/:feedId
                          → feed assignments + source pointers
                          → public HTTP reads of assigned source vals
@@ -83,7 +82,7 @@ rename it.** Endpoint identity follows the file ID, not its name. When verificat
 needed, use `links.endpoint` from `list_files`; do not invent URLs from val
 names. Keep iOS on this endpoint — do not substitute an unverified alternate host.
 
-All active sources are registered in bunch 1. IDs identify parent-owned instances, not
+Sources are registered system-wide. IDs identify parent-owned instances, not
 universal source kinds. Every source uses the public HTTP entry point defined by the val. During this
 prototype stage, all source operations are intentionally unauthenticated, including
 reads, diagnostics, ingest triggers, and other writes. Endpoint obscurity is not
@@ -98,30 +97,29 @@ caching them here.
 
 ## Parent model and code map
 
-Canonical parent tables include `bunches`, `bunch_codes`, `devices`, `sources`,
+Canonical parent tables include `devices`, `sources`,
 `feeds`, `feeds_sources`, `device_subscriptions`, `device_push_tokens`,
 `device_alert_tokens`, `subscription_notification_queue`, `device_widget_inventory`, and
 `device_feed_requests`.
 `feeds` has independently allocated stable IDs, editable nonunique names,
-presentation, and timestamps. `feeds_sources` has a unique feed/source pair,
+presentation, shared `reminder_lead_seconds`, and timestamps. `feeds_sources` has a unique feed/source pair,
 foreign keys, and a Live/Disabled flag. Neither table has device ownership,
 surface type, or ACL. Sources own their data separately.
 
-- `sources` is a bunch-owned instance registry: `id`, `bunch_id`, `name`, `endpoint`,
+- `sources` is a system-wide instance registry: `id`, `name`, `endpoint`,
   `remote_source_key`, `contract_version`, `read_profile`, plus timestamps. `read_transport`
   and `settings_schema` are inert leftovers of the retired protocol. `kind` is unrestricted diagnostic metadata, neither unique
   nor the transport dispatch key. There is no separate definitions or
   `source_instances` table.
-- `devices.bunch_id` is nullable: an install creates its own unpaired row, and pairing
-  later sets the bunch on that same row. Bunches model no ACL yet.
+- An install creates its own device row independently of feed joins.
 - A reinstall registers a new device row; `/devices/:id/merge` moves its live
   install ID onto the target and deletes the origin. Feed IDs and content are untouched.
   The retired install ID's push/alert token rows are dropped.
-- `feeds_sources` stores source instance IDs independently of bunch membership.
-  Feed attachment does not require a device or matching bunch. The obsolete bunch
-  triggers stay retired.
-- Reminders require an explicit `device_subscriptions` row. Feed attachment,
-  widget selection, and device enrollment never create one implicitly.
+- `feeds_sources` stores source instance IDs without device membership.
+  Feed attachment does not require a device.
+- A `device_subscriptions` row means joined. Its `enabled` boolean means reminders
+  are on; timing always comes from the feed. Feed attachment, widget selection, and
+  device registration never create a join implicitly.
 - The legacy `priority` column is inert. Composition orders by item start time, then
   source ID and source-local item ID. No current form sets priority.
 - Feed assignment `enabled` is a non-null 0/1 flag. Live (1, default) contributes
@@ -149,7 +147,6 @@ surface type, or ACL. Sources own their data separately.
 | `lib/feedStore.ts` | Independent feed CRUD, source attachment, composition lookup, frozen legacy mapping |
 | `lib/sourceStore.ts` | Registry and browser source projections |
 | `lib/deviceStore.ts` | Device identity |
-| `lib/bunchStore.ts` | Bunch administration, reusable 30-minute codes, registration |
 | `lib/presentation.ts` | Presentation defaults, stored JSON parsing, form validation |
 | `lib/deviceTokenStore.ts`, `lib/push.ts` | Token lifecycle and best-effort device notification (`notifyDevice`) |
 | `lib/subscriptionStore.ts` | Explicit subscription policy and notification ledger |
@@ -159,7 +156,7 @@ surface type, or ACL. Sources own their data separately.
 | `lib/lifecycle.ts` | Global lifecycle label set; phase-to-word resolution and the derived legacy caption |
 | `lib/guards.ts` | Domain-free runtime guards |
 | `render/pageShell.ts` | Browser styles, semantic hierarchy, navigation and shared form/table rules |
-| `render/feedHtml.tsx`, `render/deviceHtml.tsx`, `render/sourceHtml.tsx`, `render/bunchHtml.tsx` | Feed administration, device identity and subscriptions, source explorer, enrollment |
+| `render/feedHtml.tsx`, `render/deviceHtml.tsx`, `render/sourceHtml.tsx`, `render/subscriptionHtml.tsx` | Feed administration, device identity and joins, source explorer |
 | `render/rootHtml.ts`, `render/dataTable.tsx` | HTML root and shared tables |
 
 Browser work follows `AGENTS.md`: native semantic HTML, compact data-dense views,
@@ -177,30 +174,29 @@ Browser tab titles retain resource names. The root remains a standalone jump-off
 
 | Method / route | Behavior |
 | --- | --- |
-| `GET /feeds` | Public, unpaired directory: `{feeds:[{id,name}]}`. IDs are decimal row IDs carried as opaque strings by Swift; no installation identity in the response. Read-only and `no-store`. |
-| `GET /feeds/:feedId` | Public, unpaired schema-3 composition from an independent feed's enabled and verified assignments and presentation. Optional `timeZone` reader context. Unknown or deleted IDs return JSON 404; a valid empty feed succeeds. Reads use `no-store`. Optional `X-Clark-Installation`, `X-Clark-Caller`, `X-Clark-Widget-Family`, `X-Clark-Request-Purpose` headers record a receipt for a registered device only; they never change the response. |
+| `GET /feeds` | Public directory: `{feeds:[{id,name,reminderLeadSeconds}]}`. Timing is the feed's current shared value; IDs are decimal strings opaque to Swift. No installation identity is required. Read-only and `no-store`. |
+| `GET /feeds/:feedId/details` | Public name and shared timing for a pre-join preview, without changing widget payload semantics. |
+| `GET /feeds/:feedId` | Public schema-3 composition from a feed's enabled and verified assignments and presentation. Optional `timeZone` reader context. Unknown or deleted IDs return JSON 404; a valid empty feed succeeds. Reads use `no-store`. Optional `X-Clark-Installation`, `X-Clark-Caller`, `X-Clark-Widget-Family`, `X-Clark-Request-Purpose` headers record a receipt for a registered device only; they never change the response. |
 | `POST /device/widget-inventory` | `{device,observedAt,widgets:[{kind,family,state,feedId?}]}` complete snapshot; `state` is `configured`/`unconfigured`/`unreadable`. Replaces the stored snapshot unless older (`{ok:true,stale:true}`). Unknown install 404, malformed 400. |
 | `GET /installations/:installId/feed` | Native migration lookup through frozen `legacy_installation_feeds`, returning `{id,name}` or JSON 404. The current app no longer calls it; retained for older builds. |
 | `GET /config/resolve` | Temporary legacy client feed through the frozen installation mapping: `device=<install UUID>`, `tz=<seconds east of GMT>`, optional `timeZone=<named zone>`. Unmapped requests return an empty schema-3 feed. Retain until client cutover is confirmed. |
 | `GET /devices/resolve` | Temporary alias through the same frozen mapping |
-| `POST /pair` | App sends `{code,device}`. Success 200 `{ok:true,deviceId}`; unknown code 404; expired code 422. Swift requires only `ok`. Codes are six characters and reusable for 30 minutes. |
-| `POST /devices/register` | Same enrollment with optional `name` |
-| `GET /config/status/:deviceId` | Legacy diagnostics using the install UUID. Unknown install returns `{deviceId,paired:false}`. Registered response carries bunch-membership `paired`, name and compatibility-only empty `teams`. |
-| `POST /devices` | App sends `{device}` on first run. Creates an unpaired row if missing and returns 200 `{ok:true,id,paired}`; an existing row is never changed. |
-| `GET /devices/status/:installId` | App registration diagnostics: `{deviceId,registered,paired,name,id}` where `paired` is bunch membership and `id` is the numeric device row for `/devices/:id` routes; unknown install omits name and id and returns `registered:false,paired:false`. The app re-resolves `id` on each load because a merge moves the install to another row. |
-| `POST /device/token` | `{device,token,kind:"widget",environment:"sandbox"\|"production",active}`; `active:false` removes the token. Legacy omitted fields support old app-background tokens. Registration may precede pairing. |
-| `GET /` | HTML entry with links to `/bunches`, `/devices`, `/feeds/manage`, and `/sources` |
+| `POST /pair`, `POST /devices/register` | Temporary old-client responses: HTTP 410 `{ok:false,error:"pairing_retired"}`. They never report success or use bunch storage. Remove when pre-join builds are no longer in use. |
+| `GET /config/status/:deviceId` | Legacy diagnostics using the install UUID. Retained `paired` is always false; registered responses also carry name and compatibility-only empty `teams`. Remove with the old resolver client. |
+| `POST /devices` | App sends `{device}` on first run. Creates its row if missing and returns 200 `{ok:true,id,paired:false}`; an existing row is never changed. Retained `paired` is compatibility-only. |
+| `GET /devices/status/:installId` | Registration diagnostics: `{deviceId,registered,paired:false,name,id}`; unknown install omits name and id. The app re-resolves `id` on each load because a merge moves the install to another row. Remove `paired` after old clients are gone. |
+| `POST /device/token` | `{device,token,kind:"widget",environment:"sandbox"\|"production",active}`; `active:false` removes the token. Legacy omitted fields support old app-background tokens. |
+| `GET /` | HTML entry with links to `/devices`, `/feeds/manage`, and `/sources` |
 | `/feeds/manage`, `/feeds/new` | Browser feed index and creation; `/feeds` remains JSON |
-| `/feeds/:id/manage` | Feed preview, source attachment/state/removal, presentation, rename, and deletion |
-| `/devices/:id`, `/devices/:id/settings`, `/devices/:id/subscriptions` | Device identity and name edit, explicit feed subscriptions, enrollment and merge entry |
-| `/devices/:id/subscriptions` with `Accept: application/json` | iOS subscription API on the browser routes. GET returns `{subscriptions:[{id,feedId,feedName,enabled,reminderLeadSeconds,createdAt,updatedAt}],delivery}` with string `feedId` matching `/feeds`. POST `/`, `/:subscriptionId`, and `/:subscriptionId/delete` take the same form-encoded fields as the browser and return `{ok:true}` (201 on create) or `{ok:false,error}` with the browser's status codes instead of a redirect. |
+| `/feeds/:id/manage` | Feed preview, source attachment/state/removal, presentation, shared reminder timing, rename, and deletion |
+| `/devices/:id`, `/devices/:id/settings`, `/devices/:id/subscriptions` | Device identity and name edit, joined feeds, and merge entry |
+| `/devices/:id/subscriptions` with `Accept: application/json` | iOS join API on browser routes. GET returns `{subscriptions:[{id,feedId,feedName,enabled,reminderLeadSeconds,createdAt,updatedAt}],delivery}`; `reminderLeadSeconds` is derived from the feed, not stored per device. Create/update accepts `enabled=0\|1`; delete leaves. Legacy `leadSeconds` on create with no enabled means on and is ignored on update until old clients age out. Duplicate join returns success without adding a row. |
 | `/devices/:id/views` | Latest reported widget inventory and per feed/caller/family/purpose request receipts, labeled with report times |
 | `/devices/:id/merge` | Move a reinstalled app's install ID onto the device it replaces; the chosen target survives and the origin row is deleted |
 | `/sources` | Read-only registry explorer with the source gallery in place of the device gallery |
 | `/sources/:id` | Source Feed tab: reads the implementing source with its schema defaults and renders temporal items plus the raw source response; failures and empty feeds remain ordinary page states |
 | `/sources/:id/overview`, `/sources/:id/diagnostics`, `/sources/:id/feeds` | Source tabs for registry metadata and verification, stored coverage, and attached feeds |
 | `POST /internal/reminders/{build,drain}` | Subscription reminder jobs behind `REMINDERS_TOKEN` bearer auth; unset returns 401. Drain accepts an optional row `id`, keeping an external scheduler swappable for the cron. |
-| `/bunches`, `/bunches/new`, `/bunches/:id`, `/bunches/:id/pair`, `/bunches/:id/codes` | Enrollment administration and pairing-code creation |
 
 Resolver diagnostics include `x-device-feed-provider: source-registry-v1`,
 `x-effective-source-count`, `x-effective-sources` (e.g. `5:nfl,6:cfb`), and
@@ -372,22 +368,21 @@ pending. Recheck and close this status after one widget is configured with a
 named feed, that feed is edited in the browser, and the refreshed widget shows
 the edit without changing its stored ID.
 
-Subscription code was merged from `codex-device-subscriptions` to parent `main`
-version 390 on 2026-09-25. The old jobs were stopped, five pending legacy queue
-rows were voided without sending, and `device_sources` plus the obsolete device
-reminder columns were removed. The old `notification_queue` was dropped.
-Both replacement schedules are active: builder at :00/:15/:30/:45 UTC and drainer
-at :05/:20/:35/:50 UTC. Parent `tools/check.ts` and a disposable disabled-send
-smoke passed after schema removal. Scheduled runs at 17:00 and 17:05 UTC on
-2026-09-25 logged zero work and no failures because no subscriptions existed.
+The join-feed cutover was merged into parent `main` on 2026-09-26 (through
+version 450). Feed timing
+was migrated from unanimous subscription values, using one hour for feeds with
+no subscriptions. Bunch tables and `bunch_id` columns, plus per-subscription
+timing, were removed after a recoverable snapshot. See
+[join-feed-cutover.md](join-feed-cutover.md) for preservation and recovery.
 For current operation, check `read_interval_settings` and the two cron file logs;
-the parent `docs/subscriptions.md` owns the reminder contract.
+the parent `docs/subscriptions.md` owns the reminder contract. The prior
+subscription deployment's scheduled times are historical, not current settings.
 
-Subscriptions follow current enabled, verified `feeds_sources` and canonical source
-items, independent of feed presentation and widget selection. The ledger deduplicates
-overlapping feeds by device, namespaced item ID, and lead; terminal results are not
-replayed. `REMINDERS_ENABLED` gates APNs delivery. Alerts do not refresh the widget.
-No old assignment becomes a subscription automatically. Quiet hours require a
+Enabled joins follow current enabled, verified `feeds_sources` and canonical source
+items, independent of feed presentation and widget selection. The shared feed lead
+determines timing. The ledger deduplicates overlapping feeds by device, namespaced
+item ID, and lead; terminal results are not replayed. `REMINDERS_ENABLED` gates APNs
+delivery. Alerts do not refresh the widget. Quiet hours require a
 named-zone policy and storage before they can be correct. Details in the parent's
 `docs/subscriptions.md` and `docs/event-reminders.md`.
 
@@ -508,9 +503,10 @@ Keep these constraints; use Git/Val Town history for change lists and old probes
   client-local date floor drops valid events at UTC+14.
   Each non-sports source retains its own date-selection semantics; a timezone redesign requires
   source-specific fixtures, not a blanket shift of timestamps.
-- **Never rebuild `sources` to change a constraint.** Foreign keys are on and
-  `feeds_sources` cascades on delete, so dropping the table wipes assignments.
-  Add a column instead.
+- **Rebuilding `sources` can delete assignments.** Foreign keys are on and
+  `feeds_sources` cascades on delete. The join-feed cutover preserved assignments
+  by restoring their captured rows in the same transaction; future rebuilds need
+  the same explicit preservation and verification strategy.
 - **Do not replay completed token backfills.** `INSERT OR IGNORE` only skips rows
   still present, so replaying a backfill after a dead-token cleanup can resurrect
   retired tokens. Schema initialization must not recreate the retired `device_tokens`
