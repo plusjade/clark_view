@@ -53,7 +53,7 @@ struct BeaconWidgetTemplate: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .padding(10)
             } else {
-                let padding: CGFloat = family == .systemLarge ? 18 : 12
+                let padding: CGFloat = family == .systemLarge ? 18 : 16
 
                 VStack(alignment: .leading, spacing: 24) {
                     if family == .systemLarge {
@@ -76,15 +76,6 @@ struct BeaconWidgetTemplate: View {
                     reduceMotion ? nil : .smooth(duration: 0.35),
                     value: focusedItemID
                 )
-                .background {
-                    if family != .systemLarge {
-                        BeaconWidgetCardSurface(
-                            isFocused: true,
-                            usesTranslucency: usesTranslucentSurfaces
-                        )
-                    }
-                }
-                .padding(family == .systemLarge ? 0 : 6)
             }
         }
         .tint(Color("AccentColor"))
@@ -133,8 +124,8 @@ private struct BeaconItemBlockView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             Text(item.subText)
-                .font(.system(.title3, design: .default, weight: .regular))
-                .foregroundStyle(.secondary)
+                .font(.system(.title3, design: .monospaced, weight: .regular))
+                .foregroundStyle(.primary)
                 .lineLimit(2)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)

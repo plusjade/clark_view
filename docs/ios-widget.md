@@ -32,7 +32,8 @@ and SQLite schema. No browser UI or event scheduling is part of the spike.
 
 Beacon small/medium show the first item; large shows the first two. The small family
 uses the root surface directly, omits subtext, and stacks its date above the time or
-lifecycle label at the same date-line type size. Local focus
+lifecycle label at the same date-line type size. The medium family also uses the root
+surface directly and renders subtext in the primary color with a monospaced face. Local focus
 expands either item in place without reordering server items. Widgets showing the
 same feed share focus; each feed has its own focus and a 15-second cache-reuse window.
 Explicit refresh bypasses that window. Ordinary
