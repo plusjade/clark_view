@@ -67,6 +67,7 @@ struct BeaconDateTimeView: View {
             .font(font)
             .monospacedDigit()
             .lineLimit(layout == .stacked ? 2 : 1)
+            .fixedSize(horizontal: false, vertical: layout == .stacked)
             .foregroundStyle(style == .accessory ? AnyShapeStyle(.primary) : AnyShapeStyle(.tint))
             .widgetAccentable()
     }
