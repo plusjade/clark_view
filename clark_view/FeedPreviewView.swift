@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// A subscription's nested feed, rendered like the large widget beneath the subscription's own header.
-struct FeedPreviewView<Header: View>: View {
+/// An in-app feed preview with its controls following the feed content.
+struct FeedPreviewView<Footer: View>: View {
     let feed: Feed
-    @ViewBuilder let header: Header
+    @ViewBuilder let footer: Footer
     @Environment(DeepLinkRouter.self) private var deepLinks
     @Environment(\.scenePhase) private var scenePhase
     @State private var payload: WidgetPayload?
@@ -14,7 +14,6 @@ struct FeedPreviewView<Header: View>: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                header
                 if let payload {
                     if payload.items.isEmpty {
                         ContentUnavailableView("Nothing here right now 🫨", systemImage: "sportscourt")
@@ -57,6 +56,7 @@ struct FeedPreviewView<Header: View>: View {
                         .foregroundStyle(.secondary)
                     Button("Try Again") { Task { await load() } }
                 }
+                footer
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .topLeading)

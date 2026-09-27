@@ -54,36 +54,43 @@ struct SubscriptionListView: View {
                         SubscriptionRow(subscription: subscription)
                     }
                 }
-            } footer: {
-                if store.subscriptions.contains(where: \.enabled) { deliveryFooter }
             }
             if case .failed(let message) = store.phase {
                 Section { Text(message).foregroundStyle(.secondary) }
+            }
+            if store.subscriptions.contains(where: \.enabled),
+               let delivery = store.delivery,
+               ["ready", "permission_denied", "no_token"].contains(delivery) {
+                deliverySection
             }
         }
         .refreshable { await store.load() }
     }
 
-    @ViewBuilder private var deliveryFooter: some View {
-        switch store.delivery {
-        case "ready":
-            Label("This device is ready to receive reminders when they are on.",
-                  systemImage: "checkmark.circle.fill")
-                .foregroundStyle(.mint)
-        case "permission_denied":
-            needsSetup("Push notifications are off for this app, so reminders can’t arrive.")
-        case "no_token":
-            needsSetup("This device hasn’t registered for push notifications yet, so reminders can’t arrive.")
-        default:
-            EmptyView()
+    private var deliverySection: some View {
+        Section("This device") {
+            switch store.delivery {
+            case "ready":
+                deliveryStatus("Ready for reminders", symbol: "checkmark.circle.fill", color: .green)
+            case "permission_denied":
+                deliveryStatus("Notifications off", symbol: "bell.slash.fill", color: .orange)
+                Button("Review notification settings", action: openNotifications)
+            case "no_token":
+                deliveryStatus("Notifications not ready", symbol: "exclamationmark.circle.fill", color: .orange)
+                Button("Review notification settings", action: openNotifications)
+            default:
+                EmptyView()
+            }
         }
     }
 
-    private func needsSetup(_ note: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(note)
-            Button("Open Notifications", action: openNotifications)
-                .font(.footnote.weight(.semibold))
+    private func deliveryStatus(_ title: String, symbol: String, color: Color) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: symbol)
+                .foregroundStyle(color)
+                .frame(width: 20)
+                .accessibilityHidden(true)
+            Text(title)
         }
     }
 }
@@ -96,13 +103,12 @@ private struct SubscriptionRow: View {
     let subscription: Subscription
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        HStack {
             Text(subscription.feedName)
-            Text(subscription.enabled
-                 ? "Reminders on · \(ReminderLead.label(subscription.reminderLeadSeconds))"
-                 : "Reminders off")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            Spacer()
+            Image(systemName: subscription.enabled ? "bell.fill" : "bell.slash")
+                .foregroundStyle(subscription.enabled ? Color.accentColor : Color.secondary)
+                .accessibilityLabel(subscription.enabled ? "Reminders on" : "Reminders off")
         }
     }
 }
