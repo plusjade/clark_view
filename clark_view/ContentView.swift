@@ -1,30 +1,38 @@
 import SwiftUI
 
-/// Home is this device's joined feeds, with diagnostics in the menu.
+/// Home is this device's joined feeds, with a separate diagnostics hub.
 struct ContentView: View {
     @Environment(NotificationSettings.self) private var notifications
     @Environment(DeepLinkRouter.self) private var deepLinks
     @Environment(LiveActivityCoordinator.self) private var liveActivities
     @Environment(\.scenePhase) private var scenePhase
     @State private var subscriptions = SubscriptionStore()
-    @State private var diagnosticsPanel: DiagnosticsPanel?
+    @State private var showsDiagnostics = false
+    @State private var initialDiagnosticsPanel: DiagnosticsPanel?
 
     var body: some View {
         @Bindable var deepLinks = deepLinks
 
         NavigationStack {
-            SubscriptionListView(openNotifications: { diagnosticsPanel = .notifications })
+            SubscriptionListView(openNotifications: {
+                initialDiagnosticsPanel = .notifications
+                showsDiagnostics = true
+            })
                 .navigationTitle("Your feeds")
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
-                        DiagnosticsMenu(selection: $diagnosticsPanel)
+                        Button("Diagnostics", systemImage: "stethoscope") {
+                            initialDiagnosticsPanel = nil
+                            showsDiagnostics = true
+                        }
                     }
                 }
-                .diagnosticsPanel($diagnosticsPanel)
-                .onChange(of: diagnosticsPanel) { previous, _ in
-                    // Notification setup changes the delivery note under the subscriptions.
-                    if previous == .notifications { Task { await subscriptions.load() } }
-                }
+                .sheet(isPresented: $showsDiagnostics, onDismiss: {
+                    // Notification setup can change the delivery note under the subscriptions.
+                    Task { await subscriptions.load() }
+                }, content: {
+                    DiagnosticsView(initialPanel: initialDiagnosticsPanel)
+                })
                 .navigationDestination(item: $deepLinks.destination) { destination in
                     DeepLinkDetailView(destination: destination)
                 }

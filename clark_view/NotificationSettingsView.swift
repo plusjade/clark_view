@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// Notification setup lives in the app menu.
+/// Notification setup is reachable from diagnostics and delivery warnings.
 struct NotificationSettingsView: View {
     @Environment(NotificationSettings.self) private var notifications
     @Environment(\.openURL) private var openURL

@@ -1,13 +1,11 @@
 import SwiftUI
 
-/// The menu holds notification setup and device diagnostics beside the live feed.
-enum DiagnosticsPanel: String, Identifiable {
+/// Destinations within the shared diagnostics navigation.
+enum DiagnosticsPanel: String, Hashable {
     case device
     case notifications
     case widget
     case liveActivity
-
-    var id: String { rawValue }
 
     var title: String {
         switch self {
@@ -37,40 +35,43 @@ enum DiagnosticsPanel: String, Identifiable {
     }
 }
 
-/// Toolbar launcher: device and delivery status first, then the surfaces they feed.
-struct DiagnosticsMenu: View {
-    @Binding var selection: DiagnosticsPanel?
+/// A lightweight index keeps each diagnostic panel's work scoped to its destination.
+struct DiagnosticsView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var path: [DiagnosticsPanel]
+
+    init(initialPanel: DiagnosticsPanel? = nil) {
+        _path = State(initialValue: initialPanel.map { [$0] } ?? [])
+    }
 
     var body: some View {
-        Menu("Menu", systemImage: "ellipsis") {
-            Section {
-                item(.device)
-                item(.notifications)
+        NavigationStack(path: $path) {
+            List {
+                Section("This device") {
+                    link(.device)
+                    link(.notifications)
+                }
+                Section("Surfaces") {
+                    link(.widget)
+                    link(.liveActivity)
+                }
             }
-            Section("Surfaces") {
-                item(.widget)
-                item(.liveActivity)
+            .navigationTitle("Diagnostics")
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(for: DiagnosticsPanel.self) { panel in
+                panel.destination
+            }
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
             }
         }
     }
 
-    private func item(_ panel: DiagnosticsPanel) -> some View {
-        Button(panel.title, systemImage: panel.systemImage) { selection = panel }
-    }
-}
-
-extension View {
-    /// Presents a panel as a dismissible sheet, giving each one its own navigation context.
-    func diagnosticsPanel(_ selection: Binding<DiagnosticsPanel?>) -> some View {
-        sheet(item: selection) { panel in
-            NavigationStack {
-                panel.destination
-                    .toolbar {
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("Done") { selection.wrappedValue = nil }
-                        }
-                    }
-            }
+    private func link(_ panel: DiagnosticsPanel) -> some View {
+        NavigationLink(value: panel) {
+            Label(panel.title, systemImage: panel.systemImage)
         }
     }
 }

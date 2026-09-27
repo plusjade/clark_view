@@ -10,6 +10,12 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-09-26
 
+- Replaced the iOS overflow menu with a stethoscope opening a grouped Diagnostics
+  sheet, and moved Join Feed to the trailing bottom toolbar. Native navigation
+  rows defer panel work until selection and keep interactive forms on their own
+  screens. Delivery warnings still open notification setup directly within the
+  hub. See `DiagnosticsPanel.swift` and `ContentView.swift`.
+
 - Made joining a public feed the receiver's core flow: a join keeps the feed in
   Your feeds, while this device independently enables reminders. Moved one lead
   time to the feed so curation owns timing, and retired bunch pairing and its

@@ -108,3 +108,17 @@ uploads it with the last observed alert permission to
 `/device/notifications/register`. See [push-notifications.md](push-notifications.md)
 for setup, the token/topic contract, and current verification status — don't restate
 those facts here.
+
+## Pending navigation acceptance (2026-09-26)
+
+The Diagnostics hub and bottom Join Feed toolbar in `ContentView.swift`,
+`DiagnosticsPanel.swift`, and `SubscriptionListView.swift` still need interactive
+acceptance. The iOS 26.5 Simulator build and test run passed, but the UI automation
+bridge repeatedly returned error -10005 (invalid element ID) when selecting the
+Simulator window, blocking the navigation smoke test. Close this status after
+opening the stethoscope, entering a panel and returning to Diagnostics, dismissing
+the sheet, and opening Join Feed from the bottom-right plus. Also verify the
+notification-warning shortcut with a feed whose reminders are enabled, plus
+VoiceOver, large text, and iPad layout. Expected: native back/dismiss behavior,
+accessible action labels, and no clipped controls.
+

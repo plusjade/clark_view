@@ -10,7 +10,8 @@ struct SubscriptionListView: View {
         content
             .toolbar {
                 if store.deviceID != nil {
-                    ToolbarItem(placement: .primaryAction) {
+                    ToolbarItemGroup(placement: .bottomBar) {
+                        Spacer()
                         Button("Join feed", systemImage: "plus") { showsNew = true }
                     }
                 }
