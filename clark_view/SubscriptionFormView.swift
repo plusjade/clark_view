@@ -57,7 +57,7 @@ private struct JoinFeedPreviewView: View {
     let feed: Feed
     let onJoined: () -> Void
     @Environment(SubscriptionStore.self) private var store
-    @State private var reminders = false
+    @State private var reminders = true
     @State private var isSaving = false
     @State private var errorMessage: String?
 
