@@ -46,8 +46,9 @@ final class SubscriptionStore {
         subscriptions.first { $0.id == id }
     }
 
-    func create(feedID: String, enabled: Bool) async throws {
-        try await SubscriptionClient.create(deviceID: try requireDevice(), feedID: feedID, enabled: enabled)
+    func create(feed: Feed, enabled: Bool) async throws {
+        try await SubscriptionClient.create(deviceID: try requireDevice(), feedID: feed.id, enabled: enabled)
+        WidgetFeedDefault.recordJoin(feed)
         await load()
     }
 

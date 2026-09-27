@@ -8,6 +8,13 @@ pointer. Preserve historical meaning; record reversals as new entries. Typo and
 broken-link corrections are allowed. See [AGENTS.md](../AGENTS.md#documenting-decisions)
 for routing current guidance, operational evidence, and routine validation.
 
+## 2026-09-27
+
+- New widget configurations default to the last feed successfully joined in the
+  app, using an App Group preference and the native entity query default. This
+  removes a repeat selection step while preserving each placed widget's explicit
+  feed choice. See `Shared/WidgetFeedIntent.swift` and `SubscriptionStore.swift`.
+
 ## 2026-09-26
 
 - Replaced the iOS overflow menu with a stethoscope opening a grouped Diagnostics

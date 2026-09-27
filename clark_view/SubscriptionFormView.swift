@@ -76,7 +76,8 @@ private struct JoinFeedPreviewView: View {
                         Text("This feed sets reminders " +
                              ReminderLead.label(feed.reminderLeadSeconds ?? ReminderLead.defaultSeconds) +
                              " before start and can change the timing.")
-                        Text("Joining keeps this feed in Your feeds. Widget selection stays independent.")
+                        Text("Joining keeps this feed in Your feeds and makes it the default for new widgets. " +
+                             "Existing widgets keep their feed.")
                     }
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -94,7 +95,7 @@ private struct JoinFeedPreviewView: View {
         isSaving = true
         defer { isSaving = false }
         do {
-            try await store.create(feedID: feed.id, enabled: reminders)
+            try await store.create(feed: feed, enabled: reminders)
             onJoined()
         } catch {
             errorMessage = error.localizedDescription
