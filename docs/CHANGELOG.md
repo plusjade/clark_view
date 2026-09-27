@@ -10,6 +10,11 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-09-27
 
+- Limited the widget editor's feed choices and last-joined default to the device's
+  current subscriptions instead of the public feed directory. Joining now controls
+  which feeds can be selected without changing existing widgets' stored choices.
+  See `Shared/DeviceFeedClient.swift` and `Shared/WidgetFeedIntent.swift`.
+
 - New widget configurations default to the last feed successfully joined in the
   app, using an App Group preference and the native entity query default. This
   removes a repeat selection step while preserving each placed widget's explicit

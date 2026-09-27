@@ -48,19 +48,23 @@ Leave feed removes this device's join. The feed owns one shared reminder timing,
 shown in the preview, and browser configuration can change it. The app's feed
 preview has no effect on widgets. The one
 registered Clark View widget kind is configurable for home and lock screens. Its
-native editor has one Feed setting populated from `/feeds`. A successful in-app
+native editor has one Feed setting populated from this installation's joined feeds
+at `/devices/:id/subscriptions`; the public `/feeds` directory remains exclusive to
+the app's Join Feed flow. A successful in-app
 join saves its feed ID and name in the App Group; `WidgetFeedQuery.defaultResult()`
-offers that local value as the configuration default, even offline. iOS controls
+offers that local value as the configuration default only while the feed remains
+joined. iOS controls
 when it queries this default; a new placement is not guaranteed to query again
 (see the dated acceptance status below). Each widget retains
 its own opaque feed ID and can override the default in Edit Widget. Existing
 placements never follow later joins. With no saved join, selection remains empty.
-The saved default tracks successful joins on this installation from this version
+The saved default tracks successful in-app joins on this installation from this version
 onward, not browsing, reminder changes, browser joins, or historical joins. Leaving
-a feed does not erase this last-joined preference; public widget selection remains
-independent of subscriptions. Old static placements must be
+a feed does not erase the saved preference, but the query will not offer it unless the
+device joins it again. Already placed widgets retain their explicit selection even
+after the device leaves that feed. Old static placements must be
 replaced, and old Follow app configurations must be edited to choose a feed.
-The intent query resolves names from `/feeds`, so a server rename appears when
+The intent query resolves names from the device's subscriptions, so a server rename appears when
 the editor next resolves the stored ID.
 Widget choice creates no notification subscription. A missing feed asks the user
 to Edit Widget; an unconfigured widget asks for a feed. Temporary network failure

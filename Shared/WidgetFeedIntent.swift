@@ -1,7 +1,7 @@
 import AppIntents
 import Foundation
 
-/// The widget editor stores one explicit public feed choice per widget.
+/// The widget editor stores one explicit joined feed choice per widget.
 /// Feed row IDs remain opaque values throughout the native client.
 struct WidgetFeedEntity: AppEntity {
     static let typeDisplayRepresentation: TypeDisplayRepresentation = "Feed"
@@ -20,18 +20,22 @@ struct WidgetFeedEntity: AppEntity {
 
 struct WidgetFeedQuery: EntityQuery {
     func entities(for identifiers: [String]) async throws -> [WidgetFeedEntity] {
-        let feeds = (try? await FeedDirectoryClient.list()) ?? []
-        let names = Dictionary(uniqueKeysWithValues: feeds.map { ($0.id, $0.name) })
-        return identifiers.map { WidgetFeedEntity(id: $0, name: names[$0] ?? "Feed unavailable") }
+        let feeds = try await DeviceFeedClient.joined()
+        let feedsByID = Dictionary(uniqueKeysWithValues: feeds.map { ($0.id, $0) })
+        return identifiers.compactMap { id in
+            feedsByID[id].map { WidgetFeedEntity(id: $0.id, name: $0.name) }
+        }
     }
 
     func defaultResult() async -> WidgetFeedEntity? {
-        guard let feed = WidgetFeedDefault.lastJoined else { return nil }
+        guard let lastJoined = WidgetFeedDefault.lastJoined,
+              let feeds = try? await DeviceFeedClient.joined(),
+              let feed = feeds.first(where: { $0.id == lastJoined.id }) else { return nil }
         return WidgetFeedEntity(id: feed.id, name: feed.name)
     }
 
     func suggestedEntities() async throws -> [WidgetFeedEntity] {
-        let feeds = try await FeedDirectoryClient.list()
+        let feeds = try await DeviceFeedClient.joined()
         return feeds.map { WidgetFeedEntity(id: $0.id, name: $0.name) }
     }
 }
@@ -49,7 +53,7 @@ struct WidgetFeedIntent: WidgetConfigurationIntent {
 }
 
 /// A successful app join seeds new configurations without changing placed widgets.
-/// Store the name with the ID so choosing the default needs no network request.
+/// Store the name with the ID while membership remains server-authoritative.
 enum WidgetFeedDefault {
     private static let key = "lastJoinedWidgetFeed"
     private static let defaults = UserDefaults(suiteName: DeviceIdentity.appGroupID) ?? .standard
