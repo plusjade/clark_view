@@ -51,14 +51,7 @@ struct BeaconWidgetTemplate: View {
             } else if family == .systemSmall, let item = entry.payload.items.first {
                 BeaconHeroCard(item: item)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                    .padding(8)
-                    .background {
-                        BeaconWidgetCardSurface(
-                            isFocused: true,
-                            usesTranslucency: usesTranslucentSurfaces
-                        )
-                    }
-                    .padding(6)
+                    .padding(14)
             } else {
                 let padding: CGFloat = family == .systemLarge ? 18 : 12
 
@@ -114,16 +107,11 @@ private struct BeaconHeroCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            BeaconDateTimeView(item: item, style: .primary)
+            BeaconDateTimeView(item: item, style: .primary, layout: .stacked)
 
             Text(item.mainText)
                 .font(.system(.largeTitle, design: .default, weight: .black))
                 .lineLimit(1)
-
-            Text(item.subText)
-                .font(.system(.subheadline, design: .default, weight: .medium))
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
         }
         .foregroundStyle(.primary)
     }

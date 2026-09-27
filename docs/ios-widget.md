@@ -30,7 +30,9 @@ and SQLite schema. No browser UI or event scheduling is part of the spike.
 | [WidgetInventory.swift](../Shared/WidgetInventory.swift), [WidgetInventoryReporter.swift](../Shared/WidgetInventoryReporter.swift) | Widget inventory snapshot, upload policy, and coalesced reporter |
 | [WidgetRefreshDiagnostics.swift](../Shared/WidgetRefreshDiagnostics.swift), [WidgetDiagnosticsView.swift](../clark_view/WidgetDiagnosticsView.swift) | Last manual request, network attempt, success/failure and app reload controls |
 
-Beacon small/medium show the first item; large shows the first two. Local focus
+Beacon small/medium show the first item; large shows the first two. The small family
+uses the root surface directly, omits subtext, and stacks its date above the time or
+lifecycle label at the same date-line type size. Local focus
 expands either item in place without reordering server items. Widgets showing the
 same feed share focus; each feed has its own focus and a 15-second cache-reuse window.
 Explicit refresh bypasses that window. Ordinary

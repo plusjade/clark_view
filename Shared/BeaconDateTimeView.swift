@@ -29,15 +29,29 @@ struct BeaconDateTimeView: View {
         case accessory
     }
 
+    enum Layout {
+        case inline
+        case stacked
+    }
+
     @Environment(\.widgetLifecycle) private var lifecycle
 
     let item: WidgetItem
     let style: Style
+    var layout: Layout = .inline
+
+    private var detail: String {
+        item.lifecycleLabel(lifecycle.labels, at: lifecycle.now)
+            ?? item.startsAt.formatted(date: .omitted, time: .shortened)
+    }
 
     private var label: String {
-        let detail = item.lifecycleLabel(lifecycle.labels, at: lifecycle.now)
-            ?? item.startsAt.formatted(date: .omitted, time: .shortened)
-        return "\(dayLabel(for: item.startsAt)) · \(detail)"
+        switch layout {
+        case .inline:
+            return "\(dayLabel(for: item.startsAt)) · \(detail)"
+        case .stacked:
+            return "\(dayLabel(for: item.startsAt))\n\(detail)"
+        }
     }
 
     private var font: Font {
@@ -52,7 +66,7 @@ struct BeaconDateTimeView: View {
         Text(label)
             .font(font)
             .monospacedDigit()
-            .lineLimit(1)
+            .lineLimit(layout == .stacked ? 2 : 1)
             .foregroundStyle(style == .accessory ? AnyShapeStyle(.primary) : AnyShapeStyle(.tint))
             .widgetAccentable()
     }
