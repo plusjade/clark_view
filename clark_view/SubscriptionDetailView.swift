@@ -13,25 +13,30 @@ struct SubscriptionDetailView: View {
         if let subscription = store.subscription(id: id) {
             FeedPreviewView(feed: subscription.feed) {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Shared reminder timing: \(ReminderLead.label(subscription.reminderLeadSeconds))")
-                    Text("The feed maintains this timing, and it can change.")
-                        .foregroundStyle(.secondary)
-                    Toggle("Reminders", isOn: Binding(
+                    FeedReminderToggle(isOn: Binding(
                         get: { subscription.enabled },
                         set: { value in Task { await setReminders(value, for: subscription) } }
-                    ))
-                    .disabled(isSaving)
+                    ), isDisabled: isSaving)
                     if subscription.enabled, store.delivery == "permission_denied" {
-                        Text("Reminders are on here, but iOS notification permission is off. " +
-                             "Enable it in Settings to receive alerts.")
-                            .foregroundStyle(.secondary)
+                        Label("Notifications off on this device", systemImage: "exclamationmark.circle.fill")
+                            .foregroundStyle(.orange)
                     } else if subscription.enabled, store.delivery == "no_token" {
-                        Text("Reminders are on here, but this device has no alert token yet.")
+                        Label("Notifications not ready on this device", systemImage: "exclamationmark.circle.fill")
+                            .foregroundStyle(.orange)
+                    }
+                    if let errorMessage { Text(errorMessage).foregroundStyle(.red) }
+                }
+            } trailing: {
+                VStack(alignment: .leading, spacing: 16) {
+                    DisclosureGroup("About reminders") {
+                        Text("This feed sets reminders \(ReminderLead.label(subscription.reminderLeadSeconds)) " +
+                             "before start and can change the timing.")
+                            .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
                     Button("Leave feed", role: .destructive) { confirmsLeave = true }
+                        .buttonStyle(.borderless)
                         .disabled(isSaving)
-                    if let errorMessage { Text(errorMessage).foregroundStyle(.red) }
                 }
             }
             .navigationTitle(subscription.feedName)

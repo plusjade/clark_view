@@ -64,17 +64,23 @@ private struct JoinFeedPreviewView: View {
     var body: some View {
         FeedPreviewView(feed: feed) {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Shared reminder timing: " +
-                     ReminderLead.label(feed.reminderLeadSeconds ?? ReminderLead.defaultSeconds))
-                Text("The feed maintains this timing, and it can change.")
-                    .foregroundStyle(.secondary)
-                Toggle("Reminders", isOn: $reminders)
+                FeedReminderToggle(isOn: $reminders, isDisabled: isSaving)
+            }
+        } trailing: {
+            VStack(alignment: .leading, spacing: 16) {
                 Button("Join feed") { Task { await join() } }
                     .buttonStyle(.borderedProminent)
                     .disabled(isSaving)
-                Text("Joining keeps this feed in Your feeds. Widget selection stays independent.")
-                    .font(.footnote)
+                DisclosureGroup("About joining") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("This feed sets reminders " +
+                             ReminderLead.label(feed.reminderLeadSeconds ?? ReminderLead.defaultSeconds) +
+                             " before start and can change the timing.")
+                        Text("Joining keeps this feed in Your feeds. Widget selection stays independent.")
+                    }
+                    .font(.subheadline)
                     .foregroundStyle(.secondary)
+                }
                 if let errorMessage {
                     Text(errorMessage).foregroundStyle(.red)
                 }

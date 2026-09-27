@@ -1,9 +1,10 @@
 import SwiftUI
 
-/// An in-app feed preview with its controls following the feed content.
-struct FeedPreviewView<Footer: View>: View {
+/// In-app feed content between its reminder controls and supporting actions.
+struct FeedPreviewView<Leading: View, Trailing: View>: View {
     let feed: Feed
-    @ViewBuilder let footer: Footer
+    let leading: Leading
+    let trailing: Trailing
     @Environment(DeepLinkRouter.self) private var deepLinks
     @Environment(\.scenePhase) private var scenePhase
     @State private var payload: WidgetPayload?
@@ -11,9 +12,16 @@ struct FeedPreviewView<Footer: View>: View {
     @State private var isLoading = false
     @State private var requestID = UUID()
 
+    init(feed: Feed, @ViewBuilder leading: () -> Leading, @ViewBuilder trailing: () -> Trailing) {
+        self.feed = feed
+        self.leading = leading()
+        self.trailing = trailing()
+    }
+
     var body: some View {
-        ScrollView {
+        List {
             VStack(alignment: .leading, spacing: 16) {
+                leading
                 if let payload {
                     if payload.items.isEmpty {
                         ContentUnavailableView("Nothing here right now 🫨", systemImage: "sportscourt")
@@ -55,12 +63,18 @@ struct FeedPreviewView<Footer: View>: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                     Button("Try Again") { Task { await load() } }
+                        .buttonStyle(.borderless)
                 }
-                footer
+                trailing
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .topLeading)
+            .listRowInsets(EdgeInsets())
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
         .accessibilityIdentifier("feedPreview")
         .refreshable { await load() }
         .task { await load() }
@@ -93,6 +107,24 @@ struct FeedPreviewView<Footer: View>: View {
                 ? "This feed is no longer available."
                 : "Couldn’t refresh the feed. Pull down to retry."
         }
+    }
+}
+
+/// Matches the bell state shown beside each feed in Your feeds.
+struct FeedReminderToggle: View {
+    @Binding var isOn: Bool
+    var isDisabled = false
+
+    var body: some View {
+        Toggle(isOn: $isOn) {
+            HStack(spacing: 12) {
+                Image(systemName: isOn ? "bell.fill" : "bell.slash")
+                    .foregroundStyle(isOn ? Color.accentColor : Color.secondary)
+                    .accessibilityHidden(true)
+                Text("Reminders")
+            }
+        }
+        .disabled(isDisabled)
     }
 }
 
