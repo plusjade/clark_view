@@ -10,6 +10,11 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-09-27
 
+- Added a read-only Sources screen beneath each joined feed. Feed details now expose
+  attached source identity and enabled state separately from the widget payload, so
+  the app can explain composition without taking over browser-managed configuration.
+  See `FeedSourcesView.swift` and parent `http/routes/feeds.ts`.
+
 - Limited the widget editor's feed choices and last-joined default to the device's
   current subscriptions instead of the public feed directory. Joining now controls
   which feeds can be selected without changing existing widgets' stored choices.

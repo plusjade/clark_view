@@ -28,6 +28,11 @@ struct SubscriptionDetailView: View {
                 }
             } trailing: {
                 VStack(alignment: .leading, spacing: 16) {
+                    NavigationLink {
+                        FeedSourcesView(feed: subscription.feed)
+                    } label: {
+                        Label("Sources", systemImage: "tray.full")
+                    }
                     DisclosureGroup("About reminders") {
                         Text("This feed sets reminders \(ReminderLead.label(subscription.reminderLeadSeconds)) " +
                              "before start and can change the timing.")

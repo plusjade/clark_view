@@ -175,7 +175,7 @@ Browser tab titles retain resource names. The root remains a standalone jump-off
 | Method / route | Behavior |
 | --- | --- |
 | `GET /feeds` | Public directory: `{feeds:[{id,name,reminderLeadSeconds}]}`. Timing is the feed's current shared value; IDs are decimal strings opaque to Swift. No installation identity is required. Read-only and `no-store`. |
-| `GET /feeds/:feedId/details` | Public name and shared timing for a pre-join preview, without changing widget payload semantics. |
+| `GET /feeds/:feedId/details` | Public name, shared timing, and attached sources (`id`, `name`, diagnostic `kind`, and `enabled`) for native detail surfaces, without changing widget payload semantics. |
 | `GET /feeds/:feedId` | Public schema-3 composition from a feed's enabled and verified assignments and presentation. Optional `timeZone` reader context. Unknown or deleted IDs return JSON 404; a valid empty feed succeeds. Reads use `no-store`. Optional `X-Clark-Installation`, `X-Clark-Caller`, `X-Clark-Widget-Family`, `X-Clark-Request-Purpose` headers record a receipt for a registered device only; they never change the response. |
 | `POST /device/widget-inventory` | `{device,observedAt,widgets:[{kind,family,state,feedId?}]}` complete snapshot; `state` is `configured`/`unconfigured`/`unreadable`. Replaces the stored snapshot unless older (`{ok:true,stale:true}`). Unknown install 404, malformed 400. |
 | `GET /installations/:installId/feed` | Native migration lookup through frozen `legacy_installation_feeds`, returning `{id,name}` or JSON 404. The current app no longer calls it; retained for older builds. |
