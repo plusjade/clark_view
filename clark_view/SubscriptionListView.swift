@@ -9,7 +9,7 @@ struct SubscriptionListView: View {
     var body: some View {
         content
             .toolbar {
-                if store.deviceID != nil {
+                if FeatureFlags.showsJoinFeed, store.deviceID != nil {
                     ToolbarItemGroup(placement: .bottomBar) {
                         Spacer()
                         Button("Join feed", systemImage: "plus") { showsNew = true }
@@ -44,9 +44,11 @@ struct SubscriptionListView: View {
                 ContentUnavailableView {
                     Label("No feeds joined", systemImage: "rectangle.stack")
                 } description: {
-                    Text("Join a public feed to keep it here. You can turn reminders on when you want them.")
+                    Text("Available feeds will show up here when added.")
                 } actions: {
-                    Button("Join feed") { showsNew = true }
+                    if FeatureFlags.showsJoinFeed {
+                        Button("Join feed") { showsNew = true }
+                    }
                 }
             }
             Section {
