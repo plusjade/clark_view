@@ -8,10 +8,36 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var subscriptions = SubscriptionStore()
     @State private var showsDiagnostics = false
+    @State private var defersEventPresentation = false
     @State private var initialDiagnosticsPanel: DiagnosticsPanel?
 
     var body: some View {
         @Bindable var deepLinks = deepLinks
+        let eventDestination = Binding<AppDeepLink?>(
+            get: {
+                guard !showsDiagnostics, !defersEventPresentation else { return nil }
+                return deepLinks.destination?.kind == .event ? deepLinks.destination : nil
+            },
+            set: { destination in
+                if let destination {
+                    deepLinks.destination = destination
+                } else if deepLinks.destination?.kind == .event {
+                    deepLinks.destination = nil
+                }
+            }
+        )
+        let navigationDestination = Binding<AppDeepLink?>(
+            get: {
+                deepLinks.destination?.kind == .event ? nil : deepLinks.destination
+            },
+            set: { destination in
+                if let destination {
+                    deepLinks.destination = destination
+                } else if deepLinks.destination?.kind != .event {
+                    deepLinks.destination = nil
+                }
+            }
+        )
 
         NavigationStack {
             SubscriptionListView(openNotifications: {
@@ -28,15 +54,27 @@ struct ContentView: View {
                     }
                 }
                 .sheet(isPresented: $showsDiagnostics, onDismiss: {
+                    // Wait for the diagnostics dismissal to finish before presenting a pending event.
+                    defersEventPresentation = false
                     // Notification setup can change the delivery note under the subscriptions.
                     Task { await subscriptions.load() }
                 }, content: {
                     DiagnosticsView(initialPanel: initialDiagnosticsPanel)
                 })
-                .navigationDestination(item: $deepLinks.destination) { destination in
+                .navigationDestination(item: navigationDestination) { destination in
                     DeepLinkDetailView(destination: destination)
                 }
+                .fullScreenCover(item: eventDestination) { destination in
+                    NavigationStack {
+                        DeepLinkDetailView(destination: destination, showsCloseButton: true)
+                    }
+                }
                 .onOpenURL { deepLinks.open($0) }
+                .onChange(of: deepLinks.destination) { _, destination in
+                    guard destination?.kind == .event, showsDiagnostics else { return }
+                    defersEventPresentation = true
+                    showsDiagnostics = false
+                }
                 .task { await refresh() }
                 .onChange(of: scenePhase) { _, phase in
                     if phase == .active { Task { await refresh() } }

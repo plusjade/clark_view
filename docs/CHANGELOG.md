@@ -10,6 +10,12 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-09-27
 
+- Present event details as a full-screen modal over the current app context instead
+  of pushing them into its navigation hierarchy. Widget and in-app feed handoffs now
+  share the same presentation, dismiss a competing diagnostics sheet first, and use
+  an explicit Close control rather than a Back affordance. See `ContentView.swift`
+  and `DeepLinkRouter.swift`.
+
 - Added a read-only Sources screen beneath each joined feed. Feed details now expose
   attached source identity and enabled state separately from the widget payload, so
   the app can explain composition without taking over browser-managed configuration.

@@ -30,6 +30,8 @@ final class DeepLinkRouter {
 
 struct DeepLinkDetailView: View {
     let destination: AppDeepLink
+    var showsCloseButton = false
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         List {
@@ -66,5 +68,12 @@ struct DeepLinkDetailView: View {
         }
         .navigationTitle(destination.kind.title)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if showsCloseButton {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Close", systemImage: "xmark") { dismiss() }
+                }
+            }
+        }
     }
 }
