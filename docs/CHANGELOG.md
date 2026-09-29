@@ -17,11 +17,11 @@ for routing current guidance, operational evidence, and routine validation.
 - Replaced Beacon's large-widget focus interaction and card chrome with two static,
   directly linked event regions separated by a full-width rule. The simpler hierarchy
   gives content one widget-level inset and delegates full legibility to the existing
-  event detail route. All home-screen families now order main text, primary-colored italic
-  monospace subtext, and trailing date/time consistently. Both large events share the main
-  event typography; layout priority
+  event detail route. Medium and large now order main text, primary-colored italic monospace
+  subtext, and trailing date/time consistently; small preserves its compact main-text-and-time
+  subset. Both large events share the main event typography; layout priority
   preserves the first event's ideal height and makes the second yield only on overflow,
-  while the small family uses compact line limits. Removed the focus intent, custom interpolation
+  while the small family uses compact sizing. Removed the focus intent, custom interpolation
   layout, and short interaction cache they exclusively supported. See `BeaconWidgetTemplate.swift`.
 
 ## 2026-09-27

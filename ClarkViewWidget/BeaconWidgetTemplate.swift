@@ -74,8 +74,6 @@ private struct BeaconHeroCard: View {
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
 
-            BeaconSubtextView(text: item.subText, lineLimit: 1)
-
             BeaconDateTimeView(item: item, style: .secondary, layout: .stacked)
         }
         .foregroundStyle(.primary)
