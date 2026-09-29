@@ -29,15 +29,14 @@ and SQLite schema. No browser UI or event scheduling is part of the spike.
 | [WidgetInventory.swift](../Shared/WidgetInventory.swift), [WidgetInventoryReporter.swift](../Shared/WidgetInventoryReporter.swift) | Widget inventory snapshot, upload policy, and coalesced reporter |
 | [WidgetRefreshDiagnostics.swift](../Shared/WidgetRefreshDiagnostics.swift), [WidgetDiagnosticsView.swift](../clark_view/WidgetDiagnosticsView.swift) | Last manual request, network attempt, success/failure and app reload controls |
 
-Beacon small/medium show the first item; large shows the first two. The small family
-uses the root surface directly, omits subtext, and stacks its date above the time or
-lifecycle label at the same date-line type size. The medium family also uses the root
-surface directly and renders subtext in the primary color with a monospaced face. Large
-renders two static, edge-anchored event regions without card surfaces or borders. A full-width
-rule separates the events, and either event opens its own detail deep link. Both events use the
-same type hierarchy and line limits; subtext uses the primary color in italic monospace, and the
-date/time trails the event text. The first keeps its ideal height when the pair overflows; the
-second compresses and truncates to fit the remaining space.
+Beacon small/medium show the first item; large shows the first two. Every home-screen family
+orders event information as main text, subtext, then date/time. Subtext uses the primary color
+in italic monospace throughout. Small keeps a one-line subtext limit and stacks its trailing
+date above the time or lifecycle label; medium and large allow two subtext lines. All use the
+root surface directly. Large renders two static, edge-anchored event regions without card
+surfaces or borders. A full-width rule separates the events, and either event opens its own
+detail deep link. The first keeps its ideal height when the pair overflows; the second compresses
+and truncates to fit the remaining space.
 Ordinary
 network/decoding failure currently returns an empty payload, not stale cached content
 — distinguish failed fetches from successful empty feeds in diagnostics. Beacon has no

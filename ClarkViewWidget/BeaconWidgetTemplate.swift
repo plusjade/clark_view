@@ -68,13 +68,15 @@ private struct BeaconHeroCard: View {
     let item: WidgetItem
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            BeaconDateTimeView(item: item, style: .primary, layout: .stacked)
-
+        VStack(alignment: .leading, spacing: 4) {
             Text(item.mainText)
                 .font(.system(.title, design: .default, weight: .black))
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
+
+            BeaconSubtextView(text: item.subText, lineLimit: 1)
+
+            BeaconDateTimeView(item: item, style: .secondary, layout: .stacked)
         }
         .foregroundStyle(.primary)
     }
@@ -85,21 +87,17 @@ private struct BeaconItemBlockView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            BeaconDateTimeView(item: item, style: .primary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
             Text(item.mainText)
                 .font(.system(.title, design: .default))
                 .lineLimit(2)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text(item.subText)
-                .font(.system(.title3, design: .monospaced, weight: .regular))
-                .foregroundStyle(.primary)
-                .lineLimit(2)
+            BeaconSubtextView(text: item.subText, lineLimit: 2)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: true)
+
+            BeaconDateTimeView(item: item, style: .primary)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -152,12 +150,7 @@ private struct BeaconLargeItemLink: View {
                 .truncationMode(.tail)
                 .fixedSize(horizontal: false, vertical: preservesTitleHeight)
 
-            Text(item.subText)
-                .font(.system(.title3, design: .monospaced))
-                .italic()
-                .lineLimit(2)
-                .multilineTextAlignment(.leading)
-                .truncationMode(.tail)
+            BeaconSubtextView(text: item.subText, lineLimit: 2)
 
             BeaconDateTimeView(item: item, style: .primary)
         }
@@ -175,6 +168,21 @@ private struct BeaconLargeItemLink: View {
             detail: item.subText,
             startsAt: item.startsAt
         ).url
+    }
+}
+
+private struct BeaconSubtextView: View {
+    let text: String
+    let lineLimit: Int
+
+    var body: some View {
+        Text(text)
+            .font(.system(.title3, design: .monospaced))
+            .italic()
+            .foregroundStyle(.primary)
+            .lineLimit(lineLimit)
+            .multilineTextAlignment(.leading)
+            .truncationMode(.tail)
     }
 }
 
