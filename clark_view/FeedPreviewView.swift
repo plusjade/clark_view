@@ -128,7 +128,7 @@ struct FeedReminderToggle: View {
     }
 }
 
-/// Uses the large widget's date line, type scale, surface, and focused-first hierarchy.
+/// Uses the large widget's date line, type scale, surface, and primary-first hierarchy.
 private struct FeedItemCard: View {
     let item: WidgetItem
     let isPrimary: Bool

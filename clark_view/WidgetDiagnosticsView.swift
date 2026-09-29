@@ -21,7 +21,6 @@ struct WidgetDiagnosticsView: View {
             Section {
                 Button("Request Widget Refresh", systemImage: "arrow.clockwise") {
                     WidgetRefreshDiagnostics.recordManualRequest()
-                    WidgetFocusStore.requireNetworkRefresh()
                     WidgetCenter.shared.reloadTimelines(ofKind: WidgetKind.configurable)
                     refresh = WidgetRefreshDiagnostics.snapshot
                 }

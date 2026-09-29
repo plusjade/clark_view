@@ -8,6 +8,16 @@ pointer. Preserve historical meaning; record reversals as new entries. Typo and
 broken-link corrections are allowed. See [AGENTS.md](../AGENTS.md#documenting-decisions)
 for routing current guidance, operational evidence, and routine validation.
 
+## 2026-09-29
+
+- Replaced Beacon's large-widget focus interaction and card chrome with two static,
+  directly linked event regions separated by a full-width rule. The simpler hierarchy
+  gives content one widget-level inset and delegates full legibility to the existing
+  event detail route. Both events now share the main event typography; layout priority
+  preserves the first event's ideal height and makes the second yield only on overflow.
+  Removed the focus intent, custom interpolation layout, and short interaction cache they
+  exclusively supported. See `BeaconWidgetTemplate.swift`.
+
 ## 2026-09-27
 
 - Present event details as a full-screen modal over the current app context instead

@@ -50,7 +50,7 @@ Classify the task before reading anything else. Each route is a budget, not a mi
 
 | Task | Read | Do not load |
 | --- | --- | --- |
-| Widget layout, diagnostics, focus, deep links | [ios-widget.md](ios-widget.md) and the Swift it names | This file past the ownership map; any remote val |
+| Widget layout, diagnostics, deep links | [ios-widget.md](ios-widget.md) and the Swift it names | This file past the ownership map; any remote val |
 | New source authoring | `plusjade/source-template`'s `AGENTS.md`, then its README | Parent implementation; sibling sources |
 | Source behavior, storage, or ingestion | That source's own README and `AGENTS.md` | Parent modules; sibling sources |
 | Parent routes, composition, browser, wire contracts | The code map below, then only the implicated parent modules | Swift; unrelated parent directories; other vals |

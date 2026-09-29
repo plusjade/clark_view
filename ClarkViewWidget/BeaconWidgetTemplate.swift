@@ -3,12 +3,10 @@
 //  ClarkViewWidget
 //
 
-import AppIntents
 import SwiftUI
 import WidgetKit
 
 struct BeaconWidgetTemplate: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.widgetFamily) private var family
@@ -23,15 +21,6 @@ struct BeaconWidgetTemplate: View {
             : Array(entry.payload.items.prefix(1))
     }
 
-    private var focusedItemID: String? {
-        guard family == .systemLarge, let defaultItemID = visibleItems.first?.id else {
-            return nil
-        }
-        return visibleItems.contains(where: { $0.id == entry.focusedItemID })
-            ? entry.focusedItemID
-            : defaultItemID
-    }
-
     private var usesTranslucentSurfaces: Bool {
         renderingMode == .fullColor && !reduceTransparency
     }
@@ -43,7 +32,6 @@ struct BeaconWidgetTemplate: View {
                     .padding(12)
                     .background {
                         BeaconWidgetCardSurface(
-                            isFocused: true,
                             usesTranslucency: usesTranslucentSurfaces
                         )
                     }
@@ -52,29 +40,13 @@ struct BeaconWidgetTemplate: View {
                 BeaconHeroCard(item: item)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .padding(10)
-            } else {
-                let padding: CGFloat = family == .systemLarge ? 18 : 16
-
-                VStack(alignment: .leading, spacing: 24) {
-                    if family == .systemLarge {
-                        ForEach(visibleItems) { item in
-                            BeaconFocusableItemView(
-                                item: item,
-                                isPrimary: item.id == focusedItemID,
-                                usesTranslucency: usesTranslucentSurfaces,
-                                feedID: entry.feedContext.feed?.id ?? ""
-                            )
-                        }
-                    } else if let primary = visibleItems.first {
-                        BeaconItemBlockView(item: primary)
-                    }
-                }
-                .foregroundStyle(.primary)
-                .padding(padding)
-                .animation(
-                    reduceMotion ? nil : .smooth(duration: 0.35),
-                    value: focusedItemID
-                )
+            } else if family == .systemLarge {
+                BeaconLargeLayout(items: visibleItems)
+                    .foregroundStyle(.primary)
+            } else if let primary = visibleItems.first {
+                BeaconItemBlockView(item: primary)
+                    .foregroundStyle(.primary)
+                    .padding(16)
             }
         }
         .tint(Color("AccentColor"))
@@ -133,44 +105,64 @@ private struct BeaconItemBlockView: View {
     }
 }
 
-private struct BeaconFocusableItemView: View {
-    let item: WidgetItem
-    let isPrimary: Bool
-    let usesTranslucency: Bool
-    let feedID: String
+private struct BeaconLargeLayout: View {
+    let items: [WidgetItem]
 
     var body: some View {
-        // Keep the animated card outside the Link/Button branch so a focus reload updates
-        // one stable view instead of replacing it before WidgetKit can interpolate the layout.
-        card
-            .accessibilityHidden(true)
-            .overlay {
-                interactionTarget
+        VStack(alignment: .leading, spacing: 0) {
+            if let primary = items.first {
+                BeaconLargeItemLink(item: primary)
+                    .layoutPriority(1)
             }
-            .id(item.id)
-    }
 
-    @ViewBuilder
-    private var interactionTarget: some View {
-        Group {
-            if isPrimary, let destinationURL {
-                Link(destination: destinationURL) {
-                    BeaconWidgetPalette.cardShape.fill(.clear)
-                }
-                .accessibilityLabel("Open \(item.mainText)")
-                .accessibilityHint("Opens event details in Clark View")
-            } else {
-                Button(intent: FocusWidgetItemIntent(
-                    itemID: item.id, changesFocus: true,
-                    feedID: feedID
-                )) {
-                    BeaconWidgetPalette.cardShape.fill(.clear)
-                }
-                .accessibilityLabel("Show \(item.mainText) larger")
-                .accessibilityHint("Shows this item larger")
+            if items.count > 1 {
+                Divider()
+
+                BeaconLargeItemLink(item: items[1])
             }
         }
-        .buttonStyle(.plain)
+        .frame(maxHeight: .infinity, alignment: .top)
+    }
+}
+
+private struct BeaconLargeItemLink: View {
+    let item: WidgetItem
+
+    @ViewBuilder
+    var body: some View {
+        if let destinationURL {
+            Link(destination: destinationURL) {
+                content
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Open \(item.mainText)")
+            .accessibilityHint("Opens event details in Clark View")
+        } else {
+            content
+        }
+    }
+
+    private var content: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            BeaconDateTimeView(item: item, style: .primary)
+
+            Text(item.mainText)
+                .font(.system(.largeTitle, design: .default, weight: .regular))
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+                .truncationMode(.tail)
+
+            Text(item.subText)
+                .font(.system(.title3, design: .default))
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+                .truncationMode(.tail)
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 18)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .contentShape(Rectangle())
     }
 
     private var destinationURL: URL? {
@@ -181,75 +173,6 @@ private struct BeaconFocusableItemView: View {
             detail: item.subText,
             startsAt: item.startsAt
         ).url
-    }
-
-    private var card: some View {
-        BeaconFocusItemLayout(primaryProgress: isPrimary ? 1 : 0) {
-            BeaconDateTimeView(
-                item: item,
-                style: isPrimary ? .primary : .secondary
-            )
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentTransition(.interpolate)
-
-            Text(item.mainText)
-                .font(.system(
-                    isPrimary ? .largeTitle : .title3,
-                    design: .default,
-                    weight: isPrimary ? .regular : .semibold
-                ))
-                .lineLimit(isPrimary ? 2 : 1)
-                .multilineTextAlignment(.leading)
-                .truncationMode(.tail)
-                .foregroundStyle(.primary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: true)
-                .contentTransition(.interpolate)
-
-            Text(item.subText)
-                .font(.system(.title3, design: .default, weight: .regular))
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-                .multilineTextAlignment(.leading)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: true)
-                .opacity(isPrimary ? 1 : 0)
-
-            Image(systemName: "plus.magnifyingglass")
-                .font(.title.weight(.bold))
-                .foregroundStyle(.tint)
-                .frame(width: 50, height: 50)
-                .background(BeaconWidgetPalette.actionSurface, in: Circle())
-                .frame(maxWidth: .infinity, minHeight: 50, alignment: .trailing)
-                .opacity(isPrimary ? 0 : 1)
-        }
-        .padding(isPrimary ? 20 : 14)
-        .frame(
-            maxWidth: .infinity,
-            maxHeight: isPrimary ? .infinity : nil,
-            alignment: .topLeading
-        )
-        .background {
-            BeaconWidgetCardSurface(
-                isFocused: isPrimary,
-                usesTranslucency: usesTranslucency
-            )
-        }
-        .overlay {
-            ZStack {
-                BeaconWidgetPalette.cardShape
-                    .strokeBorder(BeaconWidgetPalette.focusedBorder, lineWidth: 1)
-                    .opacity(isPrimary ? 1 : 0)
-
-                BeaconWidgetPalette.cardShape
-                    .strokeBorder(
-                        BeaconWidgetPalette.compactBorder,
-                        style: StrokeStyle(lineWidth: 1, dash: [1, 5])
-                    )
-                    .opacity(isPrimary ? 0 : 1)
-            }
-        }
-        .contentShape(BeaconWidgetPalette.cardShape)
     }
 }
 
@@ -271,7 +194,6 @@ private struct BeaconMissingItemsView: View {
 }
 
 private struct BeaconWidgetCardSurface: View {
-    let isFocused: Bool
     let usesTranslucency: Bool
 
     var body: some View {
@@ -279,20 +201,15 @@ private struct BeaconWidgetCardSurface: View {
             if usesTranslucency {
                 BeaconWidgetPalette.cardShape
                     .fill(.regularMaterial)
-                    .opacity(isFocused ? 1 : 0)
             } else {
                 BeaconWidgetPalette.cardShape
-                    .fill(BeaconWidgetPalette.focusedSurface)
-                    .opacity(isFocused ? 1 : 0)
+                    .fill(BeaconWidgetPalette.emptySurface)
             }
         }
     }
 }
 
 private enum BeaconWidgetPalette {
-    static let focusedSurface = Color(uiColor: .secondarySystemBackground)
-    static let actionSurface = Color(uiColor: .tertiarySystemFill)
-    static let focusedBorder = Color(uiColor: .separator)
-    static let compactBorder = Color(uiColor: .secondaryLabel)
+    static let emptySurface = Color(uiColor: .secondarySystemBackground)
     static let cardShape = RoundedRectangle(cornerRadius: 12, style: .continuous)
 }

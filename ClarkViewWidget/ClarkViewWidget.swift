@@ -11,48 +11,24 @@ import SwiftUI
 import UIKit
 
 private enum WidgetDataService {
-    private static let defaults = UserDefaults(suiteName: DeviceIdentity.appGroupID) ?? .standard
-
-    private static func cacheKey(for feedID: String) -> String {
-        "latestWidgetPayload:" + Data(feedID.utf8).base64EncodedString()
-    }
-
     static func fetchPayload(for feed: Feed?, context: FeedRequestContext) async -> WidgetFetchResult {
         guard !Task.isCancelled else { return WidgetFetchResult(payload: .empty) }
         guard let feed else { return WidgetFetchResult(payload: .empty) }
-        if WidgetFocusStore.shouldReuseCachedPayload(for: feed.id),
-           let cachedPayload = cachedPayload(for: feed.id) {
-            return WidgetFetchResult(payload: cachedPayload)
-        }
 
         WidgetRefreshDiagnostics.recordAttempt()
         do {
-            let (payload, data) = try await FeedDirectoryClient.payloadWithData(for: feed, context: context)
+            let payload = try await FeedDirectoryClient.payload(for: feed, context: context)
             guard !Task.isCancelled else { return WidgetFetchResult(payload: .empty) }
-            defaults.set(data, forKey: cacheKey(for: feed.id))
             WidgetRefreshDiagnostics.recordSuccess()
             return WidgetFetchResult(payload: payload)
         } catch {
             guard !Task.isCancelled else { return WidgetFetchResult(payload: .empty) }
-            if (error as? FeedClientError) == .unavailable {
-                clearCachedPayload(for: feed.id)
-            }
             let message = error is DecodingError
                 ? "Invalid widget response"
                 : error.localizedDescription
             WidgetRefreshDiagnostics.recordFailure(message)
             return WidgetFetchResult(payload: .empty, unavailable: (error as? FeedClientError) == .unavailable)
         }
-    }
-
-    private static func cachedPayload(for feedID: String) -> WidgetPayload? {
-        guard let data = defaults.data(forKey: cacheKey(for: feedID)) else { return nil }
-        return try? JSONDecoder.widgetPayload.decode(WidgetPayload.self, from: data)
-    }
-
-    private static func clearCachedPayload(for feedID: String) {
-        defaults.removeObject(forKey: cacheKey(for: feedID))
-        WidgetFocusStore.clear(for: feedID)
     }
 
     /// #Preview-only fixtures now that the live provider calls `fetchPayload` directly — keeps
@@ -159,7 +135,7 @@ private struct WidgetFetchResult {
     var unavailable = false
 }
 
-/// Captures the configured feed for a widget timeline and its focus actions.
+/// Captures the configured feed for a widget timeline.
 struct WidgetFeedContext {
     let feed: Feed?
 
@@ -179,15 +155,13 @@ struct WidgetFeedContext {
 struct WidgetEntry: TimelineEntry {
     let date: Date
     let payload: WidgetPayload
-    let focusedItemID: String?
     let feedContext: WidgetFeedContext
     let unavailable: Bool
 
-    init(date: Date, payload: WidgetPayload, focusedItemID: String? = nil,
+    init(date: Date, payload: WidgetPayload,
          feedContext: WidgetFeedContext = .preview, unavailable: Bool = false) {
         self.date = date
         self.payload = payload
-        self.focusedItemID = focusedItemID
         self.feedContext = feedContext
         self.unavailable = unavailable
     }
@@ -206,13 +180,12 @@ struct Provider: AppIntentTimelineProvider {
         let result = await WidgetDataService.fetchPayload(for: selection.feed,
                                                           context: .widget(context.family, purpose: "snapshot"))
         return WidgetEntry(date: .now, payload: result.payload,
-                           focusedItemID: selection.feed.flatMap { WidgetFocusStore.focusedItemID(for: $0.id) },
                            feedContext: selection, unavailable: result.unavailable)
     }
 
     func timeline(for configuration: WidgetFeedIntent, in context: Context) async -> Timeline<WidgetEntry> {
         let selection = WidgetFeedContext(configuration: configuration)
-        // Every timeline reports, including unconfigured and cache-reuse paths; the reporter
+        // Every timeline reports, including unconfigured paths; the reporter
         // bounds itself so it never delays the timeline past its own deadline.
         async let inventory: Void = WidgetInventoryReporter.shared.report(trigger: .timeline)
         let result = await WidgetDataService.fetchPayload(for: selection.feed,
@@ -220,11 +193,10 @@ struct Provider: AppIntentTimelineProvider {
         await inventory
         let payload = result.payload
         let now = Date.now
-        let focusedItemID = selection.feed.flatMap { WidgetFocusStore.focusedItemID(for: $0.id) }
         // One entry now, then one at every later bound. The payload is identical across
         // them — only the entry's date differs, which moves lifecycle wording without a fetch.
         let entries = ([now] + lifecycleEntryDates(for: payload, after: now)).map {
-            WidgetEntry(date: $0, payload: payload, focusedItemID: focusedItemID,
+            WidgetEntry(date: $0, payload: payload,
                         feedContext: selection, unavailable: result.unavailable)
         }
         return Timeline(entries: entries, policy: .after(nextRefreshDate(for: payload)))
@@ -243,8 +215,7 @@ struct ClarkViewWidgetEntryView: View {
     let entry: Provider.Entry
 
     private var destinationURL: URL? {
-        let focused = entry.focusedItemID.flatMap { id in entry.payload.items.first { $0.id == id } }
-        guard let item = focused ?? entry.payload.items.first else { return nil }
+        guard let item = entry.payload.items.first else { return nil }
         return AppDeepLink(
             kind: .event,
             subjectID: item.id,

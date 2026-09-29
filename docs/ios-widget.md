@@ -1,7 +1,7 @@
 # Clark View iOS widget implementation
 
-The widget and app side of Clark View: file roles, Beacon behavior, refresh and
-focus semantics, deep links, and push entitlement. The server contracts these
+The widget and app side of Clark View: file roles, Beacon behavior, refresh,
+deep links, and push entitlement. The server contracts these
 render are in [valtown-brief.md](valtown-brief.md). Route new information by
 [AGENTS.md](../AGENTS.md#documenting-decisions).
 
@@ -20,10 +20,9 @@ and SQLite schema. No browser UI or event scheduling is part of the spike.
 | [ServerURL.swift](../Shared/ServerURL.swift), [Feed.swift](../Shared/Feed.swift) | Base URL and public feed client |
 | [WidgetPayload.swift](../Shared/WidgetPayload.swift), [WidgetPresentation.swift](../Shared/WidgetPresentation.swift) | Wire decoding and presentation fallback |
 | [BeaconDateTimeView.swift](../Shared/BeaconDateTimeView.swift) | Shared widget/app lifecycle date line and local day label |
-| [ClarkViewWidget.swift](../ClarkViewWidget/ClarkViewWidget.swift), [WidgetFeedIntent.swift](../Shared/WidgetFeedIntent.swift) | Configurable feed choice, fetch/cache, preview fixtures, timeline, entry view |
-| [BeaconWidgetTemplate.swift](../ClarkViewWidget/BeaconWidgetTemplate.swift), [BeaconWidgetFocusLayouts.swift](../ClarkViewWidget/BeaconWidgetFocusLayouts.swift) | Default layout and focus transition |
+| [ClarkViewWidget.swift](../ClarkViewWidget/ClarkViewWidget.swift), [WidgetFeedIntent.swift](../Shared/WidgetFeedIntent.swift) | Configurable feed choice, fetch, preview fixtures, timeline, entry view |
+| [BeaconWidgetTemplate.swift](../ClarkViewWidget/BeaconWidgetTemplate.swift) | Default widget layout and event deep links |
 | [ContentView.swift](../clark_view/ContentView.swift), `clark_view/Subscription*.swift`, [FeedPreviewView.swift](../clark_view/FeedPreviewView.swift) | Your feeds, public browse and pre-join preview, reminder switch, and leave |
-| [WidgetFocusStore.swift](../Shared/WidgetFocusStore.swift), [FocusWidgetItemIntent.swift](../ClarkViewWidget/FocusWidgetItemIntent.swift) | Shared local focus and short interaction-cache window |
 | [AppDeepLink.swift](../Shared/AppDeepLink.swift), [DeepLinkRouter.swift](../clark_view/DeepLinkRouter.swift) | `clarkview` subject routes shared by widgets, Live Activities, alert responses, and in-app navigation |
 | [DeviceIdentity.swift](../Shared/DeviceIdentity.swift), [DeviceStatusClient.swift](../Shared/DeviceStatusClient.swift) | Per-install UUID in `group.plusjade.clark-view`, self-registration, and diagnostic reads |
 | [PushTokenClient.swift](../Shared/PushTokenClient.swift), [ClarkViewWidgetPushHandler.swift](../ClarkViewWidget/ClarkViewWidgetPushHandler.swift) | Native widget token upload/removal |
@@ -33,10 +32,12 @@ and SQLite schema. No browser UI or event scheduling is part of the spike.
 Beacon small/medium show the first item; large shows the first two. The small family
 uses the root surface directly, omits subtext, and stacks its date above the time or
 lifecycle label at the same date-line type size. The medium family also uses the root
-surface directly and renders subtext in the primary color with a monospaced face. Local focus
-expands either item in place without reordering server items. Widgets showing the
-same feed share focus; each feed has its own focus and a 15-second cache-reuse window.
-Explicit refresh bypasses that window. Ordinary
+surface directly and renders subtext in the primary color with a monospaced face. Large
+renders two static, edge-anchored event regions without card surfaces or borders. A full-width
+rule separates the events, and either event opens its own detail deep link. Both events use the
+same type hierarchy and line limits. The first keeps its ideal height when the pair overflows;
+the second compresses and truncates to fit the remaining space.
+Ordinary
 network/decoding failure currently returns an empty payload, not stale cached content
 — distinguish failed fetches from successful empty feeds in diagnostics. Beacon has no
 refresh button; manual refresh lives in the app only. Reload requests ask WidgetKit
@@ -71,10 +72,9 @@ The intent query resolves names from the device's subscriptions, so a server ren
 the editor next resolves the stored ID.
 Widget choice creates no notification subscription. A missing feed asks the user
 to Edit Widget; an unconfigured widget asks for a feed. Temporary network failure
-does not replace a configured ID. Widgets showing the same feed share focus and
-cache. The app's manual widget refresh control still requests a timeline reload;
-WidgetKit controls when it runs. The first item follows the large widget's focused card hierarchy;
-the remaining items use compact cards. The app reuses the widget's date line, refreshes
+does not replace a configured ID. The app's manual widget refresh control still
+requests a timeline reload;
+WidgetKit controls when it runs. The app reuses the widget's date line, refreshes
 when opened or foregrounded, and supports pull to refresh. Notification setup and its
 diagnostics live under the toolbar menu's Notifications entry.
 Ordinary public feed URLs retain their existing browser behavior. The app does
@@ -82,8 +82,8 @@ not intercept them as a Join feed deep link; a receiver browses the in-app
 directory to join by name. Recheck this gap only if link-driven joining becomes
 a product requirement.
 
-Widget inventory is reported from `Provider.timeline` (including unconfigured and
-cache-reuse paths), app activation, and successful registration — never from placeholders,
+Widget inventory is reported from `Provider.timeline` (including unconfigured paths),
+app activation, and successful registration — never from placeholders,
 snapshots, or rendering. It uploads `WidgetCenter.currentConfigurations()` only when the
 normalized contents changed, nothing has succeeded, or the last success is 24 hours old;
 a failure waits five minutes before the next natural trigger retries (registration bypasses the
@@ -95,8 +95,8 @@ so it appears only after the app is next opened. Placements have no stable ident
 Parent `docs/widget-inventory.md` owns the server contract.
 
 Widget and Live Activity taps carry their displayed snapshot through the app-owned
-`clarkview` URL scheme and push a native detail destination. In the large widget, a
-compact item still expands in place first; tapping the focused item opens its detail.
+`clarkview` URL scheme and push a native detail destination. Each large-widget event
+opens its own detail directly; the widget has no local expand/collapse state.
 The route is presentation-only and performs no mutation or server lookup.
 
 ### Widget configuration verification (2026-09-24)
