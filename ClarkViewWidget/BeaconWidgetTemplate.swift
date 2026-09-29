@@ -61,7 +61,6 @@ struct BeaconWidgetTemplate: View {
                             BeaconFocusableItemView(
                                 item: item,
                                 isPrimary: item.id == focusedItemID,
-                                reduceMotion: reduceMotion,
                                 usesTranslucency: usesTranslucentSurfaces,
                                 feedID: entry.feedContext.feed?.id ?? ""
                             )
@@ -137,15 +136,26 @@ private struct BeaconItemBlockView: View {
 private struct BeaconFocusableItemView: View {
     let item: WidgetItem
     let isPrimary: Bool
-    let reduceMotion: Bool
     let usesTranslucency: Bool
     let feedID: String
 
     var body: some View {
+        // Keep the animated card outside the Link/Button branch so a focus reload updates
+        // one stable view instead of replacing it before WidgetKit can interpolate the layout.
+        card
+            .accessibilityHidden(true)
+            .overlay {
+                interactionTarget
+            }
+            .id(item.id)
+    }
+
+    @ViewBuilder
+    private var interactionTarget: some View {
         Group {
             if isPrimary, let destinationURL {
                 Link(destination: destinationURL) {
-                    card
+                    BeaconWidgetPalette.cardShape.fill(.clear)
                 }
                 .accessibilityLabel("Open \(item.mainText)")
                 .accessibilityHint("Opens event details in Clark View")
@@ -154,14 +164,13 @@ private struct BeaconFocusableItemView: View {
                     itemID: item.id, changesFocus: true,
                     feedID: feedID
                 )) {
-                    card
+                    BeaconWidgetPalette.cardShape.fill(.clear)
                 }
                 .accessibilityLabel("Show \(item.mainText) larger")
                 .accessibilityHint("Shows this item larger")
             }
         }
-        .buttonStyle(BeaconFocusButtonStyle(reduceMotion: reduceMotion))
-        .id(item.id)
+        .buttonStyle(.plain)
     }
 
     private var destinationURL: URL? {
@@ -241,20 +250,6 @@ private struct BeaconFocusableItemView: View {
             }
         }
         .contentShape(BeaconWidgetPalette.cardShape)
-    }
-}
-
-private struct BeaconFocusButtonStyle: ButtonStyle {
-    let reduceMotion: Bool
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .opacity(configuration.isPressed ? 0.72 : 1)
-            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.99 : 1)
-            .animation(
-                reduceMotion ? nil : .easeOut(duration: 0.12),
-                value: configuration.isPressed
-            )
     }
 }
 
