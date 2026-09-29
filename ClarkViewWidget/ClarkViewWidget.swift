@@ -31,8 +31,9 @@ private enum WidgetDataService {
         }
     }
 
-    /// #Preview-only fixtures now that the live provider calls `fetchPayload` directly — keeps
-    /// Xcode previews deterministic and offline instead of hitting the network at design time.
+    /// Offline fixtures for WidgetKit preview surfaces, including the end-user widget gallery
+    /// and Xcode #Preview. They omit presentation overrides so exported gallery snapshots show
+    /// Beacon's neutral default surfaces rather than development-only palette test colors.
     /// Small/medium only ever render item 1, so they keep the "LIVE" state that's always been
     /// here; large's primary card is the one place that renders a not-yet-started primary item,
     /// so it gets `mockPayloadUpcoming` instead (see that property).
@@ -76,14 +77,6 @@ private enum WidgetDataService {
         return Data("""
         {
           "schemaVersion": 3,
-          "presentation": {
-            "version": 2,
-            "template": "beacon",
-            "rootSurface": {
-              "light": "#14213D",
-              "dark": "#261447"
-            }
-          },
           "lifecycle": { "upcoming": null, "current": "LIVE", "expired": "END" },
           "items": [
             {

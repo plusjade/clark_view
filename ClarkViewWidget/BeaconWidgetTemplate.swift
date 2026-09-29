@@ -111,14 +111,14 @@ private struct BeaconLargeLayout: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let primary = items.first {
-                BeaconLargeItemLink(item: primary)
+                BeaconLargeItemLink(item: primary, preservesTitleHeight: true)
                     .layoutPriority(1)
             }
 
             if items.count > 1 {
                 Divider()
 
-                BeaconLargeItemLink(item: items[1])
+                BeaconLargeItemLink(item: items[1], preservesTitleHeight: false)
             }
         }
         .frame(maxHeight: .infinity, alignment: .top)
@@ -127,6 +127,7 @@ private struct BeaconLargeLayout: View {
 
 private struct BeaconLargeItemLink: View {
     let item: WidgetItem
+    let preservesTitleHeight: Bool
 
     @ViewBuilder
     var body: some View {
@@ -144,20 +145,21 @@ private struct BeaconLargeItemLink: View {
 
     private var content: some View {
         VStack(alignment: .leading, spacing: 10) {
-            BeaconDateTimeView(item: item, style: .primary)
-
             Text(item.mainText)
                 .font(.system(.largeTitle, design: .default, weight: .regular))
                 .lineLimit(2)
                 .multilineTextAlignment(.leading)
                 .truncationMode(.tail)
+                .fixedSize(horizontal: false, vertical: preservesTitleHeight)
 
             Text(item.subText)
-                .font(.system(.title3, design: .default))
-                .foregroundStyle(.secondary)
+                .font(.system(.title3, design: .monospaced))
+                .italic()
                 .lineLimit(2)
                 .multilineTextAlignment(.leading)
                 .truncationMode(.tail)
+
+            BeaconDateTimeView(item: item, style: .primary)
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 18)

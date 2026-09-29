@@ -10,13 +10,18 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-09-29
 
+- Removed development palette overrides from WidgetKit's offline preview payload because
+  `context.isPreview` also feeds the end-user widget gallery, not only Xcode previews. Gallery
+  snapshots now use Beacon's neutral surfaces while configured timelines retain server colors.
+
 - Replaced Beacon's large-widget focus interaction and card chrome with two static,
   directly linked event regions separated by a full-width rule. The simpler hierarchy
   gives content one widget-level inset and delegates full legibility to the existing
   event detail route. Both events now share the main event typography; layout priority
-  preserves the first event's ideal height and makes the second yield only on overflow.
-  Removed the focus intent, custom interpolation layout, and short interaction cache they
-  exclusively supported. See `BeaconWidgetTemplate.swift`.
+  preserves the first event's ideal height and makes the second yield only on overflow,
+  while primary-colored italic monospace detail precedes the trailing date/time. Removed
+  the focus intent, custom interpolation layout, and short interaction cache they exclusively
+  supported. See `BeaconWidgetTemplate.swift`.
 
 ## 2026-09-27
 

@@ -35,15 +35,18 @@ lifecycle label at the same date-line type size. The medium family also uses the
 surface directly and renders subtext in the primary color with a monospaced face. Large
 renders two static, edge-anchored event regions without card surfaces or borders. A full-width
 rule separates the events, and either event opens its own detail deep link. Both events use the
-same type hierarchy and line limits. The first keeps its ideal height when the pair overflows;
-the second compresses and truncates to fit the remaining space.
+same type hierarchy and line limits; subtext uses the primary color in italic monospace, and the
+date/time trails the event text. The first keeps its ideal height when the pair overflows; the
+second compresses and truncates to fit the remaining space.
 Ordinary
 network/decoding failure currently returns an empty payload, not stale cached content
 — distinguish failed fetches from successful empty feeds in diagnostics. Beacon has no
 refresh button; manual refresh lives in the app only. Reload requests ask WidgetKit
 for a timeline and do not guarantee immediate execution; the normal timeline requests
 an hourly refresh. Native accented/vibrant appearances remain system-owned; Beacon respects
-Reduce Motion and Reduce Transparency. Consult Swift for geometry, not this file.
+Reduce Motion and Reduce Transparency. WidgetKit gallery snapshots use offline event fixtures
+without presentation overrides, so they render on neutral default surfaces; configured timelines
+still honor server-provided root colors. Consult Swift for geometry, not this file.
 
 The app home screen is Your feeds. On first launch the install creates its own
 device row (`POST /devices`). Public feeds can be browsed and previewed before
