@@ -8,6 +8,15 @@ pointer. Preserve historical meaning; record reversals as new entries. Typo and
 broken-link corrections are allowed. See [AGENTS.md](../AGENTS.md#documenting-decisions)
 for routing current guidance, operational evidence, and routine validation.
 
+## 2026-09-30
+
+- Prioritized managed-source bootstrap and curation UX before authentication:
+  agents retain their research/scheduling workflows, shared intent and events
+  can change in one publication, and authorized edits affect all subscribers.
+  Public UAT precedes scoped grants so interaction friction can be validated
+  first; provisioning remains bounded. This is planned work, not a deployed
+  contract. See [managed-source-plan.md](managed-source-plan.md).
+
 ## 2026-09-29
 
 - Retired the last-joined widget default and network-backed configuration queries
