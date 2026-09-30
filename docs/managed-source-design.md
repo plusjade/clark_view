@@ -1,8 +1,13 @@
 # Managed sources: phase 1 design
 
-Status: **proposed, not deployed.** Phase 1 deliverable of
-[managed-source-plan.md](managed-source-plan.md), 2026-09-30. Nothing here is
-current behavior. Awaiting review at the phase 1 STOP before any implementation.
+Status: phase 1 design, approved and implemented in phase 2 on 2026-09-30. Current
+identities and operation: [managed-sources.md](managed-sources.md). Deviations from
+this design, as approved at review:
+
+- Slots are **not** registered in the parent at pool prep. Registration and feed
+  attachment are manual operator steps; `destination.integration` reads
+  `not_in_a_feed` until the operator records a slot's parent source ID.
+- Remix does not copy the database schema; each slot runs `setup.ts`.
 
 ## Decisions at a glance
 

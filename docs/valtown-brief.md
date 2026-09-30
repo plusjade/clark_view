@@ -38,6 +38,7 @@ app-clarkview → best-effort APNs → WidgetKit → normal resolver fetch
 | Enrollment, registry pointers, assignments, browser forms, composition, presentation configuration, push delivery | `plusjade/app-clarkview` (the parent) |
 | Team vocabulary, selection, event/status/broadcast text, upstream normalization, storage, ingestion | The implementing `plusjade/source-*` val |
 | New source authoring | Remix `plusjade/source-template`; update its canonical `source.json`, then follow `AGENTS.md` for implementation and external verification |
+| Agent-published (managed) sources, provisioner, pool | [managed-sources.md](managed-sources.md), then that val's README and `AGENTS.md` |
 | Source contract and item validation | Parent `source/README.md`, `source/readContract.ts`, `lib/sourceContract.ts` and `lib/canonicalSource.ts` |
 | Whether a source is trusted to serve, and why | Parent `lib/sourceConformance.ts` and `docs/source-conformance.md` |
 | Widget wire fields or their meaning | Coordinate source output, parent composition, Swift decoding, fixtures, and tests |
