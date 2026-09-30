@@ -53,24 +53,23 @@ Leave feed removes this device's join. The feed owns one shared reminder timing,
 shown in the preview, and browser configuration can change it. The app's feed
 preview has no effect on widgets. The one
 registered Clark View widget kind is configurable for home and lock screens. Its
-native editor has one Feed setting populated from this installation's joined feeds
-at `/devices/:id/subscriptions`; the public `/feeds` directory remains exclusive to
-the app's Join Feed flow. A successful in-app
-join saves its feed ID and name in the App Group; `WidgetFeedQuery.defaultResult()`
-offers that local value as the configuration default only while the feed remains
-joined. iOS controls
-when it queries this default; a new placement is not guaranteed to query again
-(see the dated acceptance status below). Each widget retains
-its own opaque feed ID and can override the default in Edit Widget. Existing
-placements never follow later joins. With no saved join, selection remains empty.
-The saved default tracks successful in-app joins on this installation from this version
-onward, not browsing, reminder changes, browser joins, or historical joins. Leaving
-a feed does not erase the saved preference, but the query will not offer it unless the
-device joins it again. Already placed widgets retain their explicit selection even
-after the device leaves that feed. Old static placements must be
-replaced, and old Follow app configurations must be edited to choose a feed.
-The intent query resolves names from the device's subscriptions, so a server rename appears when
-the editor next resolves the stored ID.
+native editor has one Feed setting populated from the App Group catalog in
+`Shared/WidgetFeedCatalog.swift`. Configuration queries perform no network requests
+and offer no automatic default; users explicitly choose a feed. The app replaces
+picker choices after each successful subscription load and updates them immediately
+after successful joins/leaves. Failed loads preserve the last successful snapshot.
+Open or refresh the app after browser-side membership changes or renames; the picker
+reflects the last locally observed state, not live server membership. After upgrading,
+open the app online once to populate choices. An empty catalog offers no choices.
+The public `/feeds` directory remains exclusive to the app's Join Feed flow.
+
+Each widget retains its own opaque feed ID. Remembered names survive leaving a feed,
+so existing selections resolve independently of the current choices, including offline.
+Older selections absent from the catalog resolve as `Feed <ID>` until their name is
+learned through an app subscription load. Feed existence is checked by the normal
+timeline fetch; a deleted feed still produces the unavailable state. The retired
+`lastJoinedWidgetFeed` preference is ignored. Old static placements must be replaced,
+and old Follow app configurations must be edited to choose a feed.
 Widget choice creates no notification subscription. A missing feed asks the user
 to Edit Widget; an unconfigured widget asks for a feed. Temporary network failure
 does not replace a configured ID. The app's manual widget refresh control still
@@ -139,30 +138,20 @@ notification-warning shortcut with a feed whose reminders are enabled, plus
 VoiceOver, large text, and iPad layout. Expected: native back/dismiss behavior,
 accessible action labels, and no clipped controls.
 
-### Last-joined widget default acceptance (2026-09-27)
+### Local widget picker acceptance (2026-09-29)
 
-User device verification passed for a fresh install: joining A then adding the
-first widget selected A. It failed for subsequent placement: after joining B,
-the second widget still selected A. Exact OS version and query invocations were
-not captured. The intended behavior remains B for the second widget and A for
-the existing widget; currently the native default is best effort.
+The network-backed last-joined default was retired after the earlier A-then-B
+placement test selected stale A and the user reported intermittent two-tap picker
+opening. Configuration queries now read only the local catalog; this removes their
+network dependency but does not establish that the iOS presentation symptom is fixed.
+See `Shared/WidgetFeedIntent.swift` and `Shared/WidgetFeedCatalog.swift`.
 
-Review confirmed `SubscriptionStore.create` records every successful join, and
-an isolated execution of `WidgetFeedDefault` confirmed writes advance A to B.
-That verifies local preference replacement, not cross-process visibility or
-WidgetKit query timing on the affected device. Suspected cause: WidgetKit reuses
-its initial default configuration, matching this
-[developer report](https://developer.apple.com/forums/thread/766959).
-Apple documents that
-[`invalidateConfigurationRecommendations()`](https://developer.apple.com/documentation/widgetkit/widgetcenter/invalidateconfigurationrecommendations())
-is inactive on iOS; timeline reload APIs do not promise to invalidate defaults.
-No speculative reload or replacement of existing widget selections was added.
-
-For further diagnosis on a team-signed device, inspect the App Group
-`lastJoinedWidgetFeed` value after joining B and trace whether
-`WidgetFeedQuery.defaultResult()` is called when adding the second widget.
-If called, inspect the value it reads; if not, investigate system configuration
-reuse. Close when the A-then-B placement flow reliably selects B for the new
-widget without changing A on the existing widget. Until then, use Edit Widget
-on the new placement to choose B. Manual overrides, offline placement, and the
-no-join state remain unverified.
+Pending on a team-signed device: open the app online to populate joins, add one
+widget, open Feed once, select a feed, and confirm the widget renders it. Repeat
+opening the picker offline (choices should remain available; content loading still
+requires the network). Leave the selected feed in the app: it should disappear from
+new choices while the placed widget retains its selection. Verify an upgraded
+placement before/after the first app refresh, an empty membership list, and a browser
+rename/membership change followed by app refresh. Close after first-tap presentation
+and retained selections pass; multiple-widget and lock-screen combinations remain
+manual acceptance.

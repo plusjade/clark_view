@@ -35,6 +35,7 @@ final class SubscriptionStore {
         do {
             let index = try await SubscriptionClient.index(deviceID: id)
             subscriptions = index.subscriptions
+            WidgetFeedCatalog.shared.replaceJoined(subscriptions.map(\.feed))
             delivery = index.delivery
             phase = .loaded
         } catch {
@@ -48,7 +49,7 @@ final class SubscriptionStore {
 
     func create(feed: Feed, enabled: Bool) async throws {
         try await SubscriptionClient.create(deviceID: try requireDevice(), feedID: feed.id, enabled: enabled)
-        WidgetFeedDefault.recordJoin(feed)
+        WidgetFeedCatalog.shared.recordJoin(feed)
         await load()
     }
 
@@ -60,6 +61,7 @@ final class SubscriptionStore {
 
     func delete(_ subscription: Subscription) async throws {
         try await SubscriptionClient.delete(deviceID: try requireDevice(), subscriptionID: subscription.id)
+        WidgetFeedCatalog.shared.recordLeave(subscription.feedId)
         await load()
     }
 

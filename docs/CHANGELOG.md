@@ -10,6 +10,14 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-09-29
 
+- Retired the last-joined widget default and network-backed configuration queries
+  after stale defaults and intermittent two-tap picker opening. The app now publishes
+  joined choices to an App Group catalog; existing IDs resolve locally with retained
+  names independently of membership. Browser changes require an app refresh. This
+  removes network work from native configuration without claiming the reported iOS
+  presentation symptom has passed device acceptance. See `WidgetFeedCatalog.swift`,
+  `WidgetFeedIntent.swift`, and the acceptance status in `ios-widget.md`.
+
 - Removed development palette overrides from WidgetKit's offline preview payload because
   `context.isPreview` also feeds the end-user widget gallery, not only Xcode previews. Gallery
   snapshots now use Beacon's neutral surfaces while configured timelines retain server colors.

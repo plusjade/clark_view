@@ -19,53 +19,30 @@ struct WidgetFeedEntity: AppEntity {
 }
 
 struct WidgetFeedQuery: EntityQuery {
+    @MainActor
     func entities(for identifiers: [String]) async throws -> [WidgetFeedEntity] {
-        let feeds = try await DeviceFeedClient.joined()
-        let feedsByID = Dictionary(uniqueKeysWithValues: feeds.map { ($0.id, $0) })
-        return identifiers.compactMap { id in
-            feedsByID[id].map { WidgetFeedEntity(id: $0.id, name: $0.name) }
+        guard !identifiers.isEmpty else { return [] }
+        let catalog = WidgetFeedCatalog.shared
+        return identifiers.map { id in
+            let feed = catalog.resolve(id)
+            return WidgetFeedEntity(id: feed.id, name: feed.name)
         }
     }
 
-    func defaultResult() async -> WidgetFeedEntity? {
-        guard let lastJoined = WidgetFeedDefault.lastJoined,
-              let feeds = try? await DeviceFeedClient.joined(),
-              let feed = feeds.first(where: { $0.id == lastJoined.id }) else { return nil }
-        return WidgetFeedEntity(id: feed.id, name: feed.name)
-    }
-
+    @MainActor
     func suggestedEntities() async throws -> [WidgetFeedEntity] {
-        let feeds = try await DeviceFeedClient.joined()
-        return feeds.map { WidgetFeedEntity(id: $0.id, name: $0.name) }
+        WidgetFeedCatalog.shared.joined.map { WidgetFeedEntity(id: $0.id, name: $0.name) }
     }
 }
 
 struct WidgetFeedIntent: WidgetConfigurationIntent {
     static var title: LocalizedStringResource = "Clark View Feed"
-    static var description = IntentDescription("Choosing a feed does not subscribe this device to notifications.")
+    static var description = IntentDescription("Choose a joined feed. Open Clark View to refresh available feeds.")
 
     @Parameter(title: "Feed")
     var feed: WidgetFeedEntity?
 
     init() {
         feed = nil
-    }
-}
-
-/// A successful app join seeds new configurations without changing placed widgets.
-/// Store the name with the ID while membership remains server-authoritative.
-enum WidgetFeedDefault {
-    private static let key = "lastJoinedWidgetFeed"
-    private static let defaults = UserDefaults(suiteName: DeviceIdentity.appGroupID) ?? .standard
-
-    static var lastJoined: Feed? {
-        guard let value = defaults.dictionary(forKey: key),
-              let id = value["id"] as? String,
-              let name = value["name"] as? String else { return nil }
-        return Feed(id: id, name: name)
-    }
-
-    static func recordJoin(_ feed: Feed) {
-        defaults.set(["id": feed.id, "name": feed.name], forKey: key)
     }
 }
