@@ -56,7 +56,7 @@ struct BeaconDateTimeView: View {
 
     private var font: Font {
         switch style {
-        case .primary: return .system(.title2, design: .default, weight: .bold)
+        case .primary: return .system(.title2, design: .default, weight: .black)
         case .secondary: return .system(.subheadline, design: .default, weight: .semibold)
         case .accessory: return .system(.subheadline, design: .default, weight: .semibold)
         }
