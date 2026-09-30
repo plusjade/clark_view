@@ -4,6 +4,7 @@ Status: agreed product direction; implementation contract proposed. Updated
 2026-09-30. This document replaces the earlier authentication-first plan. It does
 not describe deployed functionality or authorize deployment by itself. An external
 implementation agent should begin at phase 1 and stop at each phase checkpoint.
+Phase 1 design, awaiting review: [managed-source-design.md](managed-source-design.md).
 
 ## Product lens
 
