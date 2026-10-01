@@ -41,8 +41,8 @@ procedures. Slots are independent remixes, so a runtime change ships to each slo
 3. Operator attaches the source to a feed at `/feeds/:id/manage`.
 4. The steerer's widget shows that feed; items appear after its next timeline reload.
 
-Until step 2, `destination.integration` is `not_in_a_feed`. The provisioner never
-claims attachment.
+Until step 2, `destination.integration` is `not_in_a_feed`; afterwards
+`registered_not_attached`. The provisioner never claims attachment.
 
 ## Agent prompts
 
@@ -63,8 +63,11 @@ Existing source:
 
 ## Status (observed 2026-09-30)
 
-- Pool: slots 01–05 available, none registered in the parent. Recheck with
-  `SELECT slot, state, parent_source_id FROM pool` on `plusjade/managed-sources`.
+- Registered and verified in the parent (2026-10-01): slots 01–05 as source IDs
+  15–19 (recorded in the pool) and the test slot as ID 20, which holds the Fever
+  journey data. None attached to a feed. Recheck with
+  `SELECT slot, state, parent_source_id FROM pool` on `plusjade/managed-sources`
+  and the parent's `/sources`.
 - Remix does not copy the database schema; every new slot needs `setup.ts` before
   verification.
 - Unverified: the provisioner's `pending` path (slot timeout/5xx), a slot at its
