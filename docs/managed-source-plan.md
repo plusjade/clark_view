@@ -3,8 +3,16 @@
 Flag (2026-10-01): written before lists. Wherever this plan says a source must be
 attached to a feed, or names "the path into a feed and widget", the current destination
 is a registered, verified **list** that a device joins; see parent `docs/get-sources.md`.
-`plusjade/managed-sources` still reports `not_in_a_feed` and `registered_not_attached`.
-Reconcile that wording when this roadmap is next worked; it was not changed with lists.
+`plusjade/managed-sources` (main version 7) reports that destination:
+`destination.integration` is `not_registered`, `registered_pending_verification`, or
+`available_to_join`, replacing `not_in_a_feed` and `registered_not_attached`. Its README
+owns the states.
+
+Open (observed 2026-10-01): the created and replayed `destination` bodies were not
+exercised against the deployment, because no pool slot has ever been claimed and a
+request would consume one (`SELECT slot, state, request_id FROM pool`). Close after the
+first real creation, or an authorized one-slot test, returns the expected state and its
+replay returns the same receipt.
 
 Status: agreed product direction; implementation contract proposed. Updated
 2026-09-30. This document replaces the earlier authentication-first plan. It does

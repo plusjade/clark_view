@@ -2,9 +2,8 @@
 
 Status: implemented 2026-10-01; server deployed on parent `main` version 452, native
 client built and tested but not released. Open: the team-signed widget acceptance in
-[ios-widget.md](ios-widget.md#lists-acceptance-2026-10-01), real-device reminder delivery
-(manual acceptance item 5 below), and the managed-sources destination wording noted under
-agent-facing publication. Current contracts live in valtown-brief.md, ios-widget.md, and
+[ios-widget.md](ios-widget.md#lists-acceptance-2026-10-01) and real-device reminder delivery
+(manual acceptance item 5 below). Current contracts live in valtown-brief.md, ios-widget.md, and
 parent `docs/lists.md`; this document remains as the scope and manual acceptance record.
 Close it when the open items pass.
 
@@ -151,9 +150,9 @@ now "Publishing a list" and was exercised end to end with a disposable registrat
 Owning paths: parent `docs/get-sources.md` (the procedure), parent `source/README.md`
 (handoff), and `plusjade/source-template` `AGENTS.md` and README (completion wording).
 No rendered browser page, app screen, or copied prompt serves the guide.
-Left open: `plusjade/managed-sources` (`guide.ts`, README, and its `destination` states
-`not_in_a_feed` / `registered_not_attached`) still describes a feed as the destination.
-That is the managed-source roadmap's surface and was not changed here.
+`plusjade/managed-sources` (`guide.ts`, README, and its `destination` states) was
+reconciled separately on 2026-10-01; see the flag in
+[managed-source-plan.md](managed-source-plan.md) for its states and open verification.
 
 Required work:
 

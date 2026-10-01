@@ -10,6 +10,16 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-10-01
 
+- Reconciled `plusjade/managed-sources` with lists (main version 7). Its
+  `destination.integration` now reports `not_registered`,
+  `registered_pending_verification`, or `available_to_join`, replacing `not_in_a_feed`
+  and `registered_not_attached`, which both named a feed step that no longer exists.
+  Field names are unchanged; registered states add `listId`, `listUrl`, and
+  `previewUrl`. Availability comes from the parent's public `GET /lists/:id`, so the
+  provisioner still holds no parent authority and a failed read reports pending. A
+  replay now re-reads `destination` rather than returning the creation-time copy,
+  because registration and verification happen after creation. See its README.
+
 - Implemented lists beside legacy feeds: a list is a source a device joins directly,
   with its own reminder switch and source-owned timing. Added beside feeds rather than
   converting them, so no placement or membership migrates: old builds keep their
