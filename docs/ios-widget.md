@@ -182,13 +182,17 @@ iOS 26.5 simulator the app's browse, preview, join, detail, and leave flow passe
 the live server. Evidence: `clark_viewTests/WidgetSelectionTests.swift` for selector
 precedence and prompts; parent `docs/lists.md` for the contract.
 
-Not yet observed, because the simulator build is ad hoc signed and cannot reliably register
-the widget's App Entities: any widget placement on the new provider. Pending on a
-team-signed device:
+Observed 2026-10-01T21:51Z on parent device 7, a team-signed install updated to this
+build: its four existing placements (medium, large, two lock-screen) reported
+`mode:"feed"` with their saved feed IDs and read the events route as `feed:2` and `feed:3`
+with 200s, with no list memberships. Evidence: `/devices/7/views`. That establishes the
+retained selection and the bridge on a real upgrade. It does not establish that this
+happens before the app is first opened, or what the widgets displayed.
 
-1. Upgrade an install that has a configured feed widget. Without opening the app or
-   re-adding the widget, it keeps its feed, `/devices/:id/views` shows an event request
-   with a legacy feed selection, and it renders with the global appearance.
+Pending on a team-signed device:
+
+1. Confirm an upgraded feed widget refreshes before the app is first opened, and that it
+   renders its events with the global appearance.
 2. Edit that placement: the editor shows Show plus the retained feed. Choose All my lists,
    then Selected lists; each uses the events route with the new selector and no `feedId`.
    Confirm the conditional editor rows (`parameterSummary`) behave as described above.
@@ -198,4 +202,5 @@ team-signed device:
 5. The Lists picker opens on the first tap, and still opens offline from the last catalog.
 
 Close this status when those five pass. Lock-screen placements, large text, VoiceOver,
-multiple widgets, and real-device reminder delivery remain manual acceptance.
+multiple widgets, the Feeds from earlier versions screen (never shown in the simulator,
+which had no earlier feeds), and real-device reminder delivery remain manual acceptance.

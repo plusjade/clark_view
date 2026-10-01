@@ -10,30 +10,18 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-10-01
 
-- Implemented lists beside legacy feeds. A list is a source registry row a device joins
-  directly; `device_lists` holds membership and an independent reminder switch, and
-  `sources.reminder_lead_seconds` (default 3600) owns timing. Chosen over converting feeds
-  so no placement or membership is migrated: old builds keep their routes, and updated
-  widgets reach one events route where a retained feed is translated server-side.
-  Reminders gained a second authorization path into the existing queue rather than a
-  second queue, because the queue sync voids whatever it is not given and a path column
-  in the unique key would have broken same-lead deduplication; every cancellation now
-  requires that neither path authorizes the row. Deployed triggers were replaced by name
-  since `IF NOT EXISTS` keeps an old body. Events responses use one code-owned
-  presentation, so feed presentation is frozen rather than extended. Parent `docs/lists.md`
-  owns the contract and recovery snapshot; [ios-widget.md](ios-widget.md) owns the widget
-  model and the pending team-signed acceptance.
+- Implemented lists beside legacy feeds: a list is a source a device joins directly,
+  with its own reminder switch and source-owned timing. Added beside feeds rather than
+  converting them, so no placement or membership migrates: old builds keep their
+  routes, and an updated widget's retained feed is translated server-side on one events
+  route with one global presentation. Reminders gained a second authorization path into
+  the existing queue instead of a second queue, which keeps same-lead deduplication.
+  See parent `docs/lists.md` and [ios-widget.md](ios-widget.md).
 
-- Rewrote source registration as publishing a list. The operator guide had required a
-  bunch and a `bunch_id` column that no longer exist, so its insert could not succeed, and
-  it ended at feed attachment. It now ends at a verified list that is discoverable and
-  previewable, joins a device only when separately authorized, and omits the reminder
-  lead. Exercised once against the published guide with a disposable registration.
-  The guide's entry points are parent `docs/get-sources.md`, parent `source/README.md`,
-  and `plusjade/source-template`'s `AGENTS.md` and README; no browser or app surface
-  serves or copies it. `plusjade/managed-sources` still reports `not_in_a_feed` and
-  `registered_not_attached`; that wording belongs to the managed-source roadmap and was
-  left unchanged.
+- Rewrote source registration as publishing a list. The guide required a bunch that no
+  longer exists and ended at feed attachment; it now ends at a verified, joinable list.
+  `plusjade/managed-sources` still names a feed as its destination and was left for the
+  managed-source roadmap.
 
 - Revised the widget cutover to evolve the existing kind/intent and route
   all updated placements through the new device events endpoint. A server-side
