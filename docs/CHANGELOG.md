@@ -8,6 +8,22 @@ pointer. Preserve historical meaning; record reversals as new entries. Typo and
 broken-link corrections are allowed. See [AGENTS.md](../AGENTS.md#documenting-decisions)
 for routing current guidance, operational evidence, and routine validation.
 
+## 2026-10-01
+
+- Revised the planned widget cutover to evolve the existing kind/intent and route
+  all updated placements through the new device events endpoint. A server-side
+  `feedId` bridge translates saved feed selections into lists before common
+  composition; global presentation applies. This supersedes the separate-widget
+  strategy and avoids requiring replacement of existing placements. Unupdated
+  binaries retain their old endpoints. See [execution plan](lists-execution-plan.md).
+
+- Planned an additive lists experience over the source registry: device membership
+  supplies default widget composition, optional subsets replace managed groups,
+  new presentation is global, and new reminder timing belongs to sources with a
+  3600-second database default. Legacy routes, memberships, and widget identities
+  remain compatible to avoid a forced placement/data migration. This is a design
+  decision, not deployed behavior; see [execution plan](lists-execution-plan.md).
+
 ## 2026-09-30
 
 - Prioritized managed-source bootstrap and curation UX before authentication:
