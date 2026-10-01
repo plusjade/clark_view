@@ -10,6 +10,13 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-09-30
 
+- Deployed public managed sources (phase 2): a provisioner val claims prepared slot
+  vals instead of deploying on demand, so creation stays bounded and needs no Val Town
+  credentials. Each slot keeps its own SQLite and serves the unchanged canonical GET;
+  intent and events commit in one batch whose revision primary key is the
+  compare-and-set. Parent registration and attachment stay manual, so no parent code
+  changed. See [managed-sources.md](managed-sources.md).
+
 - Prioritized managed-source bootstrap and curation UX before authentication:
   agents retain their research/scheduling workflows, shared intent and events
   can change in one publication, and authorized edits affect all subscribers.
