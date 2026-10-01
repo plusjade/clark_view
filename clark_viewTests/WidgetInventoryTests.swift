@@ -16,11 +16,26 @@ struct WidgetInventoryTests {
         let data = try JSONEncoder().encode([
             entry("systemSmall", feed: "5"),
             entry("systemLarge", feed: nil),
+            WidgetInventoryEntry(kind: WidgetKind.configurable, family: "systemMedium", selection: .needsLists),
             WidgetInventoryEntry(kind: WidgetKind.configurable, family: "accessoryRectangular", intent: nil)
         ])
         let json = try #require(JSONSerialization.jsonObject(with: data) as? [[String: String]])
-        #expect(json.map { $0["state"] } == ["configured", "unconfigured", "unreadable"])
-        #expect(json.map { $0["feedId"] } == ["5", nil, nil])
+        #expect(json.map { $0["state"] } == ["configured", "configured", "unconfigured", "unreadable"])
+        #expect(json.map { $0["feedId"] } == ["5", nil, nil, nil])
+        // A retained feed stays a feed; a placement with nothing saved shows all lists.
+        #expect(json.map { $0["mode"] } == ["feed", "all", nil, nil])
+    }
+
+    @Test func selectedListsReportTheirIDsWithoutAFeed() throws {
+        let entry = WidgetInventoryEntry(kind: WidgetKind.configurable, family: "systemSmall",
+                                         selection: .selected(["8", "10"]))
+        let json = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(entry)) as? [String: Any])
+        #expect(json["mode"] as? String == "selected")
+        #expect(json["listIds"] as? [String] == ["8", "10"])
+        #expect(json["feedId"] == nil)
+        let other = WidgetInventoryEntry(kind: WidgetKind.configurable, family: "systemSmall",
+                                         selection: .selected(["8"]))
+        #expect(WidgetInventoryPolicy.signature(of: [entry]) != WidgetInventoryPolicy.signature(of: [other]))
     }
 
     @Test func signatureIgnoresOrderButKeepsDuplicates() {

@@ -1,8 +1,10 @@
 import SwiftUI
 
-/// In-app feed content between its reminder controls and supporting actions.
+/// In-app event content between its reminder controls and supporting actions.
+/// `id` identifies the list or feed being shown; `fetch` reads its events.
 struct FeedPreviewView<Leading: View, Trailing: View>: View {
-    let feed: Feed
+    let id: String
+    let fetch: () async throws -> WidgetPayload
     let leading: Leading
     let trailing: Trailing
     @Environment(DeepLinkRouter.self) private var deepLinks
@@ -12,10 +14,22 @@ struct FeedPreviewView<Leading: View, Trailing: View>: View {
     @State private var isLoading = false
     @State private var requestID = UUID()
 
-    init(feed: Feed, @ViewBuilder leading: () -> Leading, @ViewBuilder trailing: () -> Trailing) {
-        self.feed = feed
+    init(id: String, fetch: @escaping () async throws -> WidgetPayload,
+         @ViewBuilder leading: () -> Leading, @ViewBuilder trailing: () -> Trailing) {
+        self.id = id
+        self.fetch = fetch
         self.leading = leading()
         self.trailing = trailing()
+    }
+
+    init(feed: Feed, @ViewBuilder leading: () -> Leading, @ViewBuilder trailing: () -> Trailing) {
+        self.init(id: feed.id, fetch: { try await FeedDirectoryClient.payload(for: feed, context: .appPreview) },
+                  leading: leading, trailing: trailing)
+    }
+
+    init(list: EventList, @ViewBuilder leading: () -> Leading, @ViewBuilder trailing: () -> Trailing) {
+        self.init(id: "list-\(list.id)", fetch: { try await EventsClient.preview(listID: list.id) },
+                  leading: leading, trailing: trailing)
     }
 
     var body: some View {
@@ -51,10 +65,10 @@ struct FeedPreviewView<Leading: View, Trailing: View>: View {
                         }
                     }
                 } else if isLoading {
-                    ProgressView("Loading feed")
+                    ProgressView("Loading events")
                         .frame(maxWidth: .infinity)
                 } else {
-                    ContentUnavailableView("Feed unavailable", systemImage: "wifi.exclamationmark")
+                    ContentUnavailableView("Events unavailable", systemImage: "wifi.exclamationmark")
                         .frame(maxWidth: .infinity)
                 }
 
@@ -78,7 +92,7 @@ struct FeedPreviewView<Leading: View, Trailing: View>: View {
         .accessibilityIdentifier("feedPreview")
         .refreshable { await load() }
         .task { await load() }
-        .onChange(of: feed.id) { _, _ in
+        .onChange(of: id) { _, _ in
             requestID = UUID()
             payload = nil
             errorMessage = nil
@@ -96,16 +110,17 @@ struct FeedPreviewView<Leading: View, Trailing: View>: View {
         isLoading = true
         defer { if requestID == startedWith { isLoading = false } }
         do {
-            let result = try await FeedDirectoryClient.payload(for: feed, context: .appPreview)
+            let result = try await fetch()
             guard requestID == startedWith else { return }
             payload = result
             errorMessage = nil
         } catch {
             guard requestID == startedWith else { return }
             payload = nil
-            errorMessage = error is FeedClientError && (error as? FeedClientError) == .unavailable
-                ? "This feed is no longer available."
-                : "Couldn’t refresh the feed. Pull down to retry."
+            errorMessage = (error as? FeedClientError) == .unavailable
+                || (error as? EventsClientError) == .feedUnavailable
+                ? "This is no longer available."
+                : "Couldn’t refresh. Pull down to retry."
         }
     }
 }

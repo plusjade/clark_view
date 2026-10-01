@@ -17,12 +17,16 @@ and SQLite schema. No browser UI or event scheduling is part of the spike.
 
 | Local file | Role |
 | --- | --- |
-| [ServerURL.swift](../Shared/ServerURL.swift), [Feed.swift](../Shared/Feed.swift) | Base URL and public feed client |
+| [ServerURL.swift](../Shared/ServerURL.swift), [EventsClient.swift](../Shared/EventsClient.swift) | Base URL, device-row cache, and the events client used by widgets and list previews |
+| [WidgetSelection.swift](../Shared/WidgetSelection.swift) | What a placement shows: selector precedence, the one query sent, and prompt states |
+| [Feed.swift](../Shared/Feed.swift) | Legacy public feed client for feeds joined before lists |
 | [WidgetPayload.swift](../Shared/WidgetPayload.swift), [WidgetPresentation.swift](../Shared/WidgetPresentation.swift) | Wire decoding and presentation fallback |
 | [BeaconDateTimeView.swift](../Shared/BeaconDateTimeView.swift) | Shared widget/app lifecycle date line and local day label |
-| [ClarkViewWidget.swift](../ClarkViewWidget/ClarkViewWidget.swift), [WidgetFeedIntent.swift](../Shared/WidgetFeedIntent.swift) | Configurable feed choice, fetch, preview fixtures, timeline, entry view |
+| [ClarkViewWidget.swift](../ClarkViewWidget/ClarkViewWidget.swift), [WidgetFeedIntent.swift](../Shared/WidgetFeedIntent.swift) | Widget configuration (All my lists, Selected lists, retained feed), fetch, preview fixtures, timeline, entry view |
+| [WidgetListCatalog.swift](../Shared/WidgetListCatalog.swift), [WidgetFeedCatalog.swift](../Shared/WidgetFeedCatalog.swift) | App Group picker choices and remembered names: joined lists, and separately the legacy feeds |
 | [BeaconWidgetTemplate.swift](../ClarkViewWidget/BeaconWidgetTemplate.swift) | Default widget layout and event deep links |
-| [ContentView.swift](../clark_view/ContentView.swift), `clark_view/Subscription*.swift`, [FeedPreviewView.swift](../clark_view/FeedPreviewView.swift) | Your feeds, public browse and pre-join preview, reminder switch, and leave |
+| [ContentView.swift](../clark_view/ContentView.swift), [MyListsView.swift](../clark_view/MyListsView.swift), `clark_view/List*.swift`, [FeedPreviewView.swift](../clark_view/FeedPreviewView.swift) | My lists, directory and pre-join preview, reminder switch, and leave |
+| `clark_view/Subscription*.swift`, [FeedSourcesView.swift](../clark_view/FeedSourcesView.swift) | Compatibility screens for feeds joined before lists (Earlier feeds) |
 | [AppDeepLink.swift](../Shared/AppDeepLink.swift), [DeepLinkRouter.swift](../clark_view/DeepLinkRouter.swift) | `clarkview` subject routes shared by widgets, Live Activities, alert responses, and in-app navigation |
 | [DeviceIdentity.swift](../Shared/DeviceIdentity.swift), [DeviceStatusClient.swift](../Shared/DeviceStatusClient.swift) | Per-install UUID in `group.plusjade.clark-view`, self-registration, and diagnostic reads |
 | [PushTokenClient.swift](../Shared/PushTokenClient.swift), [ClarkViewWidgetPushHandler.swift](../ClarkViewWidget/ClarkViewWidgetPushHandler.swift) | Native widget token upload/removal |
@@ -46,41 +50,60 @@ Reduce Motion and Reduce Transparency. WidgetKit gallery snapshots use offline e
 without presentation overrides, so they render on neutral default surfaces; configured timelines
 still honor server-provided root colors. Consult Swift for geometry, not this file.
 
-The app home screen is Your feeds. On first launch the install creates its own
-device row (`POST /devices`). Public feeds can be browsed and previewed before
-joining. A join starts with Reminders off; the switch can be changed later, and
-Leave feed removes this device's join. The feed owns one shared reminder timing,
-shown in the preview, and browser configuration can change it. The app's feed
-preview has no effect on widgets. The one
-registered Clark View widget kind is configurable for home and lock screens. Its
-native editor has one Feed setting populated from the App Group catalog in
-`Shared/WidgetFeedCatalog.swift`. Configuration queries perform no network requests
-and offer no automatic default; users explicitly choose a feed. The app replaces
-picker choices after each successful subscription load and updates them immediately
-after successful joins/leaves. Failed loads preserve the last successful snapshot.
-Open or refresh the app after browser-side membership changes or renames; the picker
-reflects the last locally observed state, not live server membership. After upgrading,
-open the app online once to populate choices. An empty catalog offers no choices.
-The public `/feeds` directory remains exclusive to the app's Join Feed flow.
+The app home screen is My lists. On first launch the install creates its own
+device row (`POST /devices`). Lists can be browsed and previewed before joining.
+A join starts with Reminders off; the switch can be changed later, and Leave list
+removes this device's membership. A list owns its reminder timing. After a join or
+leave the app asks WidgetKit to reload, since widgets showing All my lists follow
+membership; WidgetKit decides when that runs.
 
-Each widget retains its own opaque feed ID. Remembered names survive leaving a feed,
-so existing selections resolve independently of the current choices, including offline.
-Older selections absent from the catalog resolve as `Feed <ID>` until their name is
-learned through an app subscription load. Feed existence is checked by the normal
-timeline fetch; a deleted feed still produces the unavailable state. The retired
-`lastJoinedWidgetFeed` preference is ignored. Old static placements must be replaced,
-and old Follow app configurations must be edited to choose a feed.
-Widget choice creates no notification subscription. A missing feed asks the user
-to Edit Widget; an unconfigured widget asks for a feed. Temporary network failure
-does not replace a configured ID. The app's manual widget refresh control still
-requests a timeline reload;
-WidgetKit controls when it runs. The app reuses the widget's date line, refreshes
-when opened or foregrounded, and supports pull to refresh. Notification setup and its
-diagnostics live under the toolbar menu's Notifications entry.
-Ordinary public feed URLs retain their existing browser behavior. The app does
-not intercept them as a Join feed deep link; a receiver browses the in-app
-directory to join by name. Recheck this gap only if link-driven joining becomes
-a product requirement.
+The one registered Clark View widget kind (`ClarkViewWidgetConfigurable`) is configurable
+for home and lock screens, and `WidgetFeedIntent` keeps its type name and `feed` parameter
+because those are the saved identity of existing placements. Its editor has **Show**
+(All my lists or Selected lists) and, for Selected, **Lists**. `WidgetSelection` resolves
+a placement in this order: an explicit mode, otherwise a retained `feed`, otherwise All.
+`mode` has no default so that an upgraded placement's saved feed is not overridden by a
+decoded value; a new placement has nothing saved and shows All my lists.
+
+- All never stores list IDs. The server resolves membership on every fetch, so a
+  browser-side membership change reaches the widget without opening the app.
+- Selected stores list IDs. An ID that is no longer joined contributes nothing and
+  becomes eligible again on rejoin; the app never rewrites a stored selection.
+- A retained feed is sent as `feedId` to the same events route. The server translates it;
+  the client never treats a feed ID as a list ID. Choosing a mode supersedes it, and only
+  the effective selector is sent. The retained feed is offered in the editor only while it
+  is the effective selection.
+- The picker reads the App Group list catalog, which the app replaces after each successful
+  membership load and updates after joins and leaves. Failed loads keep the last snapshot,
+  and configuration queries make no network requests. Open the app after a browser-side
+  rename to refresh names. Remembered names outlive membership.
+- The legacy feed catalog is separate and is never overwritten by the list catalog. The app
+  still refreshes it on activation so retained feed selections resolve their names.
+
+Every placement reads `/devices/:id/events`. The widget resolves the device row with the
+idempotent `POST /devices` and caches it in the App Group, so an upgraded placement works
+before the app is next opened. A `device_not_found` response clears the cache and
+re-resolves once, because a browser merge moves an installation to another row.
+
+Prompt states come from the server's `selection.listIds`, never from a failure:
+
+| State | Shows |
+| --- | --- |
+| Selected with no lists chosen | Edit Widget prompt; no request is made |
+| All, nothing joined | Invitation to join a list in the app |
+| Selected, none of the chosen lists joined | Edit Widget prompt; never falls back to All |
+| Retained feed no longer exists | Feed unavailable; edit to choose lists |
+| Lists resolved but no events, or a failed fetch | The ordinary empty state |
+
+A network or identity failure never changes a stored mode or selection. The app's manual
+widget refresh control still requests a timeline reload. The app reuses the widget's date
+line, refreshes when opened or foregrounded, and supports pull to refresh. Notification
+setup and its diagnostics live under the toolbar menu's Notifications entry.
+
+Feeds joined before lists appear under **Feeds from earlier versions** on the home screen
+when any exist. That screen lists them, shows whether reminders are on, and can turn a
+reminder off or leave the feed. Their reminders keep arriving until turned off there.
+List membership starts empty after an update; nothing is imported from those feeds.
 
 Widget inventory is reported from `Provider.timeline` (including unconfigured paths),
 app activation, and successful registration — never from placeholders,
@@ -89,8 +112,9 @@ normalized contents changed, nothing has succeeded, or the last success is 24 ho
 a failure waits five minutes before the next natural trigger retries (registration bypasses the
 wait). The timeline awaits the reporter alongside the feed fetch; the reporter bounds
 itself to three seconds and never fails the timeline. A failed configuration query is not
-uploaded as an empty inventory. Feed reads send installation, caller, family, and purpose
-headers for server receipts. Reports can lag: removing the last widget runs no timeline,
+uploaded as an empty inventory. Each entry reports its mode: `all`, `selected` with list IDs,
+or `feed` with the retained feed ID; Selected with no lists reports as unconfigured. Event
+reads send installation, caller, family, and purpose headers for server receipts. Reports can lag: removing the last widget runs no timeline,
 so it appears only after the app is next opened. Placements have no stable identity.
 Parent `docs/widget-inventory.md` owns the server contract.
 
@@ -146,12 +170,32 @@ opening. Configuration queries now read only the local catalog; this removes the
 network dependency but does not establish that the iOS presentation symptom is fixed.
 See `Shared/WidgetFeedIntent.swift` and `Shared/WidgetFeedCatalog.swift`.
 
-Pending on a team-signed device: open the app online to populate joins, add one
-widget, open Feed once, select a feed, and confirm the widget renders it. Repeat
-opening the picker offline (choices should remain available; content loading still
-requires the network). Leave the selected feed in the app: it should disappear from
-new choices while the placed widget retains its selection. Verify an upgraded
-placement before/after the first app refresh, an empty membership list, and a browser
-rename/membership change followed by app refresh. Close after first-tap presentation
-and retained selections pass; multiple-widget and lock-screen combinations remain
-manual acceptance.
+Superseded 2026-10-01 before it was run: the editor now selects lists, not a feed.
+The unresolved first-tap picker presentation and offline picker checks carry into
+Lists acceptance below, against the Lists picker.
+
+### Lists acceptance (2026-10-01)
+
+Server routes are live on parent `main` version 452 and `tools/check.ts` passes. The
+app/widget build and full test scheme pass with SwiftLint at its prior warning count. On an
+iOS 26.5 simulator the app's browse, preview, join, detail, and leave flow passed against
+the live server. Evidence: `clark_viewTests/WidgetSelectionTests.swift` for selector
+precedence and prompts; parent `docs/lists.md` for the contract.
+
+Not yet observed, because the simulator build is ad hoc signed and cannot reliably register
+the widget's App Entities: any widget placement on the new provider. Pending on a
+team-signed device:
+
+1. Upgrade an install that has a configured feed widget. Without opening the app or
+   re-adding the widget, it keeps its feed, `/devices/:id/views` shows an event request
+   with a legacy feed selection, and it renders with the global appearance.
+2. Edit that placement: the editor shows Show plus the retained feed. Choose All my lists,
+   then Selected lists; each uses the events route with the new selector and no `feedId`.
+   Confirm the conditional editor rows (`parameterSummary`) behave as described above.
+3. Add a new placement: it starts on All my lists with no feed picker.
+4. Selected with only list A, then leave A in the app: the widget asks for an edit rather
+   than showing All; rejoin A and it returns.
+5. The Lists picker opens on the first tap, and still opens offline from the last catalog.
+
+Close this status when those five pass. Lock-screen placements, large text, VoiceOver,
+multiple widgets, and real-device reminder delivery remain manual acceptance.

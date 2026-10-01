@@ -7,7 +7,7 @@
 
 import Foundation
 
-/// Decoded shape of a selected `/feeds/:feedId` response. This is a *view* contract, not a data
+/// Decoded shape of an events or legacy `/feeds/:feedId` response. This is a *view* contract, not a data
 /// contract — the server decides exactly what text to show (matchup names, status word),
 /// not raw properties (scores, team ids) for the client to interpret. That keeps the widget a
 /// dumb template: any future change to what's displayed ships server-side with no client update.
@@ -28,17 +28,22 @@ struct WidgetPayload: Decodable {
     let lifecycle: WidgetLifecycleLabels?
     /// Display order — the client renders these in array order with no client-side sort.
     let items: [WidgetItem]
+    /// Which lists the request's selector resolved to. Only events routes send it; it is
+    /// what separates "nothing selected" from "selected lists with no events".
+    let selection: WidgetSelectionSummary?
 
     init(
         schemaVersion: Int,
         presentation: WidgetPresentationPayload? = nil,
         lifecycle: WidgetLifecycleLabels? = nil,
-        items: [WidgetItem]
+        items: [WidgetItem],
+        selection: WidgetSelectionSummary? = nil
     ) {
         self.schemaVersion = schemaVersion
         self.presentation = presentation
         self.lifecycle = lifecycle
         self.items = items
+        self.selection = selection
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -46,6 +51,7 @@ struct WidgetPayload: Decodable {
         case presentation
         case lifecycle
         case items
+        case selection
     }
 
     init(from decoder: Decoder) throws {
@@ -54,7 +60,13 @@ struct WidgetPayload: Decodable {
         presentation = try? container.decode(WidgetPresentationPayload.self, forKey: .presentation)
         lifecycle = try? container.decode(WidgetLifecycleLabels.self, forKey: .lifecycle)
         items = try container.decode([WidgetItem].self, forKey: .items)
+        selection = try? container.decode(WidgetSelectionSummary.self, forKey: .selection)
     }
+}
+
+struct WidgetSelectionSummary: Decodable, Equatable {
+    let mode: String
+    let listIds: [String]
 }
 
 /// Where an item sits relative to its own window. State, never display text.

@@ -1,10 +1,12 @@
 # Lists: additive execution plan
 
-Status: agreed direction, implementation pending (2026-10-01). This document is
-an implementation handoff, not a description of deployed behavior. Read AGENTS.md,
-valtown-brief.md, ios-widget.md, and testing.md before starting. Inspect only the
-implicated parent modules through the brief's remote workflow. Checks remain black
-boxes unless they fail.
+Status: implemented 2026-10-01; server deployed on parent `main` version 452, native
+client built and tested but not released. Open: the team-signed widget acceptance in
+[ios-widget.md](ios-widget.md#lists-acceptance-2026-10-01), real-device reminder delivery
+(manual acceptance item 5 below), and the managed-sources destination wording noted under
+agent-facing publication. Current contracts live in valtown-brief.md, ios-widget.md, and
+parent `docs/lists.md`; this document remains as the scope and manual acceptance record.
+Close it when the open items pass.
 
 ## Outcome and scope
 
@@ -143,12 +145,15 @@ parent so the new journey ends with a directly usable list, without feed creatio
 or attachment. Preserve source authoring/protocol internals; this is a mechanical
 adaptation of registration and its entry points, not a new provisioning system.
 
-Audit starting point (observed 2026-10-01): parent `docs/get-sources.md`, titled
-"Publishing a GET source manually", still requires an intended bunch, writes
-`bunch_id`, and directs assignment through a device Sources view. These conflict
-with the current brief's retired bunch model. Recheck against live schema and
-routes during implementation; close this observation when the published procedure
-and its entry points have been corrected and exercised.
+Audit (closed 2026-10-01): parent `docs/get-sources.md` required a bunch, wrote the
+nonexistent `bunch_id`, and directed assignment through a device Sources view. It is
+now "Publishing a list" and was exercised end to end with a disposable registration.
+Owning paths: parent `docs/get-sources.md` (the procedure), parent `source/README.md`
+(handoff), and `plusjade/source-template` `AGENTS.md` and README (completion wording).
+No rendered browser page, app screen, or copied prompt serves the guide.
+Left open: `plusjade/managed-sources` (`guide.ts`, README, and its `destination` states
+`not_in_a_feed` / `registered_not_attached`) still describes a feed as the destination.
+That is the managed-source roadmap's surface and was not changed here.
 
 Required work:
 

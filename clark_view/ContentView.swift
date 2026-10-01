@@ -1,11 +1,14 @@
 import SwiftUI
 
-/// Home is this device's joined feeds, with a separate diagnostics hub.
+/// Home is this device's joined lists, with a separate diagnostics hub.
 struct ContentView: View {
     @Environment(NotificationSettings.self) private var notifications
     @Environment(DeepLinkRouter.self) private var deepLinks
     @Environment(LiveActivityCoordinator.self) private var liveActivities
     @Environment(\.scenePhase) private var scenePhase
+    @State private var lists = ListStore()
+    /// Feeds joined before lists; still loaded so their reminders stay manageable and
+    /// retained widget feed selections keep resolving names.
     @State private var subscriptions = SubscriptionStore()
     @State private var showsDiagnostics = false
     @State private var defersEventPresentation = false
@@ -40,11 +43,11 @@ struct ContentView: View {
         )
 
         NavigationStack {
-            SubscriptionListView(openNotifications: {
+            MyListsView(openNotifications: {
                 initialDiagnosticsPanel = .notifications
                 showsDiagnostics = true
             })
-                .navigationTitle("Your feeds")
+                .navigationTitle("My lists")
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Diagnostics", systemImage: "stethoscope") {
@@ -56,8 +59,8 @@ struct ContentView: View {
                 .sheet(isPresented: $showsDiagnostics, onDismiss: {
                     // Wait for the diagnostics dismissal to finish before presenting a pending event.
                     defersEventPresentation = false
-                    // Notification setup can change the delivery note under the subscriptions.
-                    Task { await subscriptions.load() }
+                    // Notification setup can change the delivery note under the lists.
+                    Task { await lists.load() }
                 }, content: {
                     DiagnosticsView(initialPanel: initialDiagnosticsPanel)
                 })
@@ -80,12 +83,14 @@ struct ContentView: View {
                     if phase == .active { Task { await refresh() } }
                 }
         }
+        .environment(lists)
         .environment(subscriptions)
     }
 
     private func refresh() async {
         // Loading registers a first-run install, which the inventory report requires.
         Task {
+            await lists.load()
             await subscriptions.load()
             await WidgetInventoryReporter.shared.report(trigger: .appActivation)
         }

@@ -11,13 +11,14 @@ import SwiftUI
 import UIKit
 
 private enum WidgetDataService {
-    static func fetchPayload(for feed: Feed?, context: FeedRequestContext) async -> WidgetFetchResult {
+    static func fetchPayload(for selection: WidgetSelection, context: FeedRequestContext) async -> WidgetFetchResult {
         guard !Task.isCancelled else { return WidgetFetchResult(payload: .empty) }
-        guard let feed else { return WidgetFetchResult(payload: .empty) }
+        // Selected lists with nothing chosen makes no request; it must never read as All.
+        guard selection.eventsQuery != nil else { return WidgetFetchResult(payload: .empty) }
 
         WidgetRefreshDiagnostics.recordAttempt()
         do {
-            let payload = try await FeedDirectoryClient.payload(for: feed, context: context)
+            let payload = try await EventsClient.payload(for: selection, context: context)
             guard !Task.isCancelled else { return WidgetFetchResult(payload: .empty) }
             WidgetRefreshDiagnostics.recordSuccess()
             return WidgetFetchResult(payload: payload)
@@ -25,9 +26,11 @@ private enum WidgetDataService {
             guard !Task.isCancelled else { return WidgetFetchResult(payload: .empty) }
             let message = error is DecodingError
                 ? "Invalid widget response"
-                : error.localizedDescription
+                : (error as? EventsClientError) == .identityUnavailable
+                    ? "Device registration unavailable"
+                    : error.localizedDescription
             WidgetRefreshDiagnostics.recordFailure(message)
-            return WidgetFetchResult(payload: .empty, unavailable: (error as? FeedClientError) == .unavailable)
+            return WidgetFetchResult(payload: .empty, unavailable: (error as? EventsClientError) == .feedUnavailable)
         }
     }
 
@@ -128,35 +131,23 @@ private struct WidgetFetchResult {
     var unavailable = false
 }
 
-/// Captures the configured feed for a widget timeline.
-struct WidgetFeedContext {
-    let feed: Feed?
-
-    init(configuration: WidgetFeedIntent) {
-        feed = configuration.feed.map { Feed(id: $0.id, name: $0.name) }
-    }
-
-    static var preview: WidgetFeedContext {
-        WidgetFeedContext(feed: Feed(id: "preview", name: "Preview"))
-    }
-
-    private init(feed: Feed?) {
-        self.feed = feed
-    }
-}
-
 struct WidgetEntry: TimelineEntry {
     let date: Date
     let payload: WidgetPayload
-    let feedContext: WidgetFeedContext
+    let selection: WidgetSelection
     let unavailable: Bool
 
     init(date: Date, payload: WidgetPayload,
-         feedContext: WidgetFeedContext = .preview, unavailable: Bool = false) {
+         selection: WidgetSelection = .all, unavailable: Bool = false) {
         self.date = date
         self.payload = payload
-        self.feedContext = feedContext
+        self.selection = selection
         self.unavailable = unavailable
+    }
+
+    /// A failed fetch leaves `payload.selection` nil, so it never shows a selection prompt.
+    var prompt: WidgetPrompt? {
+        selection.prompt(resolvedListIDs: payload.selection?.listIds, feedUnavailable: unavailable)
     }
 }
 
@@ -169,19 +160,19 @@ struct Provider: AppIntentTimelineProvider {
         if context.isPreview {
             return WidgetEntry(date: .now, payload: WidgetDataService.mockPayload)
         }
-        let selection = WidgetFeedContext(configuration: configuration)
-        let result = await WidgetDataService.fetchPayload(for: selection.feed,
+        let selection = WidgetSelection(intent: configuration)
+        let result = await WidgetDataService.fetchPayload(for: selection,
                                                           context: .widget(context.family, purpose: "snapshot"))
         return WidgetEntry(date: .now, payload: result.payload,
-                           feedContext: selection, unavailable: result.unavailable)
+                           selection: selection, unavailable: result.unavailable)
     }
 
     func timeline(for configuration: WidgetFeedIntent, in context: Context) async -> Timeline<WidgetEntry> {
-        let selection = WidgetFeedContext(configuration: configuration)
+        let selection = WidgetSelection(intent: configuration)
         // Every timeline reports, including unconfigured paths; the reporter
         // bounds itself so it never delays the timeline past its own deadline.
         async let inventory: Void = WidgetInventoryReporter.shared.report(trigger: .timeline)
-        let result = await WidgetDataService.fetchPayload(for: selection.feed,
+        let result = await WidgetDataService.fetchPayload(for: selection,
                                                           context: .widget(context.family, purpose: "timeline"))
         await inventory
         let payload = result.payload
@@ -190,7 +181,7 @@ struct Provider: AppIntentTimelineProvider {
         // them — only the entry's date differs, which moves lifecycle wording without a fetch.
         let entries = ([now] + lifecycleEntryDates(for: payload, after: now)).map {
             WidgetEntry(date: $0, payload: payload,
-                        feedContext: selection, unavailable: result.unavailable)
+                        selection: selection, unavailable: result.unavailable)
         }
         return Timeline(entries: entries, policy: .after(nextRefreshDate(for: payload)))
     }
@@ -219,10 +210,8 @@ struct ClarkViewWidgetEntryView: View {
     }
 
     var body: some View {
-        if entry.feedContext.feed == nil {
-            WidgetMessageView(text: "Long Press\n→ Edit Widget\n→ Choose Feed")
-        } else if entry.unavailable {
-            WidgetMessageView(text: "Feed unavailable\nlong press to edit widget & choose another.")
+        if let prompt = entry.prompt {
+            WidgetMessageView(text: prompt.text)
         } else if family == .accessoryRectangular {
             BeaconLockScreenView(entry: entry)
                 .widgetURL(destinationURL)
@@ -234,7 +223,7 @@ struct ClarkViewWidgetEntryView: View {
     }
 }
 
-/// Status text for unconfigured or unavailable feeds; every widget view needs a container background.
+/// Status text for a selection that needs attention; every widget view needs a container background.
 private struct WidgetMessageView: View {
     let text: String
 
@@ -255,7 +244,7 @@ struct ClarkViewWidget: Widget {
             ClarkViewWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("Clark View")
-        .description("Choose a feed for this widget. Selection does not subscribe to notifications.")
+        .description("Shows events from all your lists, or the ones you choose. Reminders are set in the app.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryRectangular])
         .contentMarginsDisabled()
         .pushHandler(ClarkViewWidgetPushHandler.self)

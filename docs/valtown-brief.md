@@ -17,17 +17,25 @@ to the task, not as re-confirmed fact.
 ## Start here: ownership and request flow
 
 Clark View is widget-first. The containing iOS app registers its own install, manages
-joined public feeds (each showing a preview and device reminder switch) on the home screen, and exposes
-notification setup and diagnostics through its menu. A browser helper configures sources. Each widget explicitly selects a
-server-composed temporal feed in its native editor.
+joined **lists** (each with a preview and its own reminder switch) on the home screen, and exposes
+notification setup and diagnostics through its menu. A list is a registered source joined directly;
+"list" is the user-facing word and the registry, contract, and code keep "source". A widget shows
+all joined lists by default, or a selected subset. A browser helper configures sources.
+
+Feeds are the legacy model and remain as compatibility infrastructure: app builds that predate
+lists still read `/feeds/:feedId` and `/devices/:id/subscriptions`, and a widget placement that
+saved a feed keeps it through the server-side `feedId` bridge. Nothing converts feed data into
+lists, and there is no retirement date; retire by observed old-client and widget usage.
 
 ```text
 Browser → app-clarkview → feeds, devices, source registry
-App     → app-clarkview /devices/:id/subscriptions (JSON), /feeds, /feeds/:feedId; POST /devices and status identify an install
-Widget  → app-clarkview /feeds/:feedId
-                         → feed assignments + source pointers
-                         → public HTTP reads of assigned source vals
-                         → validate items, sort, attach presentation → widget v2
+App     → app-clarkview /lists, /devices/:id/lists, /events?listIds=…; POST /devices and status identify an install
+          (compatibility: /devices/:id/subscriptions, /feeds/:feedId for feeds joined earlier)
+Widget  → app-clarkview /devices/:id/events[?listIds=…|?feedId=…]
+                         → selector → list IDs (membership, selection, or the feed's enabled assignments)
+                         → public HTTP reads of those source vals
+                         → validate items, sort, attach global presentation → widget schema 3
+Old builds → app-clarkview /feeds/:feedId (unchanged)
 Source ingest → that source's own schedule → its own SQLite
 app-clarkview → best-effort APNs → WidgetKit → normal resolver fetch
 ```
@@ -97,10 +105,13 @@ caching them here.
 
 ## Parent model and code map
 
-Canonical parent tables include `devices`, `sources`,
+Canonical parent tables include `devices`, `sources`, `device_lists`,
 `feeds`, `feeds_sources`, `device_subscriptions`, `device_push_tokens`,
-`device_alert_tokens`, `subscription_notification_queue`, `device_widget_inventory`, and
-`device_feed_requests`.
+`device_alert_tokens`, `subscription_notification_queue`, `device_widget_inventory`,
+`device_feed_requests`, and `device_event_requests`.
+`device_lists` is list membership: a unique device/source pair with `reminders_enabled`
+(default off). `sources.reminder_lead_seconds` (default 3600) is a list's reminder lead; it has
+no editor. Parent `docs/lists.md` owns the list model, routes, and recovery snapshot.
 `feeds` has independently allocated stable IDs, editable nonunique names,
 presentation, shared `reminder_lead_seconds`, and timestamps. `feeds_sources` has a unique feed/source pair,
 foreign keys, and a Live/Disabled flag. Neither table has device ownership,
@@ -144,14 +155,15 @@ surface type, or ACL. Sources own their data separately.
 | --- | --- |
 | `main.ts`, `http/routes/*.ts` | Stable Hono wiring, iOS routes, browser administration; no parent ingest route |
 | `lib/sourceClient.ts` | Source lookup, canonical GET read, item guards, `composeFeed` |
+| `lib/listStore.ts`, `lib/listSelector.ts`, `http/routes/lists.ts` | List directory, device membership, selector parsing and resolution, events routes |
 | `lib/feedStore.ts` | Independent feed CRUD, source attachment, composition lookup, frozen legacy mapping |
 | `lib/sourceStore.ts` | Registry and browser source projections |
 | `lib/deviceStore.ts` | Device identity |
 | `lib/presentation.ts` | Presentation defaults, stored JSON parsing, form validation |
 | `lib/deviceTokenStore.ts`, `lib/push.ts` | Token lifecycle and best-effort device notification (`notifyDevice`) |
-| `lib/subscriptionStore.ts` | Explicit subscription policy and notification ledger |
-| `lib/widgetObservationStore.ts`, `http/routes/widgetObservations.ts` | Device-reported widget inventory, feed-request receipts, `/devices/:id/views`; parent `docs/widget-inventory.md` |
-| `lib/subscriptionBuilder.ts`, `lib/subscriptionDrainer.ts` | Queue events from subscribed feeds; validate and send due alerts |
+| `lib/subscriptionStore.ts` | Feed-subscription and list-membership reminder authorization, and the shared notification ledger |
+| `lib/widgetObservationStore.ts`, `http/routes/widgetObservations.ts` | Device-reported widget inventory, feed- and event-request receipts, `/devices/:id/views`; parent `docs/widget-inventory.md` |
+| `lib/subscriptionBuilder.ts`, `lib/subscriptionDrainer.ts` | Queue events from subscribed feeds and reminder-enabled lists; validate and send due alerts |
 | `crons/buildReminders.ts`, `crons/drainReminders.ts` | The two reminder schedules |
 | `lib/lifecycle.ts` | Global lifecycle label set; phase-to-word resolution and the derived legacy caption |
 | `lib/guards.ts` | Domain-free runtime guards |
@@ -174,10 +186,15 @@ Browser tab titles retain resource names. The root remains a standalone jump-off
 
 | Method / route | Behavior |
 | --- | --- |
+| `GET /lists`, `GET /lists/:id` | List directory and detail: `{id,name,description,reminderLeadSeconds,available,availability}`. IDs are decimal strings opaque to Swift. JSON only, `no-store`. |
+| `GET /devices/:id/lists` | This device's joined lists with `remindersEnabled`, plus `delivery`. `:id` is the device row. |
+| `PUT` / `PATCH` / `DELETE /devices/:id/lists/:listId` | Join (201 new with reminders off, 200 existing and unchanged), set `{remindersEnabled}` (404 if not joined), leave (idempotent). |
+| `GET /events?listIds=1,2` | Public composition for a pre-join preview. The selection is required; an unknown ID is 404. |
+| `GET /devices/:id/events` | Events for all joined lists, or `?listIds=` intersected with membership, or `?feedId=` (a retained legacy feed selection, resolved to its enabled assignments and not intersected with membership). Selectors are mutually exclusive; empty, malformed, or duplicated ones are 400 and never mean all. Unknown device or feed is 404. The body adds `selection:{mode,listIds}`. Presentation is one code-owned global policy. Receipt headers record only for the device's own installation. Parent `docs/lists.md` owns the contract. |
 | `GET /feeds` | Public directory: `{feeds:[{id,name,reminderLeadSeconds}]}`. Timing is the feed's current shared value; IDs are decimal strings opaque to Swift. No installation identity is required. Read-only and `no-store`. |
 | `GET /feeds/:feedId/details` | Public name, shared timing, and attached sources (`id`, `name`, diagnostic `kind`, and `enabled`) for native detail surfaces, without changing widget payload semantics. |
 | `GET /feeds/:feedId` | Public schema-3 composition from a feed's enabled and verified assignments and presentation. Optional `timeZone` reader context. Unknown or deleted IDs return JSON 404; a valid empty feed succeeds. Reads use `no-store`. Optional `X-Clark-Installation`, `X-Clark-Caller`, `X-Clark-Widget-Family`, `X-Clark-Request-Purpose` headers record a receipt for a registered device only; they never change the response. |
-| `POST /device/widget-inventory` | `{device,observedAt,widgets:[{kind,family,state,feedId?}]}` complete snapshot; `state` is `configured`/`unconfigured`/`unreadable`. Replaces the stored snapshot unless older (`{ok:true,stale:true}`). Unknown install 404, malformed 400. |
+| `POST /device/widget-inventory` | `{device,observedAt,widgets:[{kind,family,state,feedId?,mode?,listIds?}]}` complete snapshot; `state` is `configured`/`unconfigured`/`unreadable`. `mode` is `all`, `selected` (with `listIds`), or `feed` (with `feedId`); absent on builds that predate lists. Replaces the stored snapshot unless older (`{ok:true,stale:true}`). Unknown install 404, malformed 400. |
 | `GET /installations/:installId/feed` | Native migration lookup through frozen `legacy_installation_feeds`, returning `{id,name}` or JSON 404. The current app no longer calls it; retained for older builds. |
 | `GET /config/resolve` | Temporary legacy client feed through the frozen installation mapping: `device=<install UUID>`, `tz=<seconds east of GMT>`, optional `timeZone=<named zone>`. Unmapped requests return an empty schema-3 feed. Retain until client cutover is confirmed. |
 | `GET /devices/resolve` | Temporary alias through the same frozen mapping |
@@ -191,7 +208,7 @@ Browser tab titles retain resource names. The root remains a standalone jump-off
 | `/feeds/:id/manage` | Feed preview, source attachment/state/removal, presentation, shared reminder timing, rename, and deletion |
 | `/devices/:id`, `/devices/:id/settings`, `/devices/:id/subscriptions` | Device identity and name edit, joined feeds, and merge entry |
 | `/devices/:id/subscriptions` with `Accept: application/json` | iOS join API on browser routes. GET returns `{subscriptions:[{id,feedId,feedName,enabled,reminderLeadSeconds,createdAt,updatedAt}],delivery}`; `reminderLeadSeconds` is derived from the feed, not stored per device. Create/update accepts `enabled=0\|1`; delete leaves. Legacy `leadSeconds` on create with no enabled means on and is ignored on update until old clients age out. Duplicate join returns success without adding a row. |
-| `/devices/:id/views` | Latest reported widget inventory and per feed/caller/family/purpose request receipts, labeled with report times |
+| `/devices/:id/views` | Latest reported widget inventory, and request receipts per selector (events routes) or feed (legacy), caller, family, and purpose, labeled with report times |
 | `/devices/:id/merge` | Move a reinstalled app's install ID onto the device it replaces; the chosen target survives and the origin row is deleted |
 | `/sources` | Read-only registry explorer with the source gallery in place of the device gallery |
 | `/sources/:id` | Source Feed tab: reads the implementing source with its schema defaults and renders temporal items plus the raw source response; failures and empty feeds remain ordinary page states |
@@ -259,9 +276,11 @@ capability-specific personalized identity, and stop rather than inventing settin
 `POST /source-verifications` accepts `{endpoint,sourceKey}` for a public Val Town
 root and returns `{profile,pass,checks,failures}`. It stops at the first failing
 request and neither reads nor writes the registry. Parent-owned probes use the same
-GET checker and serving guards before recording conformance. Registration and
-assignment remain separate, manual operator actions; parent `docs/get-sources.md`
-owns the wiring procedure and requires writing `read_profile` explicitly. Publication
+GET checker and serving guards before recording conformance. Registration is a manual
+operator action; parent `docs/get-sources.md` ("Publishing a list") owns it. A registered,
+verified source is a list anyone can preview and join; publication needs no feed and
+writes none, and it joins a device only when that is separately authorized. The procedure
+requires writing `read_profile` explicitly and omitting `reminder_lead_seconds`. Publication
 reads the final branch's manifest deterministically, verifies the deployed response
 matches its key, and maps manifest identity into the registry; it never discovers
 identity from the val name, README prose, a sampled response, or operator wording.
@@ -339,6 +358,13 @@ entrypoints and environment metadata when remixing.
   display text.
 - Parent adds `presentation` from the feed, defaulting to Beacon with white/black
   roots. It also emits deprecated `eyebrow:"NEXT"`; Swift ignores unknown keys.
+- **Events routes use one global presentation** (`GLOBAL_EVENTS_PRESENTATION`: Beacon,
+  version 2, white/black roots, expired items kept) for every selector, including a
+  bridged `feedId`. Stored feed presentation is frozen at the compatibility boundary: it
+  still serves `/feeds/:feedId` and is neither evolved nor imported into lists.
+- Events routes add `selection:{mode,listIds}`: the lists the selector resolved to. An
+  empty `listIds` means nothing was selected, which Swift shows as a join or edit prompt;
+  eligible lists with no events render the ordinary empty state. Legacy feed reads omit it.
 - Feed presentation stores `intradayFilter` (default false), edited as **Hide
   expired items**. `composeFeedItems` applies `expiresAt > now` after validation
   and composition with one clock snapshot across sources. Public reads and preview
@@ -378,9 +404,13 @@ For current operation, check `read_interval_settings` and the two cron file logs
 the parent `docs/subscriptions.md` owns the reminder contract. The prior
 subscription deployment's scheduled times are historical, not current settings.
 
-Enabled joins follow current enabled, verified `feeds_sources` and canonical source
-items, independent of feed presentation and widget selection. The shared feed lead
-determines timing. The ledger deduplicates overlapping feeds by device, namespaced
+A reminder is authorized by either of two paths. A list membership with reminders on
+follows that verified source at `sources.reminder_lead_seconds`. A legacy enabled feed join
+follows current enabled, verified `feeds_sources` at the shared feed lead, independent of
+feed presentation and widget selection. Both write the same queue; a same-device,
+same-event, same-lead overlap is one row and one alert, and turning off or leaving one
+path never cancels a row the other still authorizes. The builder must sync one combined
+candidate set per device, because the sync voids what it is not given. The ledger deduplicates overlapping feeds by device, namespaced
 item ID, and lead; terminal results are not replayed. `REMINDERS_ENABLED` gates APNs
 delivery. Alerts do not refresh the widget. Quiet hours require a
 named-zone policy and storage before they can be correct. Details in the parent's
@@ -477,6 +507,7 @@ Per domain, what to verify beyond the checks and what a false pass looks like:
 | Conformance | The probe against every registered source, and that only a verified one reaches a feed. Core suite covers gating, staleness derivation and quarantine diagnostics | A green feed says nothing about a source nobody has re-probed — check `conformance_verified_at`, not just the state |
 | Source | Public `GET /`, its 400/405 rejections, nonempty fixtures, timezone edges. Source-owned checks | Diagnostics reporting "unavailable" means unknown coverage, not zero |
 | New GET source | External `/source-verifications` against the remix's own endpoint and key; parent changes run `tools/check.ts` | A pass does not register or activate a source, prove data accuracy, or establish nonempty coverage |
+| Lists | Membership and preference round trips; all/subset/`feedId` selection; empty versus invalid selectors; conformance withholding; the same event IDs and order as the legacy feed read. Core suite covers these | A successful empty body does not prove a list contributed — check `selection.listIds`, `x-effective-sources`, then `x-quarantined-sources` |
 | Attachment | Add/remove/state round trips; an attach carrying settings must be refused and persist nothing | — |
 | Widget contract | Decode a representative composed response with Swift; update preview fixtures/tests; build app and widget for contract changes (`xcodebuild -project clark_view.xcodeproj -scheme clark_view build`/`test`); run SwiftLint | — |
 | Push | Verify token environment/topic and actual delivery separately per environment | APNs *accepting* a request is not proof a banner appeared — use console delivery logs; a simulator build proves nothing about real APNs delivery |
@@ -516,6 +547,6 @@ Keep these constraints; use Git/Val Town history for change lists and old probes
   val; there is no delete-env operation in the current MCP tooling. Do not assume
   cleanup of copied secrets happened, or bundle it into an unrelated change.
 - **Deferred:** per-source lifecycle label sets, immutable source publication/activation, agent ACLs, advanced
-  sharing/subscriptions, partial-feed degradation, automated ingestion for sources, per-source reminder leads, reminder quiet hours (requires
+  sharing/subscriptions, partial-feed degradation, automated ingestion for sources, a reminder lead editor or per-device lead override for lists, saved list groups, legacy feed/route/table retirement, reminder quiet hours (requires
   an IANA timezone from the app), and widget refresh alongside reminder alerts.
   Implement these only when the task actually calls for them.

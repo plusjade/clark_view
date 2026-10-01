@@ -1,8 +1,7 @@
 import Foundation
 
-/// The home screen's subscriptions, shared by the index, show, and form screens.
-/// The numeric device ID is re-resolved on each load because a browser merge can move this install to another row.
-/// An unregistered install creates its own device row before loading joins.
+/// Feeds joined in builds that predate lists, shared by the compatibility screens.
+/// Loading also refreshes the legacy widget catalog that retained feed selections resolve against.
 @MainActor @Observable
 final class SubscriptionStore {
     enum Phase: Equatable {
@@ -17,21 +16,11 @@ final class SubscriptionStore {
     private(set) var deviceID: Int?
 
     func load() async {
-        guard let status = await DeviceStatusClient.fetch(device: DeviceIdentity.deviceID) else {
-            phase = .failed(SubscriptionClientError.invalidResponse.localizedDescription)
-            return
-        }
-        let resolved = status.registered
-            ? status.id
-            : await DeviceStatusClient.register(device: DeviceIdentity.deviceID)
-        guard let id = resolved else {
+        guard let id = await AppDevice.resolve() else {
             phase = .failed(SubscriptionClientError.invalidResponse.localizedDescription)
             return
         }
         deviceID = id
-        if !status.registered {
-            await WidgetInventoryReporter.shared.report(trigger: .registration)
-        }
         do {
             let index = try await SubscriptionClient.index(deviceID: id)
             subscriptions = index.subscriptions

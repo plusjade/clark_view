@@ -14,8 +14,32 @@ enum ServerURL {
     static var feedsURL: URL { baseURL.appendingPathComponent("feeds") }
 
     static func feedURL(_ feedID: String, timeZoneIdentifier: String) -> URL {
-        var components = URLComponents(url: feedsURL.appendingPathComponent(feedID), resolvingAgainstBaseURL: false)!
-        components.queryItems = [URLQueryItem(name: "timeZone", value: timeZoneIdentifier)]
+        withTimeZone(feedsURL.appendingPathComponent(feedID), timeZoneIdentifier: timeZoneIdentifier)
+    }
+
+    static var listsURL: URL { baseURL.appendingPathComponent("lists") }
+
+    static func deviceListsURL(deviceRow: Int) -> URL {
+        baseURL.appendingPathComponent("devices/\(deviceRow)/lists")
+    }
+
+    /// `selector` is the one effective selector, or empty for all joined lists.
+    static func deviceEventsURL(deviceRow: Int, selector: [URLQueryItem],
+                                timeZoneIdentifier: String = TimeZone.autoupdatingCurrent.identifier) -> URL {
+        withTimeZone(baseURL.appendingPathComponent("devices/\(deviceRow)/events"),
+                     selector: selector, timeZoneIdentifier: timeZoneIdentifier)
+    }
+
+    static func publicEventsURL(listIDs: [String],
+                                timeZoneIdentifier: String = TimeZone.autoupdatingCurrent.identifier) -> URL {
+        withTimeZone(baseURL.appendingPathComponent("events"),
+                     selector: [URLQueryItem(name: "listIds", value: listIDs.joined(separator: ","))],
+                     timeZoneIdentifier: timeZoneIdentifier)
+    }
+
+    private static func withTimeZone(_ url: URL, selector: [URLQueryItem] = [], timeZoneIdentifier: String) -> URL {
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+        components.queryItems = selector + [URLQueryItem(name: "timeZone", value: timeZoneIdentifier)]
         components.percentEncodedQuery = components.percentEncodedQuery?.replacingOccurrences(of: "+", with: "%2B")
         return components.url!
     }

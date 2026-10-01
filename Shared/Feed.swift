@@ -1,7 +1,7 @@
 import Foundation
 
 /// A public feed from the `/feeds` directory; widgets select one and subscriptions nest one.
-struct Feed: Codable, Equatable, Identifiable {
+nonisolated struct Feed: Codable, Equatable, Identifiable {
     let id: String
     let name: String
     let reminderLeadSeconds: Int?

@@ -1,5 +1,11 @@
 # Managed sources: product orientation and execution plan
 
+Flag (2026-10-01): written before lists. Wherever this plan says a source must be
+attached to a feed, or names "the path into a feed and widget", the current destination
+is a registered, verified **list** that a device joins; see parent `docs/get-sources.md`.
+`plusjade/managed-sources` still reports `not_in_a_feed` and `registered_not_attached`.
+Reconcile that wording when this roadmap is next worked; it was not changed with lists.
+
 Status: agreed product direction; implementation contract proposed. Updated
 2026-09-30. This document replaces the earlier authentication-first plan. It does
 not describe deployed functionality or authorize deployment by itself. An external

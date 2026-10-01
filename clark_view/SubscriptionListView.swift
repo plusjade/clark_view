@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Home screen: feeds joined by this installation, whether reminders are on or off.
+/// Feeds joined by this installation before lists, whether reminders are on or off.
 struct SubscriptionListView: View {
     let openNotifications: () -> Void
     @Environment(SubscriptionStore.self) private var store
