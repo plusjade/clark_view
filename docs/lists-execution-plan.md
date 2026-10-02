@@ -152,7 +152,7 @@ Owning paths: parent `docs/get-sources.md` (the procedure), parent `source/READM
 No rendered browser page, app screen, or copied prompt serves the guide.
 `plusjade/managed-sources` (`guide.ts`, README, and its `destination` states) was
 reconciled separately on 2026-10-01; see the flag in
-[managed-source-plan.md](managed-source-plan.md) for its states and open verification.
+[managed-source-plan.md](managed-source-plan.md) for its states.
 
 Required work:
 
