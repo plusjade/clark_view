@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// A joined list's events and this device's reminder preference.
 struct ListDetailView: View {
@@ -8,6 +9,8 @@ struct ListDetailView: View {
     @State private var confirmsLeave = false
     @State private var isSaving = false
     @State private var errorMessage: String?
+    @State private var metadata: ListSummary?
+    @State private var copiedInstructions = false
 
     var body: some View {
         if let list = store.list(id: id) {
@@ -42,6 +45,26 @@ struct ListDetailView: View {
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
+                    if let management = metadata?.management, management.version == 2 {
+                        Button("Copy editing instructions", systemImage: "doc.on.doc") {
+                            let introduction = "Help me edit the Clark View list \"\(list.name)\". "
+                            let instructions = "Read \(management.stateUrl.absoluteString) for its current state " +
+                                "and editing instructions, then apply the changes I request. " +
+                                "Preserve unrelated events and shared preferences. " +
+                                "Edits affect everyone who joins this list."
+                            UIPasteboard.general.string = introduction + instructions
+                            copiedInstructions = true
+                        }
+                        .buttonStyle(.borderless)
+                        Text("An agent can update this list for everyone who joins it.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        if copiedInstructions {
+                            Text("Instructions copied. Paste them into a conversation with an agent.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                     Button("Leave list", role: .destructive) { confirmsLeave = true }
                         .buttonStyle(.borderless)
                         .disabled(isSaving)
@@ -49,6 +72,7 @@ struct ListDetailView: View {
             }
             .navigationTitle(list.name)
             .navigationBarTitleDisplayMode(.inline)
+            .task(id: id) { metadata = try? await ListClient.detail(id: id) }
             .confirmationDialog("Leave list?", isPresented: $confirmsLeave, titleVisibility: .visible) {
                 Button("Leave list", role: .destructive) { Task { await leave(list) } }
             } message: {

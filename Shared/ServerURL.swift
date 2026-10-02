@@ -19,6 +19,8 @@ enum ServerURL {
 
     static var listsURL: URL { baseURL.appendingPathComponent("lists") }
 
+    static func listURL(_ id: String) -> URL { listsURL.appendingPathComponent(id) }
+
     static func deviceListsURL(deviceRow: Int) -> URL {
         baseURL.appendingPathComponent("devices/\(deviceRow)/lists")
     }

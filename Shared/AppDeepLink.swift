@@ -4,12 +4,14 @@ import Foundation
 struct AppDeepLink: Hashable, Identifiable {
     enum Kind: String {
         case event
+        case list
         case liveActivity = "live-activity"
         case notification
 
         var title: String {
             switch self {
             case .event: "Event"
+            case .list: "List"
             case .liveActivity: "Live Activity"
             case .notification: "Notification"
             }
@@ -18,6 +20,7 @@ struct AppDeepLink: Hashable, Identifiable {
         var systemImage: String {
             switch self {
             case .event: "calendar"
+            case .list: "list.bullet.rectangle"
             case .liveActivity: "bolt.badge.clock"
             case .notification: "bell.badge"
             }
@@ -41,7 +44,7 @@ struct AppDeepLink: Hashable, Identifiable {
         components.scheme = Self.scheme
         components.host = kind.rawValue
         components.path = "/" + subjectID
-        components.queryItems = [
+        components.queryItems = kind == .list ? nil : [
             URLQueryItem(name: "title", value: title),
             detail.map { URLQueryItem(name: "detail", value: $0) },
             status.map { URLQueryItem(name: "status", value: $0) },
@@ -82,11 +85,19 @@ struct AppDeepLink: Hashable, Identifiable {
             } ?? [],
             uniquingKeysWith: { first, _ in first }
         )
+        let subjectID = String(components.path.dropFirst())
+        if kind == .list {
+            guard !subjectID.isEmpty, subjectID.first != "0",
+                  subjectID.utf8.allSatisfy({ $0 >= 48 && $0 <= 57 }), Int(subjectID) != nil,
+                  components.queryItems?.isEmpty ?? true else { return nil }
+            self.init(kind: .list, subjectID: subjectID, title: "")
+            return
+        }
         guard let title = values["title"], !title.isEmpty else { return nil }
 
         self.init(
             kind: kind,
-            subjectID: String(components.path.dropFirst()),
+            subjectID: subjectID,
             title: title,
             detail: values["detail"],
             status: values["status"],

@@ -2,12 +2,18 @@ import Foundation
 
 /// A list from the public directory. Timing belongs to the list, not the device.
 struct ListSummary: Decodable, Hashable, Identifiable {
+    struct Management: Decodable, Hashable {
+        let version: Int
+        let stateUrl: URL
+    }
+
     let id: String
     let name: String
     let description: String
     let reminderLeadSeconds: Int
     /// False while the server withholds the list; it can still be joined.
     let available: Bool
+    let management: Management?
 
     var list: EventList { EventList(id: id, name: name) }
 }
@@ -38,6 +44,13 @@ enum ListClient {
                                                        cachePolicy: .reloadIgnoringLocalCacheData))
         guard status == 200 else { throw rejection(data) }
         return try JSONDecoder().decode(Directory.self, from: data).lists
+    }
+
+    static func detail(id: String) async throws -> ListSummary {
+        let (data, status) = try await send(URLRequest(url: ServerURL.listURL(id),
+                                                       cachePolicy: .reloadIgnoringLocalCacheData))
+        guard status == 200 else { throw rejection(data) }
+        return try JSONDecoder().decode(ListSummary.self, from: data)
     }
 
     static func memberships(deviceID: Int) async throws -> Memberships {

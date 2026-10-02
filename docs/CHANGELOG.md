@@ -10,6 +10,15 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-10-01
 
+- Made managed creation finish at an available list, using prebound inactive slots
+  and retryable parent activation. Editable name and description now live with
+  source intent/events; the parent projects them while retaining stable identity,
+  verification and membership. Human list links lead to an explicit native Join,
+  and native managed-list details copy live-state instructions for the user's
+  preferred agent. These close both handoffs without imposing an agent workflow
+  or treating a subscriber as an owner. See parent `docs/lists.md`, provisioner
+  README and [ios-widget.md](ios-widget.md).
+
 - Kept managed and computed source remixes as independent point-in-time copies
   behind the small canonical GET contract. The accepted agent create/curate UAT
   showed publication value without requiring identical runtime or prose across

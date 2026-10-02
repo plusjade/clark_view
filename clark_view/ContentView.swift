@@ -65,7 +65,11 @@ struct ContentView: View {
                     DiagnosticsView(initialPanel: initialDiagnosticsPanel)
                 })
                 .navigationDestination(item: navigationDestination) { destination in
-                    DeepLinkDetailView(destination: destination)
+                    if destination.kind == .list {
+                        IncomingListView(id: destination.subjectID)
+                    } else {
+                        DeepLinkDetailView(destination: destination)
+                    }
                 }
                 .fullScreenCover(item: eventDestination) { destination in
                     NavigationStack {
@@ -74,8 +78,8 @@ struct ContentView: View {
                 }
                 .onOpenURL { deepLinks.open($0) }
                 .onChange(of: deepLinks.destination) { _, destination in
-                    guard destination?.kind == .event, showsDiagnostics else { return }
-                    defersEventPresentation = true
+                    guard let destination, showsDiagnostics else { return }
+                    if destination.kind == .event { defersEventPresentation = true }
                     showsDiagnostics = false
                 }
                 .task { await refresh() }

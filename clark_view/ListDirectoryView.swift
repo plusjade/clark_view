@@ -68,7 +68,7 @@ struct ListDirectoryView: View {
     }
 }
 
-private struct JoinListPreviewView: View {
+struct JoinListPreviewView: View {
     let list: ListSummary
     let onJoined: () -> Void
     @Environment(ListStore.self) private var store
@@ -82,7 +82,14 @@ private struct JoinListPreviewView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Button("Join list") { Task { await join() } }
                     .buttonStyle(.borderedProminent)
-                    .disabled(isSaving)
+                    .disabled(isSaving || store.deviceID == nil)
+                if store.deviceID == nil {
+                    Text("This device’s lists haven’t loaded. Try again to join.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Button("Try Again") { Task { await store.load() } }
+                        .buttonStyle(.borderless)
+                }
                 Text("Joining adds this list to widgets showing All my lists. " +
                      "Reminders start off; turn them on from the list.")
                     .font(.subheadline)

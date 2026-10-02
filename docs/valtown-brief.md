@@ -46,7 +46,7 @@ app-clarkview → best-effort APNs → WidgetKit → normal resolver fetch
 | Enrollment, registry pointers, assignments, browser forms, composition, presentation configuration, push delivery | `plusjade/app-clarkview` (the parent) |
 | Team vocabulary, selection, event/status/broadcast text, upstream normalization, storage, ingestion | The implementing `plusjade/source-*` val |
 | New source authoring | Remix `plusjade/source-template`; update its canonical `source.json`, then follow `AGENTS.md` for implementation and external verification |
-| Agent-published managed source | `plusjade/managed-sources` provisions a prepared remix of `plusjade/managed-source-template`; that source owns intent and events through its management API |
+| Agent-published managed source | `plusjade/managed-sources` initializes and activates a prepared remix of `plusjade/managed-source-template`; that source owns editable name, description, intent and events through its management API |
 | Source contract and item validation | Parent `source/README.md`, `source/readContract.ts`, `lib/sourceContract.ts` and `lib/canonicalSource.ts` |
 | Whether a source is trusted to serve, and why | Parent `lib/sourceConformance.ts` and `docs/source-conformance.md` |
 | Widget wire fields or their meaning | Coordinate source output, parent composition, Swift decoding, fixtures, and tests |
@@ -84,6 +84,22 @@ behavior, or complete a required contract migration, not to keep cosmetic prose
 or implementation identical to a template. Parent registration, verification,
 joins, and widget delivery remain in the parent; bounded managed-source creation
 belongs to `plusjade/managed-sources`.
+
+Prepared managed slots have parent-owned inactive bindings and are hidden from list
+discovery and joins until initialized. Creation returns ready only after the parent
+verifies and activates the bound list. A delayed activation keeps the same claimed
+slot; retry the original request. The runtime's optional metadata adapter projects
+name and description into the parent with a revision guard; event-only edits do not
+call the parent. Source identity, registered endpoint, list ID, conformance and
+membership remain parent-owned. Joining is not ownership; shared edits affect all
+subscribers. See parent `docs/lists.md` and `docs/get-sources.md` for preparation,
+activation and recovery.
+
+Creation returns a human `/open/lists/:id` link with a preview and a
+`clarkview://list/<id>` app handoff. The app fetches authoritative metadata and
+offers an explicit Join, or opens an existing membership. Its managed-list detail
+can copy instructions pointing an agent at live state and guidance. This passes no
+device identity or token and imposes no agent research or scheduling workflow.
 
 The generic feed composer deliberately lives in the parent, next to pointer
 resolution, rather than in its own composer val: parent → composer → source would add

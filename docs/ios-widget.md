@@ -57,6 +57,18 @@ removes this device's membership. A list owns its reminder timing. After a join 
 leave the app asks WidgetKit to reload, since widgets showing All my lists follow
 membership; WidgetKit decides when that runs.
 
+Human list links use the parent's `/open/lists/:id` landing page and
+`clarkview://list/<id>`. `IncomingListView` resolves the numeric ID through
+`ListClient.detail`; links carry no title or management endpoint. An unjoined list
+opens its preview with an explicit Join, while a joined list opens its detail.
+Opening a link never changes membership or reminder preferences.
+
+`ListDetailView` offers **Copy editing instructions** when the parent advertises
+management version 2 and its state URL. The preferred agent reads current state
+and guidance there; copied text contains no device identity or token. Changes to
+list metadata and events affect everyone joined, whereas the reminder toggle and
+Leave remain device-specific. Computed lists without this capability omit the action.
+
 The one registered Clark View widget kind (`ClarkViewWidgetConfigurable`) is configurable
 for home and lock screens, and `WidgetFeedIntent` keeps its type name and `feed` parameter
 because those are the saved identity of existing placements. Its editor has **Show**
@@ -204,3 +216,22 @@ Pending on a team-signed device:
 Close this status when those five pass. Lock-screen placements, large text, VoiceOver,
 multiple widgets, the Feeds from earlier versions screen (never shown in the simulator,
 which had no earlier feeds), and real-device reminder delivery remain manual acceptance.
+
+### Managed-list handoff acceptance — 2026-10-01
+
+The earlier agent create/curate UAT remains accepted. The new human handoffs need
+experience-based acceptance on an iPhone running this app build. Implementation
+owners are `IncomingListView`, `ListDetailView`, and parent `docs/lists.md`.
+
+1. From an agent with existing findings, create a managed list. Open its returned
+   human link on the iPhone: the chosen name, description and events match; opening
+   alone does not join. Choose Join: it appears in My lists with reminders off.
+2. Reopen that link while already joined: it opens the list, preserving reminder
+   preferences. Repeat once with the app closed and once with Diagnostics open.
+3. In the joined list, copy editing instructions into a preferred agent and request
+   a name/description change plus one wording change. The agent reads current state;
+   after app refresh, the same joined list shows the changes. Its ID and reminder
+   preference remain stable. A computed list has no managed editing action.
+
+Close this status after those scenarios pass. Widget display still depends on its
+next refresh; large text, VoiceOver and cross-agent variations remain manual checks.
