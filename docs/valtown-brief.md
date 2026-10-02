@@ -22,9 +22,8 @@ agent editing, widget delivery after refresh, and scheduled continuity within a
 simulated time-frame. See [managed-source-plan.md](managed-source-plan.md) for the
 acceptance scope. No implementation or UAT hold remains for that milestone.
 Legacy browser views (feed management, feed joins, source → feed attachment), `/config/*`,
-`/devices/resolve`, `/installations/:installId/feed`, and the 410 pairing stubs are removed
-on parent branch `remove-feed-views` (2026-10-02, `tools/check.ts` passing); this file
-describes that state. Until it merges to `main`, production still serves them. Migration
+`/devices/resolve`, `/installations/:installId/feed`, and the 410 pairing stubs were removed
+in parent `main` version 456 (2026-10-02, `tools/check.ts` passing). Migration
 of all prototype devices and retirement of legacy JSON routes/tables await the user's
 next scope; do not infer that migration has happened. Authentication and
 friendly editing URL routing are deferred, not active tasks. Existing per-source
