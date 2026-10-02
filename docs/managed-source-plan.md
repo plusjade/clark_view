@@ -14,16 +14,6 @@ request would consume one (`SELECT slot, state, request_id FROM pool`). Close af
 first real creation, or an authorized one-slot test, returns the expected state and its
 replay returns the same receipt.
 
-Open (observed 2026-10-01): the inline guide, README, and `AGENTS.md` name a list as the
-destination on `main` of `plusjade/managed-source-template` (version 13) and
-`managed-source-01` through `-04` (version 4). `managed-source-05` and
-`managed-source-test` carry the same edits only on their unmerged `lists-wording`
-branches, so their deployed guides still describe a feed. Close after `tools/check.ts`
-passes on each branch, both merge, and `GET /manage/v1/state` on `managed-source-test`
-`main` shows the list wording. The uninitialized template answers that route
-`409 not_initialized` without a guide; unclaimed slots run the same code and were not
-fetched, so confirm theirs with `read_file` on `guide.ts`.
-
 Status: agreed product direction; implementation contract proposed. Updated
 2026-09-30. This document replaces the earlier authentication-first plan. It does
 not describe deployed functionality or authorize deployment by itself. An external
