@@ -1,11 +1,14 @@
 # Lists: additive execution plan
 
-Status: implemented 2026-10-01; server deployed on parent `main` version 452, native
-client built and tested but not released. Open: the team-signed widget acceptance in
-[ios-widget.md](ios-widget.md#lists-acceptance-2026-10-01) and real-device reminder delivery
-(manual acceptance item 5 below). Current contracts live in valtown-brief.md, ios-widget.md, and
-parent `docs/lists.md`; this document remains as the scope and manual acceptance record.
-Close it when the open items pass.
+Status reviewed 2026-10-02: implementation complete; initial server deployment was
+parent `main` version 452. The user has accepted the managed-list iPhone join/edit
+handoffs and widget delivery after refresh. See [managed-source-plan.md](managed-source-plan.md)
+for the consolidated public-milestone acceptance, including simulated-time continuity.
+The older upgrade/picker combinations and real-device reminder delivery below are
+deferred, unclaimed coverage, not execution holds. All-device migration is not
+complete; the user will prescribe that and legacy cleanup separately. Current
+contracts live in valtown-brief.md, ios-widget.md and parent `docs/lists.md`.
+This completed plan is a design/verification reference, not an active task queue.
 
 ## Outcome and scope
 

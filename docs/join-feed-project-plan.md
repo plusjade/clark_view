@@ -1,8 +1,13 @@
 # Join feed and retire bunches
 
 Implementation handoff · 2026-09-26 · Implemented on parent `main` and in this
-repository. Manual acceptance remains open; current contracts are in
-`docs/valtown-brief.md`, `docs/ios-widget.md`, and parent `docs/subscriptions.md`.
+repository. Status reviewed 2026-10-02: this is a historical compatibility plan,
+superseded as the primary user journey by lists. Its unreported manual scenarios
+are deferred coverage, not holds on the accepted managed-source milestone. The
+user will scope legacy cleanup and device migration separately. Current contracts
+are in `docs/valtown-brief.md`, `docs/ios-widget.md`, and parent `docs/subscriptions.md`.
+Preserve the recovery constraints in `join-feed-cutover.md` until that cleanup is
+explicitly reviewed; the new-list UAT does not prove legacy reminder acceptance.
 
 ## Product objective
 

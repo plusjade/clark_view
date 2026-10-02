@@ -16,6 +16,17 @@ to the task, not as re-confirmed fact.
 
 ## Start here: ownership and request flow
 
+**Work status — 2026-10-02:** the public agentic managed-source milestone is
+accepted. The user verified agent creation/curation, iPhone open/join and app →
+agent editing, widget delivery after refresh, and scheduled continuity within a
+simulated time-frame. See [managed-source-plan.md](managed-source-plan.md) for the
+acceptance scope. No implementation or UAT hold remains for that milestone.
+Legacy cleanup and migration of all prototype devices to the latest API await the
+user's next scope; do not infer that migration has happened. Authentication and
+friendly editing URL routing are deferred, not active tasks. Existing per-source
+editing URLs remain valid. Older compatibility/accessibility/APNs notes are
+unclaimed coverage for future scoped work, not instructions to restart this UAT.
+
 Clark View is widget-first. The containing iOS app registers its own install, manages
 joined **lists** (each with a preview and its own reminder switch) on the home screen, and exposes
 notification setup and diagnostics through its menu. A list is a registered source joined directly;
@@ -107,6 +118,12 @@ a hop and distribute pointer/credential management before there's a need. Compos
 is kept as a pure helper so it can move later if that changes.
 
 ## Stable deployment identities
+
+Agents start managed-list creation at **[agents.tamale.dev](https://agents.tamale.dev/)**:
+`GET /` serves the guide and `POST /managed-sources` creates and activates a list.
+This is the public entry for `plusjade/managed-sources`; the val and its HTTP file
+retain their own deployment identities. A created list's `manageUrl` belongs to
+its individual source, while iOS continues to use the parent API endpoint below.
 
 The parent is `plusjade/app-clarkview`, branch `main`, public code/public app access.
 Its HTTP entry is **`main.ts`**, file ID **`f0eeffb8-9a93-11f1-9bb6-1607ee4eb77e`**,
@@ -417,10 +434,10 @@ five copied feeds and seventeen assignments. Live `/feeds`, `/feeds/:id`, and
 `/feeds/manage` respond, parent `tools/check.ts` passes on `main`, and a
 disposable feed/device isolation fixture passed and was removed. One iPhone 17
 simulator had an installed but unconfigured widget; the bounded UI attempt did not
-reach its Feed picker. The installed selection/edit/refresh smoke test remains
-pending. Recheck and close this status after one widget is configured with a
-named feed, that feed is edited in the browser, and the refreshed widget shows
-the edit without changing its stored ID.
+reach its Feed picker. That legacy feed selection/edit/refresh scenario was not
+reported as passed. As of the 2026-10-02 managed-list acceptance, it is retained
+only as compatibility context for the next user-scoped legacy cleanup, not an
+active UAT hold. Managed-list widget delivery after refresh is accepted separately.
 
 The join-feed cutover was merged into parent `main` on 2026-09-26 (through
 version 450). Feed timing

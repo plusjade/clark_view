@@ -140,19 +140,19 @@ The route is presentation-only and performs no mutation or server lookup.
 Manual testing of the prior configurable build confirmed that widgets retained
 individually assigned feeds. This change keeps the configurable kind and `feed`
 intent parameter. The app/widget build and existing iOS tests passed during this
-change. The single-widget editor/render smoke test awaits a team-signed build:
-the local simulator artifact is ad hoc signed with no team identity, so it cannot
-reliably register the feed App Entity. Recheck one placement on a team-signed build.
-Multiple-widget combinations and replacement of retired placements remain manual
-acceptance checks.
+change. Its feed-picker smoke test was blocked by an ad hoc simulator build without
+a team identity. As of 2026-10-02, this is historical legacy coverage: the new-list
+handoff and widget delivery are accepted below. Feed-picker and multiple-placement
+combinations are deferred to scoped compatibility work, not an active test hold.
 
 ### Widget inventory verification (2026-09-25)
 
 Server additions are live on parent `main` version 402 and `tools/check.ts` passes.
-The app/widget build and full test scheme pass with no new SwiftLint warnings. Pending
-on a team-signed device: register, close the app, add a configured widget, and confirm
+The app/widget build and full test scheme passed with no new SwiftLint warnings.
+Deferred coverage as of 2026-10-02: register, close the app, add a configured widget, and confirm
 `/devices/:id/views` shows it without reopening the app, including whether configurations are readable during the initial
-timeline callback. Close this status once that is observed.
+timeline callback. Widget rendering acceptance alone does not establish this
+telemetry timing. Revisit when inventory behavior or the device migration is in scope.
 
 The widget extension owns its push entitlement and `.pushHandler`. The containing app
 separately requests visible-notification permission, registers an app token, and
@@ -161,18 +161,22 @@ uploads it with the last observed alert permission to
 for setup, the token/topic contract, and current verification status — don't restate
 those facts here.
 
-## Pending navigation acceptance (2026-09-26)
+## Deferred compatibility and expanded UX checks
 
-The Diagnostics hub and bottom Join Feed toolbar in `ContentView.swift`,
-`DiagnosticsPanel.swift`, and `SubscriptionListView.swift` still need interactive
-acceptance. The iOS 26.5 Simulator build and test run passed, but the UI automation
-bridge repeatedly returned error -10005 (invalid element ID) when selecting the
-Simulator window, blocking the navigation smoke test. Close this status after
-opening the stethoscope, entering a panel and returning to Diagnostics, dismissing
-the sheet, and opening Join Feed from the bottom-right plus. Also verify the
-notification-warning shortcut with a feed whose reminders are enabled, plus
-VoiceOver, large text, and iPad layout. Expected: native back/dismiss behavior,
-accessible action labels, and no clipped controls.
+Status reviewed 2026-10-02: the managed-list milestone is accepted below. The older
+checks in this section are retained for future change-specific or legacy-cutover
+work, not as holds on managed-source iteration. Unobserved combinations are not
+being declared passed. Do not run this matrix or migrate devices without the next
+user-prescribed scope.
+
+### Legacy navigation record (2026-09-26)
+
+The old bottom Join Feed flow has been superseded by My lists and the explicit
+list Join flow. Its prior simulator navigation blockage is no longer an active
+acceptance task. Diagnostics, notification-warning shortcuts, VoiceOver, large
+text and iPad combinations were not established by that test; evaluate them when
+those surfaces change. Current owners are `ContentView.swift`, `DiagnosticsPanel.swift`
+and the list views, rather than the retired bottom-toolbar journey.
 
 ### Local widget picker acceptance (2026-09-29)
 
@@ -201,7 +205,7 @@ with 200s, with no list memberships. Evidence: `/devices/7/views`. That establis
 retained selection and the bridge on a real upgrade. It does not establish that this
 happens before the app is first opened, or what the widgets displayed.
 
-Pending on a team-signed device:
+Deferred compatibility/picker scenarios, not closed by the managed-list UAT:
 
 1. Confirm an upgraded feed widget refreshes before the app is first opened, and that it
    renders its events with the global appearance.
@@ -213,25 +217,23 @@ Pending on a team-signed device:
    than showing All; rejoin A and it returns.
 5. The Lists picker opens on the first tap, and still opens offline from the last catalog.
 
-Close this status when those five pass. Lock-screen placements, large text, VoiceOver,
-multiple widgets, the Feeds from earlier versions screen (never shown in the simulator,
-which had no earlier feeds), and real-device reminder delivery remain manual acceptance.
+Reassess these scenarios when the user scopes the prototype-device migration;
+retire obsolete cases explicitly rather than requiring old flows to pass before
+cleanup. Lock-screen placements, large text, VoiceOver, multiple widgets, the
+Feeds from earlier versions screen and real-device reminder delivery remain
+unclaimed coverage, not blockers to the accepted public managed-source milestone.
 
-### Managed-list handoff acceptance — 2026-10-01
+### Managed-list handoff acceptance — closed 2026-10-02
 
-The earlier agent create/curate UAT remains accepted. The new human handoffs need
-experience-based acceptance on an iPhone running this app build. Implementation
-owners are `IncomingListView`, `ListDetailView`, and parent `docs/lists.md`.
+The user verified opening and joining on iPhone, copying instructions from the app
+into an agent to edit the same list, and widget display of published changes after
+refresh. Agent bootstrap/curation and friendly-domain publication were previously
+accepted. Continuity is accepted within a simulated time-frame; see
+[managed-source-plan.md](managed-source-plan.md) for the consolidated evidence and
+scope limits. No human-handoff or delivery UAT hold remains for this milestone.
 
-1. From an agent with existing findings, create a managed list. Open its returned
-   human link on the iPhone: the chosen name, description and events match; opening
-   alone does not join. Choose Join: it appears in My lists with reminders off.
-2. Reopen that link while already joined: it opens the list, preserving reminder
-   preferences. Repeat once with the app closed and once with Diagnostics open.
-3. In the joined list, copy editing instructions into a preferred agent and request
-   a name/description change plus one wording change. The agent reads current state;
-   after app refresh, the same joined list shows the changes. Its ID and reminder
-   preference remain stable. A computed list has no managed editing action.
-
-Close this status after those scenarios pass. Widget display still depends on its
-next refresh; large text, VoiceOver and cross-agent variations remain manual checks.
+Implementation owners are `IncomingListView`, `ListDetailView`, and parent
+`docs/lists.md`. Reopening while already joined, cold-launch/Diagnostics combinations,
+computed-list action visibility, accessibility and cross-agent variations remain
+optional change-specific checks; the user's acceptance is not a claim that every
+combination was exercised. WidgetKit still controls when a requested refresh occurs.

@@ -8,6 +8,22 @@ pointer. Preserve historical meaning; record reversals as new entries. Typo and
 broken-link corrections are allowed. See [AGENTS.md](../AGENTS.md#documenting-decisions)
 for routing current guidance, operational evidence, and routine validation.
 
+## 2026-10-02
+
+- Closed the public managed-source milestone on user-reported UAT: iPhone
+  open/join and app → agent editing, widget delivery after refresh, and continuity
+  within a simulated time-frame. Retired completed design/UAT holds and classified
+  unobserved legacy/device combinations as deferred coverage so later agents do
+  not restart the accepted work. This does not establish long-running unattended
+  reliability, authentication, or all-device migration. Legacy cleanup/migration
+  awaits the user's next scope; recovery backups remain protected. See
+  [managed-source-plan.md](managed-source-plan.md) and [valtown-brief.md](valtown-brief.md).
+
+- Made `https://agents.tamale.dev/` the public entry for managed-list creation so
+  agents can start from a memorable guide URL. The custom domain maps to the
+  existing `plusjade/managed-sources` val; individual source management URLs and
+  the parent API retain their deployment identities. See [valtown-brief.md](valtown-brief.md).
+
 ## 2026-10-01
 
 - Made managed creation finish at an available list, using prebound inactive slots

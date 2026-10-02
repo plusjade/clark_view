@@ -1,22 +1,50 @@
 # Managed sources: product orientation and execution plan
 
-The current destination is a registered, verified **list** that a device joins;
-see parent `docs/get-sources.md`. `plusjade/managed-sources` reports that destination:
-`destination.integration` is `not_registered`, `registered_pending_verification`, or
-`available_to_join`, replacing `not_in_a_feed` and `registered_not_attached`. Its README
-owns the states.
+Agents create a managed list through the guide at
+**[agents.tamale.dev](https://agents.tamale.dev/)** (`POST /managed-sources` on that host).
+The current destination is a parent-verified **list** that a device may join:
+creation returns `available_to_join` only when activation succeeds, or `202 pending`
+with instructions to retry the same request when activation is uncertain. The
+provisioner README owns these states. Parent `docs/get-sources.md` covers operator
+registration of prepared slots.
 
 Pool capacity is operational state; inspect `SELECT slot, state FROM pool` in
 `plusjade/managed-sources` before a new creation or UAT run.
 
-Status (reported 2026-10-01): the public managed-source prototype is deployed,
-and the user accepted agent create and curate UAT. This does not establish a
-scheduled continuation, widget refresh, or authenticated access. The phases below
-record the design sequence and broader acceptance work; the deployed contract
-belongs to each source's own README and inline state guide, with creation behavior
-in the provisioner README. Do not reopen the accepted create/curate UAT to clear
-unclaimed scheduled continuation, widget, or access-control criteria. Use
-[testing.md](testing.md) for those separate checks.
+Status (user acceptance reported 2026-10-02): **the public managed-source milestone
+is complete; no implementation or UAT hold remains for this milestone.**
+
+| Journey | Accepted evidence |
+| --- | --- |
+| Agent bootstrap and curation | Earlier create/curate UAT; HTTP-only creation of list 17; “moon basketball” publication through `https://agents.tamale.dev/` |
+| Human handoffs | Opening and joining on iPhone, then copying app instructions into an agent to edit the list |
+| Continuity | A subsequent scheduled update maintained the same list and editorial preferences **within a simulated time-frame** |
+| Delivery | The widget displayed published changes after refreshing |
+
+Continuity acceptance is for the simulated time-frame the user exercised; it is
+not evidence of prolonged unattended operation or authenticated credential
+persistence. Those are future validation scopes, not blockers to this acceptance.
+One ChatGPT session lacked HTTP POST capability while a Work session succeeded;
+universal host compatibility and an MCP adapter are not required for this milestone.
+
+The deployed contract belongs to each source's README/state guide and the
+provisioner README. The phases below are the historical design sequence, not an
+active execution queue. Do not restart completed checkpoints or automatically
+advance to authentication. The next scope will be prescribed by the user: legacy
+cleanup and migration of prototype devices to the latest API. That migration has
+not been performed by this closeout. See [valtown-brief.md](valtown-brief.md) for
+current ownership and [testing.md](testing.md) for subsequent verification.
+
+### Deferred friendly editing URL — 2026-10-02
+
+Deferred outside the accepted milestone after clarifying that `agents.tamale.dev` serves
+creation, while the app's copied editing URL belongs to the individual source and
+remains valid. Draft parent changes are saved in Val Town branch
+`plusjade/app-clarkview:list-friendly-management-20261002`; they are not merged.
+The required provisioner management route is not implemented. Do not merge that
+parent branch alone: it advertises a route that does not yet exist. Revisit only
+when a unified editing entry is prioritized; resume with routing and end-to-end
+verification, or discard the draft. Production editing links remain unchanged.
 
 ## Product lens
 
@@ -74,8 +102,9 @@ The parent composer needs no managed-source dispatch or domain policy.
 
 Embedded chat, MCP adapters, arbitrary code authoring/deployment, deterministic
 formatting engines, account recovery/onboarding, and complex collaboration UI are
-outside these deliverables. Parent registration, verification, and device joins
-remain separate from source creation.
+outside these deliverables. Parent registration and verification retain separate
+ownership but prepared-list activation is part of creation. Device joining remains
+an explicit human action.
 
 ## Journey A: bootstrap from useful work
 
@@ -300,7 +329,11 @@ Pairing and credential persistence need their own UAT. Public unattended success
 cannot prove authenticated unattended success. App/web identity mapping and
 recovery are a subsequent scope decision; do not infer ownership from caller IDs.
 
-## Execution phases and checkpoints
+## Historical execution phases and future scope
+
+Phases 1–3 are complete for the accepted scope above. Their original verification
+criteria remain as design context, not instructions to rerun work. Phase 4 is an
+unapproved future scope requiring a new user instruction and design review.
 
 ### Phase 1 — product journeys and smallest contract
 
@@ -322,8 +355,8 @@ Deliver a concise reviewable design:
 - Produce the two short agent guides. Show the ordinary path without prescribing
   research or adding mandatory history/diagnostic calls.
 
-**STOP:** Review the UX examples, provisioning approach, and contract before
-implementation/deployment. Authentication design is not a phase 1 dependency.
+**Checkpoint closed:** the product journeys and public contract were implemented.
+Authentication was not a dependency.
 
 ### Phase 2 — public bootstrap and curation implementation
 
@@ -341,8 +374,7 @@ Do not add MCP unless an observed host limitation warrants a separate decision.
 Deliver working code, endpoint guidance/schema, the two prompt templates, scrubbed
 examples, verification results, and a short manual UAT plan.
 
-**STOP:** Review interaction evidence and friction. Fix demonstrated UX problems
-before expanding scope. Agree on the shared feed/content for public UAT.
+**Checkpoint closed:** public implementation and interaction review are complete.
 
 ### Phase 3 — public end-to-end UAT: first product deliverable
 
@@ -356,10 +388,10 @@ intent and current events together. Observe one actual later scheduled run and o
 representative widget refresh through supported paths. No auth implementation yet.
 Follow docs/testing.md; hardware/setup blockers remain explicit acceptance gaps.
 
-**STOP:** Review UAT evidence and steerer feedback. The public product deliverable
-is validated only for the journeys actually observed. Leave unmet criteria open;
-public UAT does not establish permissions or authenticated unattended operation.
-Proceed to phase 4 only after reviewing this experience and its remaining gaps.
+**Checkpoint closed 2026-10-02:** the user accepted the public product deliverable,
+including continuity within a simulated time-frame. This does not establish
+permissions or authenticated unattended operation. Phase 4 is deferred, not an
+automatic next action.
 
 ### Phase 4 — grants, pairing, and authenticated UAT
 
@@ -367,7 +399,7 @@ First deliver a small design covering operator authority, invitation redemption,
 write grants, revocation, secret storage, and closure of public management routes.
 Include bootstrap/provisioning authority as well as existing-source permissions.
 
-**DESIGN CHECKPOINT:** Review this concrete access model before implementing it.
+**Future design checkpoint:** review the access model if this scope is authorized.
 
 Implement the approved design. Verify cross-source token rejection, insufficient
 permissions, revocation, invitation reuse, expiry policy, and authenticated replay.
@@ -375,10 +407,13 @@ Repeat real agent pairing, publication, and a later unattended run with stored
 credentials. Verify provisioning is protected or disabled; no public bypass remains.
 Do not change shared edits into private variants during the access-control cutover.
 
-**STOP:** Report authenticated acceptance separately from earlier public UAT.
+**Future completion criterion:** report authenticated acceptance separately from public UAT.
 Account/app integration, MCP, embedded chat, and code authoring remain later choices.
 
-## Acceptance and implementation handoff
+## Original acceptance scenarios and future verification reference
+
+The dated acceptance summary above governs completion. This matrix preserves the
+original scenarios for future change-specific verification; it is not open work.
 
 | Scenario | Starting state and action | Expected observation |
 | --- | --- | --- |

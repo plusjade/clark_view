@@ -53,5 +53,8 @@ script and rows were removed. The iPhone 17 simulator `xcodebuild test` scheme
 passed, as did SwiftLint with existing warnings only. Physical APNs delivery,
 OS-denied guidance, two-device timing propagation, and upgrade/widget persistence
 remain manual acceptance items in [join-feed-project-plan.md](join-feed-project-plan.md).
-Close this status after those scenarios are reported and the backup cleanup
-decision is made. These checks do not prove a notification appeared on a device.
+Status reviewed 2026-10-02: these unreported legacy scenarios are deferred to the
+user's upcoming cleanup/migration scope, not blockers to the accepted managed-list
+milestone. Backup removal still requires a separate reviewed decision; no backup
+or compatibility data was removed by the UAT closeout. These checks do not prove
+a notification appeared on a device.
