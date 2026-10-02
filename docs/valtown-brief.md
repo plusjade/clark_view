@@ -21,7 +21,7 @@ accepted. The user verified agent creation/curation, iPhone open/join and app �
 agent editing, widget delivery after refresh, and scheduled continuity within a
 simulated time-frame. See [managed-source-plan.md](managed-source-plan.md) for the
 acceptance scope. No implementation or UAT hold remains for that milestone.
-Legacy browser views (feed management, feed joins, source → feed attachment) are removed
+Legacy browser views (feed management, feed joins, source → feed attachment) and `/config/*` are removed
 on parent branch `remove-feed-views` (2026-10-02, `tools/check.ts` passing); this file
 describes that state. Until it merges to `main`, production still serves them. Migration
 of all prototype devices and retirement of legacy JSON routes/tables await the user's
@@ -245,10 +245,8 @@ Browser tab titles retain resource names. The root remains a standalone jump-off
 | `GET /feeds/:feedId` | Public schema-3 composition from a feed's enabled and verified assignments and presentation. Optional `timeZone` reader context. Unknown or deleted IDs return JSON 404; a valid empty feed succeeds. Reads use `no-store`. Optional `X-Clark-Installation`, `X-Clark-Caller`, `X-Clark-Widget-Family`, `X-Clark-Request-Purpose` headers record a receipt for a registered device only; they never change the response. |
 | `POST /device/widget-inventory` | `{device,observedAt,widgets:[{kind,family,state,feedId?,mode?,listIds?}]}` complete snapshot; `state` is `configured`/`unconfigured`/`unreadable`. `mode` is `all`, `selected` (with `listIds`), or `feed` (with `feedId`); absent on builds that predate lists. Replaces the stored snapshot unless older (`{ok:true,stale:true}`). Unknown install 404, malformed 400. |
 | `GET /installations/:installId/feed` | Native migration lookup through frozen `legacy_installation_feeds`, returning `{id,name}` or JSON 404. The current app no longer calls it; retained for older builds. |
-| `GET /config/resolve` | Temporary legacy client feed through the frozen installation mapping: `device=<install UUID>`, `tz=<seconds east of GMT>`, optional `timeZone=<named zone>`. Unmapped requests return an empty schema-3 feed. Retain until client cutover is confirmed. |
-| `GET /devices/resolve` | Temporary alias through the same frozen mapping |
+| `GET /devices/resolve` | Temporary legacy client feed through the frozen installation mapping: `device=<install UUID>`, optional `timeZone=<named zone>`. Unmapped requests return an empty schema-3 feed. `/config/resolve` and `/config/status/:deviceId` are removed; no build since 2026-09-24 calls them. |
 | `POST /pair`, `POST /devices/register` | Temporary old-client responses: HTTP 410 `{ok:false,error:"pairing_retired"}`. They never report success or use bunch storage. Remove when pre-join builds are no longer in use. |
-| `GET /config/status/:deviceId` | Legacy diagnostics using the install UUID. Retained `paired` is always false; registered responses also carry name and compatibility-only empty `teams`. Remove with the old resolver client. |
 | `POST /devices` | App sends `{device}` on first run. Creates its row if missing and returns 200 `{ok:true,id,paired:false}`; an existing row is never changed. Retained `paired` is compatibility-only. |
 | `GET /devices/status/:installId` | Registration diagnostics: `{deviceId,registered,paired:false,name,id}`; unknown install omits name and id. The app re-resolves `id` on each load because a merge moves the install to another row. Remove `paired` after old clients are gone. |
 | `POST /device/token` | `{device,token,kind:"widget",environment:"sandbox"\|"production",active}`; `active:false` removes the token. Legacy omitted fields support old app-background tokens. |
