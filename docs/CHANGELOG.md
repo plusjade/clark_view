@@ -10,6 +10,15 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-10-01
 
+- Kept managed and computed source remixes as independent point-in-time copies
+  behind the small canonical GET contract. The accepted agent create/curate UAT
+  showed publication value without requiring identical runtime or prose across
+  slots; only defects, intended behavior changes, and required contract migrations
+  justify editing an existing source. The managed template's inline guidance now
+  focuses on publication mechanics, while the provisioner and parent own creation
+  and list integration. See [valtown-brief.md](valtown-brief.md) and each val's own
+  README/state guide.
+
 - Reconciled `plusjade/managed-sources` with lists (main version 7). Its
   `destination.integration` now reports `not_registered`,
   `registered_pending_verification`, or `available_to_join`, replacing `not_in_a_feed`

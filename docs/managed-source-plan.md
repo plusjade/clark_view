@@ -1,22 +1,22 @@
 # Managed sources: product orientation and execution plan
 
-Flag (2026-10-01): written before lists. Wherever this plan says a source must be
-attached to a feed, or names "the path into a feed and widget", the current destination
-is a registered, verified **list** that a device joins; see parent `docs/get-sources.md`.
-`plusjade/managed-sources` (main version 7) reports that destination:
+The current destination is a registered, verified **list** that a device joins;
+see parent `docs/get-sources.md`. `plusjade/managed-sources` reports that destination:
 `destination.integration` is `not_registered`, `registered_pending_verification`, or
 `available_to_join`, replacing `not_in_a_feed` and `registered_not_attached`. Its README
 owns the states.
 
-Pool status (observed 2026-10-01): `managed-01` (list 15) is claimed by an operator
-verification source with no events; four slots remain (`SELECT slot, state FROM pool`
-in `plusjade/managed-sources`). It can be repurposed through its manage URL by
-publishing a new intent and events. Recheck capacity before public UAT.
+Pool capacity is operational state; inspect `SELECT slot, state FROM pool` in
+`plusjade/managed-sources` before a new creation or UAT run.
 
-Status: agreed product direction; implementation contract proposed. Updated
-2026-09-30. This document replaces the earlier authentication-first plan. It does
-not describe deployed functionality or authorize deployment by itself. An external
-implementation agent should begin at phase 1 and stop at each phase checkpoint.
+Status (reported 2026-10-01): the public managed-source prototype is deployed,
+and the user accepted agent create and curate UAT. This does not establish a
+scheduled continuation, widget refresh, or authenticated access. The phases below
+record the design sequence and broader acceptance work; the deployed contract
+belongs to each source's own README and inline state guide, with creation behavior
+in the provisioner README. Do not reopen the accepted create/curate UAT to clear
+unclaimed scheduled continuation, widget, or access-control criteria. Use
+[testing.md](testing.md) for those separate checks.
 
 ## Product lens
 
@@ -63,7 +63,7 @@ Natural-language intent is not a deterministic rendering guarantee.
 2. **Curate:** given an endpoint, understand and update a source with one compact
    read and one publication in the ordinary case, including changes to intent.
 3. **Public UAT:** exercise those journeys in real agent environments and a shared
-   Clark View feed/widget before implementing authentication.
+   Clark View list/widget before implementing authentication.
 4. **Access control after UAT:** add per-source grants and pairing without changing
    the editorial workflow, then revalidate authenticated unattended use.
 
@@ -74,8 +74,8 @@ The parent composer needs no managed-source dispatch or domain policy.
 
 Embedded chat, MCP adapters, arbitrary code authoring/deployment, deterministic
 formatting engines, account recovery/onboarding, and complex collaboration UI are
-outside these deliverables. Automatic parent registration/attachment is a phase 1
-scope decision, not an implicit consequence of source creation.
+outside these deliverables. Parent registration, verification, and device joins
+remain separate from source creation.
 
 ## Journey A: bootstrap from useful work
 
@@ -107,10 +107,9 @@ operation receipt and explicit pending/failed/ready state. Retrying creation mus
 never allocate another source or republish duplicate initial events. A failed
 initial publication must not appear as a ready, successfully populated source.
 
-The source and feed remain distinct: provisioning a val is not parent verification,
-registration, attachment, app subscription, or widget selection. Phase 1 must
-choose and document the shortest human path from the returned destination to a
-usable feed, keeping authority for those operations in the parent.
+A source becomes a joinable list through parent registration and verification;
+provisioning alone does not join a device or select a widget. The provisioner
+reports the current integration step; the parent owns those operations.
 
 ## Journey B: curate from an endpoint
 
@@ -125,7 +124,7 @@ vs the opponent when home.”
    ordinary edit within the steerer's granted scope.
 
 A source is collaboratively maintained. Any actor with write permission may
-change it, affecting every feed using it and everyone subscribed to those feeds.
+change it, affecting everyone who joins that list.
 Explain that shared impact when establishing context. Do not automatically fork
 personal variants. Subscription alone does not grant write authority once access
 control exists; during the public prototype everyone effectively has it.
@@ -137,7 +136,9 @@ stored events; an agent includes affected event updates in the same batch.
 
 ## Minimal interface and publication semantics
 
-Exact names and schemas are phase 1 deliverables, not frozen by these sketches.
+The shapes below record the original design sketch; each source's own README
+and state guide document its deployed API and limits, and
+`plusjade/managed-sources` documents creation.
 Version management independently of canonical GET.
 
 | Operation | Proposed interface | Required experience |
@@ -195,7 +196,7 @@ Illustrative publication shape:
   before checking the now-stale base revision. Different payload reuse conflicts.
   Retain receipts for the prototype lifetime; no cleanup subsystem is needed yet.
 - Return request ID, revision, and created/updated/removed/unchanged IDs. A receipt
-  proves durable publication, not research accuracy, feed integration, or widget
+  proves durable publication, not research accuracy, list availability, or widget
   refresh. The agent need not fetch again to prove the same commit happened.
 - Keep a recoverable prior publication/change record for public UAT, with enough
   data for operator recovery. Do not build a merge UI or approval queue.

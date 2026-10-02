@@ -46,6 +46,7 @@ app-clarkview → best-effort APNs → WidgetKit → normal resolver fetch
 | Enrollment, registry pointers, assignments, browser forms, composition, presentation configuration, push delivery | `plusjade/app-clarkview` (the parent) |
 | Team vocabulary, selection, event/status/broadcast text, upstream normalization, storage, ingestion | The implementing `plusjade/source-*` val |
 | New source authoring | Remix `plusjade/source-template`; update its canonical `source.json`, then follow `AGENTS.md` for implementation and external verification |
+| Agent-published managed source | `plusjade/managed-sources` provisions a prepared remix of `plusjade/managed-source-template`; that source owns intent and events through its management API |
 | Source contract and item validation | Parent `source/README.md`, `source/readContract.ts`, `lib/sourceContract.ts` and `lib/canonicalSource.ts` |
 | Whether a source is trusted to serve, and why | Parent `lib/sourceConformance.ts` and `docs/source-conformance.md` |
 | Widget wire fields or their meaning | Coordinate source output, parent composition, Swift decoding, fixtures, and tests |
@@ -60,6 +61,7 @@ Classify the task before reading anything else. Each route is a budget, not a mi
 | --- | --- | --- |
 | Widget layout, diagnostics, deep links | [ios-widget.md](ios-widget.md) and the Swift it names | This file past the ownership map; any remote val |
 | New source authoring | `plusjade/source-template`'s `AGENTS.md`, then its README | Parent implementation; sibling sources |
+| Managed source behavior or guidance | That source's `AGENTS.md`, README, and inline state guide; for a new slot, the managed template and provisioner READMEs | Sibling source code and parent implementation |
 | Source behavior, storage, or ingestion | That source's own README and `AGENTS.md` | Parent modules; sibling sources |
 | Parent routes, composition, browser, wire contracts | The code map below, then only the implicated parent modules | Swift; unrelated parent directories; other vals |
 
@@ -72,6 +74,16 @@ pointer activation → contract-conforming serving; only pointer activation and 
 are implemented today (see "Deferred" below). Items, facets, and options are the
 default data model; a custom implementation can expose the same contracts through a
 separately authorized code deployment path.
+
+The target is independent sources with a small, stable contract, not identical
+sources. The implementation can remain replaceable without creating a
+release-management system around it. Every source remix, managed or computed,
+is an independent point-in-time copy. Its code, guidance, and data may evolve
+for that source. Change an existing source to fix a defect, alter intended
+behavior, or complete a required contract migration, not to keep cosmetic prose
+or implementation identical to a template. Parent registration, verification,
+joins, and widget delivery remain in the parent; bounded managed-source creation
+belongs to `plusjade/managed-sources`.
 
 The generic feed composer deliberately lives in the parent, next to pointer
 resolution, rather than in its own composer val: parent → composer → source would add
