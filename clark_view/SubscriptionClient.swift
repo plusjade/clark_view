@@ -36,7 +36,7 @@ enum SubscriptionClientError: LocalizedError, Equatable {
     }
 }
 
-/// Uses the browser's form routes under `/devices/:id/subscriptions`, asking for JSON instead of HTML.
+/// Uses the legacy JSON routes under `/devices/:id/subscriptions` with form-encoded bodies.
 /// `deviceID` is the server's numeric device row, resolved from this installation's status.
 enum SubscriptionClient {
     struct Index: Decodable {
