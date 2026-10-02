@@ -10,6 +10,13 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-10-02
 
+- Removed every parent browser view of feeds and feed assignments (feed index/create/
+  manage, device Subscriptions tab and leave page, source Implementations tab, feed
+  gallery and nav, feed-request receipts) and their form-only routes and store writers.
+  The iOS app is list-based, so these views only invited edits to a frozen legacy model.
+  Legacy JSON routes for pre-list builds and the `feedId` bridge are unchanged, and no
+  SQLite schema or data changed. See [valtown-brief.md](valtown-brief.md).
+
 - Closed the public managed-source milestone on user-reported UAT: iPhone
   open/join and app → agent editing, widget delivery after refresh, and continuity
   within a simulated time-frame. Retired completed design/UAT holds and classified
