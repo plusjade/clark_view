@@ -21,7 +21,8 @@ accepted. The user verified agent creation/curation, iPhone open/join and app �
 agent editing, widget delivery after refresh, and scheduled continuity within a
 simulated time-frame. See [managed-source-plan.md](managed-source-plan.md) for the
 acceptance scope. No implementation or UAT hold remains for that milestone.
-Legacy browser views (feed management, feed joins, source → feed attachment) and `/config/*` are removed
+Legacy browser views (feed management, feed joins, source → feed attachment), `/config/*`,
+`/devices/resolve`, `/installations/:installId/feed`, and the 410 pairing stubs are removed
 on parent branch `remove-feed-views` (2026-10-02, `tools/check.ts` passing); this file
 describes that state. Until it merges to `main`, production still serves them. Migration
 of all prototype devices and retirement of legacy JSON routes/tables await the user's
@@ -186,18 +187,15 @@ surface type, or ACL. Sources own their data separately.
 - Feed assignment `enabled` is a non-null 0/1 flag. Live (1, default) contributes
   to public composition; Disabled (0) stays attached. An enabled unverified source
   is withheld and diagnosed.
-  Both legacy resolver aliases use a frozen installation-to-feed mapping.
 - Source pointers are trusted parent configuration; nothing device-side can override
   destinations. Item IDs become `<source-id>:<local-id>`, remaining stable across a
   compatible endpoint change.
 - Assigned sources execute concurrently. A failed source fails the whole composition;
   partial-feed degradation is not implemented.
-- In the legacy resolver, absent, unknown, or unassigned devices receive an empty
-  schema-3 feed with normal presentation and no source request. There is no starter feed.
 - The one-time `independent-feeds-v1` migration copied every then-current device row,
   including empty rows, into `feeds` with the same ID, name, presentation, and
   timestamps. It copied all assignments including Disabled and froze installation
-  mappings in `legacy_installation_feeds`. Later device creation creates no feed.
+  mappings in `legacy_installation_feeds`, which no route reads now. Later device creation creates no feed.
   Directory order is name (case-insensitive), then feed ID. A known empty feed succeeds;
   an unknown or deleted feed returns JSON 404.
 
@@ -244,9 +242,6 @@ Browser tab titles retain resource names. The root remains a standalone jump-off
 | `GET /feeds/:feedId/details` | Public name, shared timing, and attached sources (`id`, `name`, diagnostic `kind`, and `enabled`) for native detail surfaces, without changing widget payload semantics. |
 | `GET /feeds/:feedId` | Public schema-3 composition from a feed's enabled and verified assignments and presentation. Optional `timeZone` reader context. Unknown or deleted IDs return JSON 404; a valid empty feed succeeds. Reads use `no-store`. Optional `X-Clark-Installation`, `X-Clark-Caller`, `X-Clark-Widget-Family`, `X-Clark-Request-Purpose` headers record a receipt for a registered device only; they never change the response. |
 | `POST /device/widget-inventory` | `{device,observedAt,widgets:[{kind,family,state,feedId?,mode?,listIds?}]}` complete snapshot; `state` is `configured`/`unconfigured`/`unreadable`. `mode` is `all`, `selected` (with `listIds`), or `feed` (with `feedId`); absent on builds that predate lists. Replaces the stored snapshot unless older (`{ok:true,stale:true}`). Unknown install 404, malformed 400. |
-| `GET /installations/:installId/feed` | Native migration lookup through frozen `legacy_installation_feeds`, returning `{id,name}` or JSON 404. The current app no longer calls it; retained for older builds. |
-| `GET /devices/resolve` | Temporary legacy client feed through the frozen installation mapping: `device=<install UUID>`, optional `timeZone=<named zone>`. Unmapped requests return an empty schema-3 feed. `/config/resolve` and `/config/status/:deviceId` are removed; no build since 2026-09-24 calls them. |
-| `POST /pair`, `POST /devices/register` | Temporary old-client responses: HTTP 410 `{ok:false,error:"pairing_retired"}`. They never report success or use bunch storage. Remove when pre-join builds are no longer in use. |
 | `POST /devices` | App sends `{device}` on first run. Creates its row if missing and returns 200 `{ok:true,id,paired:false}`; an existing row is never changed. Retained `paired` is compatibility-only. |
 | `GET /devices/status/:installId` | Registration diagnostics: `{deviceId,registered,paired:false,name,id}`; unknown install omits name and id. The app re-resolves `id` on each load because a merge moves the install to another row. Remove `paired` after old clients are gone. |
 | `POST /device/token` | `{device,token,kind:"widget",environment:"sandbox"\|"production",active}`; `active:false` removes the token. Legacy omitted fields support old app-background tokens. |
@@ -291,8 +286,7 @@ capability that would need selection is a separate source, not a setting. Succes
 responses carry `{sourceKey,items}` and use the temporal item contract.
 
 iOS reads `TimeZone.autoupdatingCurrent` when fetching a selected feed and sends only
-its identifier. Legacy resolver clients may still send a `tz` offset, but the parent
-does not persist or forward it to a source.
+its identifier.
 `timeZone` is a no-op placeholder: one optional value of 1–128 ASCII letters, digits,
 or `_+./-`, passed unchanged to the source. No zone lookup, conversion, or
 missing-zone policy is defined yet. The template ignores the argument. Named zones
@@ -548,7 +542,7 @@ Per domain, what to verify beyond the checks and what a false pass looks like:
 
 | Domain | Run | False pass to watch for |
 | --- | --- | --- |
-| Composition | Both resolver aliases; empty/unassigned and assigned mixed-source fixtures; namespaced IDs, ordering, ties, diagnostics, source failure, malformed output | A successful *empty* response doesn't prove an assigned source actually works — check `x-effective-sources`, then `x-quarantined-sources` |
+| Composition | `/feeds/:feedId` and events routes; empty/unassigned and assigned mixed-source fixtures; namespaced IDs, ordering, ties, diagnostics, source failure, malformed output | A successful *empty* response doesn't prove an assigned source actually works — check `x-effective-sources`, then `x-quarantined-sources` |
 | Conformance | The probe against every registered source, and that only a verified one reaches a feed. Core suite covers gating, staleness derivation and quarantine diagnostics | A green feed says nothing about a source nobody has re-probed — check `conformance_verified_at`, not just the state |
 | Source | Public `GET /`, its 400/405 rejections, nonempty fixtures, timezone edges. Source-owned checks | Diagnostics reporting "unavailable" means unknown coverage, not zero |
 | New GET source | External `/source-verifications` against the remix's own endpoint and key; parent changes run `tools/check.ts` | A pass does not register or activate a source, prove data accuracy, or establish nonempty coverage |

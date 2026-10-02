@@ -17,8 +17,11 @@ for routing current guidance, operational evidence, and routine validation.
   Legacy JSON routes for pre-list builds and the `feedId` bridge are unchanged, and no
   SQLite schema or data changed. See [valtown-brief.md](valtown-brief.md).
 
-- Removed `/config/resolve` and `/config/status/:deviceId`. No app build since
-  2026-09-24 calls them, and older builds already fail on retired pairing.
+- Removed the installation-keyed legacy routes: `/config/resolve`,
+  `/config/status/:deviceId`, `/devices/resolve`, `/installations/:installId/feed`,
+  and the 410 `/pair` and `/devices/register` stubs. No app build since 2026-09-24
+  calls them, and older builds already fail on retired pairing. The
+  `legacy_installation_feeds` table remains as unread data.
 
 - Closed the public managed-source milestone on user-reported UAT: iPhone
   open/join and app → agent editing, widget delivery after refresh, and continuity
