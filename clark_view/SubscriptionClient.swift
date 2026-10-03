@@ -12,10 +12,6 @@ struct Subscription: Decodable, Hashable, Identifiable {
 }
 
 enum ReminderLead {
-    static let defaultSeconds = 3600
-    static let maxSeconds = 36 * 60 * 60
-    static let presets = [0, 300, 900, 1800, 3600, 7200, 21_600, 43_200, 86_400, maxSeconds]
-
     static func label(_ seconds: Int) -> String {
         guard seconds > 0 else { return "At start" }
         let duration = Duration.seconds(seconds)
@@ -36,7 +32,7 @@ enum SubscriptionClientError: LocalizedError, Equatable {
     }
 }
 
-/// Uses the legacy JSON routes under `/devices/:id/subscriptions` with form-encoded bodies.
+/// Reads the legacy `/devices/:id/subscriptions` index; legacy membership is frozen server-side.
 /// `deviceID` is the server's numeric device row, resolved from this installation's status.
 enum SubscriptionClient {
     struct Index: Decodable {
@@ -50,19 +46,6 @@ enum SubscriptionClient {
         return try JSONDecoder().decode(Index.self, from: data)
     }
 
-    static func create(deviceID: Int, feedID: String, enabled: Bool) async throws {
-        try await post(path(deviceID), form: ["feedId": feedID, "enabled": enabled ? "1" : "0"])
-    }
-
-    static func update(deviceID: Int, subscriptionID: Int, enabled: Bool) async throws {
-        try await post("\(path(deviceID))/\(subscriptionID)",
-                       form: ["enabled": enabled ? "1" : "0"])
-    }
-
-    static func delete(deviceID: Int, subscriptionID: Int) async throws {
-        try await post("\(path(deviceID))/\(subscriptionID)/delete", form: [:])
-    }
-
     private static func path(_ deviceID: Int) -> String { "devices/\(deviceID)/subscriptions" }
 
     private static func request(_ path: String) -> URLRequest {
@@ -70,17 +53,6 @@ enum SubscriptionClient {
                                  cachePolicy: .reloadIgnoringLocalCacheData)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         return request
-    }
-
-    private static func post(_ path: String, form: [String: String]) async throws {
-        var request = request(path)
-        request.httpMethod = "POST"
-        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        var components = URLComponents()
-        components.queryItems = form.map { URLQueryItem(name: $0.key, value: $0.value) }
-        request.httpBody = Data((components.percentEncodedQuery ?? "").utf8)
-        let (data, status) = try await send(request)
-        guard (200..<300).contains(status) else { throw rejection(data) }
     }
 
     private static func send(_ request: URLRequest) async throws -> (Data, Int) {

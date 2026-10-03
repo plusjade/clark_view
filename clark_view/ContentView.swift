@@ -7,8 +7,7 @@ struct ContentView: View {
     @Environment(LiveActivityCoordinator.self) private var liveActivities
     @Environment(\.scenePhase) private var scenePhase
     @State private var lists = ListStore()
-    /// Feeds joined before lists; still loaded so their reminders stay manageable and
-    /// retained widget feed selections keep resolving names.
+    /// Feeds joined before lists, listed read-only under Feeds from earlier versions.
     @State private var subscriptions = SubscriptionStore()
     @State private var showsDiagnostics = false
     @State private var defersEventPresentation = false

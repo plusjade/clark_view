@@ -6,8 +6,6 @@ import Testing
 /// placement shows a prompt instead of events. No network or shared preferences.
 @MainActor
 struct WidgetSelectionTests {
-    private let feed = Feed(id: "5", name: "Lunar")
-
     @Test func selectionsKeepOnlyPublishedViews() {
         #expect(WidgetSelection(mode: nil, viewIDs: []) == .all)
         #expect(WidgetSelection(mode: .all, viewIDs: ["pv_8"]) == .all)
@@ -21,7 +19,7 @@ struct WidgetSelectionTests {
     @Test func aSavedLegacyFeedReadsAsAll() {
         var intent = WidgetFeedIntent()
         #expect(WidgetSelection(intent: intent) == .all)
-        intent.feed = WidgetFeedEntity(id: feed.id, name: feed.name)
+        intent.feed = WidgetFeedEntity(id: "5", name: "Lunar")
         #expect(WidgetSelection(intent: intent) == .all)
         intent.mode = .selected
         #expect(WidgetSelection(intent: intent) == .needsLists)
@@ -67,19 +65,16 @@ struct WidgetSelectionTests {
         #expect(try decoder.decode(WidgetPayload.self, from: legacy).selection == nil)
     }
 
-    @Test func listCatalogKeepsNamesAfterLeavingAndStaysSeparateFromFeeds() throws {
+    @Test func listCatalogKeepsNamesAfterLeaving() throws {
         let suite = "WidgetSelectionTests.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
-        let lists = WidgetListCatalog(defaults: defaults), feeds = WidgetFeedCatalog(defaults: defaults)
-        feeds.replaceJoined([feed])
+        let lists = WidgetListCatalog(defaults: defaults)
         lists.replaceJoined([EventList(id: "8", name: "Lunar")])
         lists.recordJoin(EventList(id: "10", name: "Rams"))
         lists.recordLeave("8")
         #expect(lists.joined == [EventList(id: "10", name: "Rams")])
         #expect(lists.resolve("8").name == "Lunar")
         #expect(lists.resolve("99").name == "View 99")
-        // The list catalog never overwrites the legacy feed catalog.
-        #expect(feeds.joined == [feed])
     }
 }

@@ -69,7 +69,7 @@ struct MyListsView: View {
                         Label("Feeds from earlier versions", systemImage: "clock.arrow.circlepath")
                     }
                 } footer: {
-                    Text("Feeds joined in earlier versions. Their reminders still arrive until you turn them off there.")
+                    Text("Feeds joined in earlier versions. They can no longer be changed.")
                 }
             }
         }
@@ -101,8 +101,7 @@ private struct JoinedListRow: View {
     }
 }
 
-/// Compatibility management for feeds joined before lists: inspect them, turn their
-/// reminders off, or leave. Nothing here changes list membership.
+/// Read-only compatibility screen for feeds joined before lists; legacy membership is frozen.
 struct LegacyFeedsView: View {
     let openNotifications: () -> Void
 
@@ -111,7 +110,7 @@ struct LegacyFeedsView: View {
             .navigationTitle("Earlier feeds")
             .navigationBarTitleDisplayMode(.inline)
             .safeAreaInset(edge: .bottom) {
-                Text("These feeds were joined in an earlier version. Reminders that are on still arrive. " +
+                Text("These feeds were joined in an earlier version and can no longer be changed. " +
                      "Views are managed in My views.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)

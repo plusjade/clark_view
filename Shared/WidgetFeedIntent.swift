@@ -19,20 +19,11 @@ struct WidgetFeedEntity: AppEntity {
 }
 
 struct WidgetFeedQuery: EntityQuery {
-    @MainActor
     func entities(for identifiers: [String]) async throws -> [WidgetFeedEntity] {
-        guard !identifiers.isEmpty else { return [] }
-        let catalog = WidgetFeedCatalog.shared
-        return identifiers.map { id in
-            let feed = catalog.resolve(id)
-            return WidgetFeedEntity(id: feed.id, name: feed.name)
-        }
+        identifiers.map { WidgetFeedEntity(id: $0, name: "Feed \($0)") }
     }
 
-    @MainActor
-    func suggestedEntities() async throws -> [WidgetFeedEntity] {
-        WidgetFeedCatalog.shared.joined.map { WidgetFeedEntity(id: $0.id, name: $0.name) }
-    }
+    func suggestedEntities() async throws -> [WidgetFeedEntity] { [] }
 }
 
 enum WidgetListMode: String, AppEnum {

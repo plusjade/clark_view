@@ -4,19 +4,9 @@ import SwiftUI
 struct SubscriptionListView: View {
     let openNotifications: () -> Void
     @Environment(SubscriptionStore.self) private var store
-    @State private var showsNew = false
 
     var body: some View {
         content
-            .toolbar {
-                if FeatureFlags.showsJoinFeed, store.deviceID != nil {
-                    ToolbarItemGroup(placement: .bottomBar) {
-                        Spacer()
-                        Button("Join feed", systemImage: "plus") { showsNew = true }
-                    }
-                }
-            }
-            .sheet(isPresented: $showsNew) { SubscriptionFormView() }
             .navigationDestination(for: SubscriptionRoute.self) { SubscriptionDetailView(id: $0.id) }
             .accessibilityIdentifier("yourFeeds")
     }
@@ -41,15 +31,7 @@ struct SubscriptionListView: View {
     private var list: some View {
         List {
             if store.subscriptions.isEmpty {
-                ContentUnavailableView {
-                    Label("No feeds joined", systemImage: "rectangle.stack")
-                } description: {
-                    Text("Available feeds will show up here when added.")
-                } actions: {
-                    if FeatureFlags.showsJoinFeed {
-                        Button("Join feed") { showsNew = true }
-                    }
-                }
+                ContentUnavailableView("No feeds joined", systemImage: "rectangle.stack")
             }
             Section {
                 ForEach(store.subscriptions) { subscription in

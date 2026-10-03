@@ -1,7 +1,6 @@
 import Foundation
 
-/// Joined lists the app publishes for the widget editor's Selected lists picker. Separate
-/// from `WidgetFeedCatalog`, which keeps resolving feeds chosen before lists existed.
+/// Joined lists the app publishes for the widget editor's Selected lists picker.
 /// Remembered names outlive membership so a stored selection still resolves offline.
 struct WidgetListCatalog {
     static var shared: WidgetListCatalog {

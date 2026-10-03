@@ -23,10 +23,10 @@ and SQLite schema. No browser UI or event scheduling is part of the spike.
 | [WidgetPayload.swift](../Shared/WidgetPayload.swift), [WidgetPresentation.swift](../Shared/WidgetPresentation.swift) | Wire decoding and presentation fallback |
 | [BeaconDateTimeView.swift](../Shared/BeaconDateTimeView.swift) | Shared widget/app lifecycle date line and local day label |
 | [ClarkViewWidget.swift](../ClarkViewWidget/ClarkViewWidget.swift), [WidgetFeedIntent.swift](../Shared/WidgetFeedIntent.swift) | Widget configuration (All my views, Selected views, retained feed), fetch, preview fixtures, timeline, entry view |
-| [WidgetListCatalog.swift](../Shared/WidgetListCatalog.swift), [WidgetFeedCatalog.swift](../Shared/WidgetFeedCatalog.swift) | App Group picker choices and remembered names: joined views, and separately the legacy feeds |
+| [WidgetListCatalog.swift](../Shared/WidgetListCatalog.swift) | App Group picker choices and remembered names for joined views |
 | [BeaconWidgetTemplate.swift](../ClarkViewWidget/BeaconWidgetTemplate.swift) | Default widget layout and event deep links |
 | [ContentView.swift](../clark_view/ContentView.swift), [MyListsView.swift](../clark_view/MyListsView.swift), `clark_view/List*.swift`, [FeedPreviewView.swift](../clark_view/FeedPreviewView.swift) | My views, directory and pre-join preview, freshness, and leave |
-| `clark_view/Subscription*.swift`, [FeedSourcesView.swift](../clark_view/FeedSourcesView.swift) | Compatibility screens for feeds joined in earlier versions (Earlier feeds) |
+| `clark_view/Subscription*.swift`, [FeedSourcesView.swift](../clark_view/FeedSourcesView.swift) | Read-only screens for feeds joined in earlier versions (Earlier feeds) |
 | [AppDeepLink.swift](../Shared/AppDeepLink.swift), [DeepLinkRouter.swift](../clark_view/DeepLinkRouter.swift) | `clarkview` subject routes shared by widgets, Live Activities, alert responses, and in-app navigation |
 | [DeviceIdentity.swift](../Shared/DeviceIdentity.swift), [DeviceStatusClient.swift](../Shared/DeviceStatusClient.swift) | Per-install UUID in `group.plusjade.clark-view`, self-registration, and diagnostic reads |
 | [PushTokenClient.swift](../Shared/PushTokenClient.swift), [ClarkViewWidgetPushHandler.swift](../ClarkViewWidget/ClarkViewWidgetPushHandler.swift) | Native widget token upload/removal |
@@ -89,8 +89,6 @@ cleared, not translated, and the person rejoins views.
   and configuration queries make no network requests. Open the app after a server-side
   rename to refresh names. Remembered names outlive membership. The catalog key is
   `widgetListCatalogV2`; the V1 snapshot of legacy views is abandoned.
-- The legacy feed catalog is separate and is never overwritten by the view catalog. The app
-  still refreshes it on activation for the Feeds from earlier versions screen.
 
 Every placement reads `/v2/devices/:id/events`. The widget resolves the device row with the
 idempotent `POST /devices` and caches it in the App Group, so an upgraded placement works
@@ -112,8 +110,9 @@ line, refreshes when opened or foregrounded, and supports pull to refresh. Notif
 setup and its diagnostics live under the toolbar menu's Notifications entry.
 
 Legacy feeds appear under **Feeds from earlier versions** on the home screen
-when any exist. That screen lists them and whether reminders are on. Legacy membership is
-frozen, so turning a reminder off or leaving there fails with `legacy_read_only`.
+when any exist. That screen is read-only: it lists them, whether reminders are on, and
+their preview and sources. Legacy membership is frozen, so the app offers no join, reminder,
+or leave controls for them.
 The original lists rollout started membership empty; nothing was imported from
 legacy feeds. Renaming the product to views preserves all existing memberships.
 
@@ -188,7 +187,7 @@ The network-backed last-joined default was retired after the earlier A-then-B
 placement test selected stale A and the user reported intermittent two-tap picker
 opening. Configuration queries now read only the local catalog; this removes their
 network dependency but does not establish that the iOS presentation symptom is fixed.
-See `Shared/WidgetFeedIntent.swift` and `Shared/WidgetFeedCatalog.swift`.
+See `Shared/WidgetFeedIntent.swift`.
 
 Superseded 2026-10-01 before it was run: the editor now selects lists, not a feed.
 The unresolved first-tap picker presentation and offline picker checks carry into

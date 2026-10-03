@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// In-app event content between its reminder controls and supporting actions.
+/// In-app event content between leading status and trailing actions.
 /// `id` identifies the list or feed being shown; `fetch` reads its events.
 struct FeedPreviewView<Leading: View, Trailing: View>: View {
     let id: String
@@ -122,24 +122,6 @@ struct FeedPreviewView<Leading: View, Trailing: View>: View {
                 ? "This is no longer available."
                 : "Couldn’t refresh. Pull down to retry."
         }
-    }
-}
-
-/// Matches the bell state shown beside each feed in Your feeds.
-struct FeedReminderToggle: View {
-    @Binding var isOn: Bool
-    var isDisabled = false
-
-    var body: some View {
-        Toggle(isOn: $isOn) {
-            HStack(spacing: 12) {
-                Image(systemName: isOn ? "bell.fill" : "bell.slash")
-                    .foregroundStyle(isOn ? Color.accentColor : Color.secondary)
-                    .accessibilityHidden(true)
-                Text("Reminders")
-            }
-        }
-        .disabled(isDisabled)
     }
 }
 

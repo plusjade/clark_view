@@ -1,32 +1,13 @@
 import Foundation
 
-/// A public feed from the `/feeds` directory; widgets select one and subscriptions nest one.
-nonisolated struct Feed: Codable, Equatable, Identifiable {
+/// A legacy public feed that a subscription nests.
+nonisolated struct Feed: Equatable, Identifiable {
     let id: String
     let name: String
-    let reminderLeadSeconds: Int?
-
-    init(id: String, name: String, reminderLeadSeconds: Int? = nil) {
-        self.id = id
-        self.name = name
-        self.reminderLeadSeconds = reminderLeadSeconds
-    }
 }
 
 enum FeedDirectoryClient {
-    static func list() async throws -> [Feed] {
-        let (data, response) = try await URLSession.shared.data(for: URLRequest(
-            url: ServerURL.feedsURL, cachePolicy: .reloadIgnoringLocalCacheData
-        ))
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw FeedClientError.invalidResponse }
-        return try JSONDecoder().decode(Directory.self, from: data).feeds
-    }
-
     static func payload(for feed: Feed, context: FeedRequestContext) async throws -> WidgetPayload {
-        try await payloadWithData(for: feed, context: context).0
-    }
-
-    static func payloadWithData(for feed: Feed, context: FeedRequestContext) async throws -> (WidgetPayload, Data) {
         let url = ServerURL.feedURL(feed.id, timeZoneIdentifier: TimeZone.autoupdatingCurrent.identifier)
         var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
         context.apply(to: &request)
@@ -36,11 +17,8 @@ enum FeedDirectoryClient {
         guard status == 200 else { throw FeedClientError.invalidResponse }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .secondsSince1970
-        let payload = try decoder.decode(WidgetPayload.self, from: data)
-        return (payload, data)
+        return try decoder.decode(WidgetPayload.self, from: data)
     }
-
-    private struct Directory: Decodable { let feeds: [Feed] }
 }
 
 /// Optional receipt headers; the server records them only for a registered installation.

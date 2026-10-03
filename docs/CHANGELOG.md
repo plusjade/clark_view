@@ -10,6 +10,10 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-10-03
 
+- Made Feeds from earlier versions read-only and removed the legacy join, reminder, and
+  leave controls with the legacy feed catalog. Legacy membership is frozen and those
+  controls never shipped publicly; the retained widget `feed` parameter still decodes.
+
 - Shipped publish v2 slice 2: v2 device membership and widget reads on the parent, and an
   iOS client that reads only v2. The `pv_` prefix stands in for a stored API generation, so
   legacy selections and feed placements are cleared rather than translated. View reminders
