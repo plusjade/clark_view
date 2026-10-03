@@ -18,12 +18,12 @@ struct IncomingListView: View {
                     JoinListPreviewView(list: list, onJoined: {})
                 }
             } else if isLoading {
-                ProgressView("Opening list")
+                ProgressView("Opening view")
             } else {
                 ContentUnavailableView {
-                    Label("List unavailable", systemImage: "wifi.exclamationmark")
+                    Label("View unavailable", systemImage: "wifi.exclamationmark")
                 } description: {
-                    Text(errorMessage ?? "Couldn’t open this list.")
+                    Text(errorMessage ?? "Couldn’t open this view.")
                 } actions: {
                     Button("Try Again") { Task { await load() } }
                 }

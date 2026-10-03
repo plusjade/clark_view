@@ -39,15 +39,15 @@ enum WidgetListMode: String, AppEnum {
     case all
     case selected
 
-    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Lists"
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "Views"
     static let caseDisplayRepresentations: [WidgetListMode: DisplayRepresentation] = [
-        .all: "All my lists",
-        .selected: "Selected lists"
+        .all: "All my views",
+        .selected: "Selected views"
     ]
 }
 
 struct WidgetListEntity: AppEntity {
-    static let typeDisplayRepresentation: TypeDisplayRepresentation = "List"
+    static let typeDisplayRepresentation: TypeDisplayRepresentation = "View"
     static let defaultQuery = WidgetListQuery()
 
     var id: String
@@ -84,13 +84,13 @@ struct WidgetListQuery: EntityQuery {
 struct WidgetFeedIntent: WidgetConfigurationIntent {
     static var title: LocalizedStringResource = "Clark View"
     static var description = IntentDescription(
-        "Show all your lists or choose some. Open Clark View to refresh available lists."
+        "Show all your views or choose some. Open Clark View to refresh available views."
     )
 
     @Parameter(title: "Show")
     var mode: WidgetListMode?
 
-    @Parameter(title: "Lists")
+    @Parameter(title: "Views")
     var lists: [WidgetListEntity]?
 
     @Parameter(title: "Feed (earlier version)")

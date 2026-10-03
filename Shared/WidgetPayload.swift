@@ -29,7 +29,7 @@ struct WidgetPayload: Decodable {
     /// Display order — the client renders these in array order with no client-side sort.
     let items: [WidgetItem]
     /// Which lists the request's selector resolved to. Only events routes send it; it is
-    /// what separates "nothing selected" from "selected lists with no events".
+    /// what separates "nothing selected" from "selected views with no events".
     let selection: WidgetSelectionSummary?
 
     init(

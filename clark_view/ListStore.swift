@@ -82,7 +82,7 @@ final class ListStore {
 
     private func requireDevice() throws -> Int {
         guard let deviceID else {
-            throw SubscriptionClientError.rejected("Your lists haven’t loaded yet. Try again.")
+            throw SubscriptionClientError.rejected("Your views haven’t loaded yet. Try again.")
         }
         return deviceID
     }

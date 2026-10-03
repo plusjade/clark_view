@@ -96,8 +96,8 @@ enum ListClient {
         struct Failure: Decodable { let error: String }
         guard let failure = try? JSONDecoder().decode(Failure.self, from: data) else { return .invalidResponse }
         switch failure.error {
-        case "list_not_found": return .rejected("This list is no longer available.")
-        case "not_joined": return .rejected("This list is no longer joined.")
+        case "list_not_found": return .rejected("This view is no longer available.")
+        case "not_joined": return .rejected("This view is no longer joined.")
         default: return .invalidResponse
         }
     }

@@ -244,7 +244,7 @@ struct ClarkViewWidget: Widget {
             ClarkViewWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("Clark View")
-        .description("Shows events from all your lists, or the ones you choose. Reminders are set in the app.")
+        .description("Shows events from all your views, or the ones you choose. Reminders are set in the app.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryRectangular])
         .contentMarginsDisabled()
         .pushHandler(ClarkViewWidgetPushHandler.self)

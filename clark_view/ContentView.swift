@@ -47,7 +47,7 @@ struct ContentView: View {
                 initialDiagnosticsPanel = .notifications
                 showsDiagnostics = true
             })
-                .navigationTitle("My lists")
+                .navigationTitle("My views")
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Diagnostics", systemImage: "stethoscope") {

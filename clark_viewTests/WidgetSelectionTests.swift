@@ -79,7 +79,7 @@ struct WidgetSelectionTests {
         lists.recordLeave("8")
         #expect(lists.joined == [EventList(id: "10", name: "Rams")])
         #expect(lists.resolve("8").name == "Lunar")
-        #expect(lists.resolve("99").name == "List 99")
+        #expect(lists.resolve("99").name == "View 99")
         // The list catalog never overwrites the legacy feed catalog.
         #expect(feeds.joined == [feed])
     }

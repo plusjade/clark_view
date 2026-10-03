@@ -65,10 +65,10 @@ nonisolated enum WidgetPrompt: Equatable {
 
     var text: String {
         switch self {
-        case .chooseLists: "Long Press\n→ Edit Widget\n→ Choose Lists"
-        case .joinList: "No lists joined\nOpen Clark View to join one."
-        case .editSelection: "Selected lists unavailable\nLong press to edit widget & choose lists."
-        case .feedUnavailable: "Feed unavailable\nLong press to edit widget & choose lists."
+        case .chooseLists: "Long Press\n→ Edit Widget\n→ Choose Views"
+        case .joinList: "No views joined\nOpen Clark View to join one."
+        case .editSelection: "Selected views unavailable\nLong press to edit widget & choose views."
+        case .feedUnavailable: "Feed unavailable\nLong press to edit widget & choose views."
         }
     }
 }

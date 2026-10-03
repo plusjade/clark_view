@@ -11,7 +11,7 @@ struct AppDeepLink: Hashable, Identifiable {
         var title: String {
             switch self {
             case .event: "Event"
-            case .list: "List"
+            case .list: "View"
             case .liveActivity: "Live Activity"
             case .notification: "Notification"
             }
