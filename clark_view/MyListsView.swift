@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Home screen: lists joined by this installation, each with its own reminder state.
+/// Home screen: published views joined by this installation.
 struct MyListsView: View {
     let openNotifications: () -> Void
     @Environment(ListStore.self) private var store
@@ -63,9 +63,6 @@ struct MyListsView: View {
             if case .failed(let message) = store.phase {
                 Section { Text(message).foregroundStyle(.secondary) }
             }
-            if store.lists.contains(where: \.remindersEnabled), let delivery = store.delivery {
-                DeliveryStatusSection(delivery: delivery, openNotifications: openNotifications)
-            }
             if !legacy.subscriptions.isEmpty {
                 Section {
                     NavigationLink(value: LegacyFeedsRoute()) {
@@ -93,56 +90,13 @@ private struct JoinedListRow: View {
     let list: JoinedList
 
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(list.name)
-                if !list.available {
-                    Text("Temporarily unavailable")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+        VStack(alignment: .leading, spacing: 2) {
+            Text(list.name)
+            if list.freshness.isLapsed {
+                Text("Not updated recently")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            Spacer()
-            Image(systemName: list.remindersEnabled ? "bell.fill" : "bell.slash")
-                .foregroundStyle(list.remindersEnabled ? Color.accentColor : Color.secondary)
-                .accessibilityLabel(list.remindersEnabled ? "Reminders on" : "Reminders off")
-        }
-    }
-}
-
-/// Whether this device can currently receive reminder alerts.
-struct DeliveryStatusSection: View {
-    let delivery: String
-    let openNotifications: () -> Void
-
-    var body: some View {
-        switch delivery {
-        case "ready":
-            Section("This device") {
-                status("Ready for reminders", symbol: "checkmark.circle.fill", color: .green)
-            }
-        case "permission_denied":
-            Section("This device") {
-                status("Notifications off", symbol: "bell.slash.fill", color: .orange)
-                Button("Review notification settings", action: openNotifications)
-            }
-        case "no_token":
-            Section("This device") {
-                status("Notifications not ready", symbol: "exclamationmark.circle.fill", color: .orange)
-                Button("Review notification settings", action: openNotifications)
-            }
-        default:
-            EmptyView()
-        }
-    }
-
-    private func status(_ title: String, symbol: String, color: Color) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: symbol)
-                .foregroundStyle(color)
-                .frame(width: 20)
-                .accessibilityHidden(true)
-            Text(title)
         }
     }
 }

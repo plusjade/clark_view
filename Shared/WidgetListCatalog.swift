@@ -13,7 +13,8 @@ struct WidgetListCatalog {
         var names: [String: String] = [:]
     }
 
-    private static let key = "widgetListCatalogV1"
+    /// V2 holds only published views; the V1 snapshot of legacy lists is abandoned, not migrated.
+    private static let key = "widgetListCatalogV2"
     let defaults: UserDefaults
 
     private var snapshot: Snapshot {

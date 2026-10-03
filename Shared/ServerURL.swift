@@ -17,24 +17,25 @@ enum ServerURL {
         withTimeZone(feedsURL.appendingPathComponent(feedID), timeZoneIdentifier: timeZoneIdentifier)
     }
 
-    static var viewsURL: URL { baseURL.appendingPathComponent("views") }
+    // Views, memberships, and events use the published-view API; legacy views stay unread.
+    static var viewsURL: URL { baseURL.appendingPathComponent("v2/views") }
 
     static func viewURL(_ id: String) -> URL { viewsURL.appendingPathComponent(id) }
 
     static func deviceViewsURL(deviceRow: Int) -> URL {
-        baseURL.appendingPathComponent("devices/\(deviceRow)/views")
+        baseURL.appendingPathComponent("v2/devices/\(deviceRow)/views")
     }
 
-    /// `selector` is the one effective selector, or empty for all joined lists.
+    /// `selector` is the one effective selector, or empty for all joined views.
     static func deviceEventsURL(deviceRow: Int, selector: [URLQueryItem],
                                 timeZoneIdentifier: String = TimeZone.autoupdatingCurrent.identifier) -> URL {
-        withTimeZone(baseURL.appendingPathComponent("devices/\(deviceRow)/events"),
+        withTimeZone(baseURL.appendingPathComponent("v2/devices/\(deviceRow)/events"),
                      selector: selector, timeZoneIdentifier: timeZoneIdentifier)
     }
 
     static func publicEventsURL(viewIDs: [String],
                                 timeZoneIdentifier: String = TimeZone.autoupdatingCurrent.identifier) -> URL {
-        withTimeZone(baseURL.appendingPathComponent("events"),
+        withTimeZone(baseURL.appendingPathComponent("v2/events"),
                      selector: [URLQueryItem(name: "viewIds", value: viewIDs.joined(separator: ","))],
                      timeZoneIdentifier: timeZoneIdentifier)
     }
