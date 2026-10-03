@@ -1,31 +1,32 @@
 import Foundation
 
-/// A list from the public directory. Timing belongs to the list, not the device.
-struct ListSummary: Decodable, Hashable, Identifiable {
-    struct Management: Decodable, Hashable {
-        let version: Int
-        let stateUrl: URL
-    }
+/// The producer's check-in record for a view: maintenance evidence, never a statement
+/// that its events are accurate or complete.
+struct ViewFreshness: Decodable, Hashable {
+    let status: String
 
+    /// The producer has missed at least one declared check, so events may be out of date.
+    var isLapsed: Bool { status == "overdue" || status == "stale" }
+}
+
+/// A published view from the directory or its detail read.
+struct ListSummary: Decodable, Hashable, Identifiable {
     let id: String
     let name: String
     let description: String
-    let reminderLeadSeconds: Int
-    /// False while the server withholds the list; it can still be joined.
-    let available: Bool
-    let management: Management?
+    let freshness: ViewFreshness
+    /// Present on a single view's detail; agents read and edit the view through it.
+    let stateUrl: URL?
 
     var list: EventList { EventList(id: id, name: name) }
 }
 
-/// A joined list and this device's reminder preference for it.
+/// A published view this device has joined.
 struct JoinedList: Decodable, Hashable, Identifiable {
     let id: String
     let name: String
     let description: String
-    let reminderLeadSeconds: Int
-    let available: Bool
-    let remindersEnabled: Bool
+    let freshness: ViewFreshness
 
     var list: EventList { EventList(id: id, name: name) }
 }
@@ -35,7 +36,6 @@ struct JoinedList: Decodable, Hashable, Identifiable {
 enum ListClient {
     struct Memberships: Decodable {
         let views: [JoinedList]
-        let delivery: String
     }
 
     static func directory() async throws -> [ListSummary] {
@@ -64,22 +64,13 @@ enum ListClient {
         try await mutate("PUT", deviceID: deviceID, listID: listID)
     }
 
-    static func setReminders(deviceID: Int, listID: String, enabled: Bool) async throws {
-        try await mutate("PATCH", deviceID: deviceID, listID: listID,
-                         body: try JSONEncoder().encode(["remindersEnabled": enabled]))
-    }
-
     static func leave(deviceID: Int, listID: String) async throws {
         try await mutate("DELETE", deviceID: deviceID, listID: listID)
     }
 
-    private static func mutate(_ method: String, deviceID: Int, listID: String, body: Data? = nil) async throws {
+    private static func mutate(_ method: String, deviceID: Int, listID: String) async throws {
         var request = URLRequest(url: ServerURL.deviceViewsURL(deviceRow: deviceID).appendingPathComponent(listID))
         request.httpMethod = method
-        if let body {
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = body
-        }
         let (data, status) = try await send(request)
         guard (200..<300).contains(status) else { throw rejection(data) }
     }

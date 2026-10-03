@@ -32,7 +32,7 @@ struct ListDirectoryView: View {
                             } label: {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(list.name)
-                                    Text(list.available ? list.description : "Temporarily unavailable")
+                                    Text(list.description)
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
@@ -90,12 +90,11 @@ struct JoinListPreviewView: View {
                     Button("Try Again") { Task { await store.load() } }
                         .buttonStyle(.borderless)
                 }
-                Text("Joining adds this view to widgets showing All my views. " +
-                     "Reminders start off; turn them on from the view.")
+                Text("Joining adds this view to widgets showing All my views.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                if !list.available {
-                    Text("This view is temporarily unavailable. Its events appear once it is back.")
+                if list.freshness.isLapsed {
+                    Text("This view hasn’t been updated on its usual schedule, so its events may be out of date.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }

@@ -10,6 +10,12 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-10-03
 
+- Shipped publish v2 slice 2: v2 device membership and widget reads on the parent, and an
+  iOS client that reads only v2. The `pv_` prefix stands in for a stored API generation, so
+  legacy selections and feed placements are cleared rather than translated. View reminders
+  stay off until slice 3, and the app shows producer freshness in their place. See
+  [publish-api-spike.md](publish-api-spike.md#implementation-status).
+
 - Froze legacy publication with an explicit `423 legacy_read_only` (parent membership
   and managed refresh, managed creation, slot reconcile/initialize) and deployed publish
   v2 slice 1 beside it. Lunar is the first producer: its calculation stays in its own

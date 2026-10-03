@@ -25,7 +25,7 @@ and SQLite schema. No browser UI or event scheduling is part of the spike.
 | [ClarkViewWidget.swift](../ClarkViewWidget/ClarkViewWidget.swift), [WidgetFeedIntent.swift](../Shared/WidgetFeedIntent.swift) | Widget configuration (All my views, Selected views, retained feed), fetch, preview fixtures, timeline, entry view |
 | [WidgetListCatalog.swift](../Shared/WidgetListCatalog.swift), [WidgetFeedCatalog.swift](../Shared/WidgetFeedCatalog.swift) | App Group picker choices and remembered names: joined views, and separately the legacy feeds |
 | [BeaconWidgetTemplate.swift](../ClarkViewWidget/BeaconWidgetTemplate.swift) | Default widget layout and event deep links |
-| [ContentView.swift](../clark_view/ContentView.swift), [MyListsView.swift](../clark_view/MyListsView.swift), `clark_view/List*.swift`, [FeedPreviewView.swift](../clark_view/FeedPreviewView.swift) | My views, directory and pre-join preview, reminder switch, and leave |
+| [ContentView.swift](../clark_view/ContentView.swift), [MyListsView.swift](../clark_view/MyListsView.swift), `clark_view/List*.swift`, [FeedPreviewView.swift](../clark_view/FeedPreviewView.swift) | My views, directory and pre-join preview, freshness, and leave |
 | `clark_view/Subscription*.swift`, [FeedSourcesView.swift](../clark_view/FeedSourcesView.swift) | Compatibility screens for feeds joined in earlier versions (Earlier feeds) |
 | [AppDeepLink.swift](../Shared/AppDeepLink.swift), [DeepLinkRouter.swift](../clark_view/DeepLinkRouter.swift) | `clarkview` subject routes shared by widgets, Live Activities, alert responses, and in-app navigation |
 | [DeviceIdentity.swift](../Shared/DeviceIdentity.swift), [DeviceStatusClient.swift](../Shared/DeviceStatusClient.swift) | Per-install UUID in `group.plusjade.clark-view`, self-registration, and diagnostic reads |
@@ -54,47 +54,45 @@ The app home screen is My views. Product copy uses “views”; Swift types, sav
 intent parameters, App Group keys, and API paths retain their existing names.
 On first launch the install creates its own
 device row (`POST /devices`). Views can be browsed and previewed before joining.
-A join starts with Reminders off; the switch can be changed later, and Leave view
-removes this device's membership. A view owns its reminder timing. After a join or
+Views, memberships, and events use the parent's v2 publish API; legacy views and
+memberships are not read. Leave view removes this device's membership. View reminders
+are unavailable until the server builds them from published events. A view whose producer
+missed its declared check reads **Not updated recently**. After a join or
 leave the app asks WidgetKit to reload, since widgets showing All my views follow
 membership; WidgetKit decides when that runs.
 
-Human view links use the parent's `/open/views/:id` landing page and
-`clarkview://view/<id>`. `IncomingListView` resolves the numeric ID through
+Human view links use the parent's `/open/v2/views/:id` landing page and
+`clarkview://v2/view/<pv_id>`. `IncomingListView` resolves the ID through
 `ListClient.detail`; links carry no title or management endpoint. An unjoined view
 opens its preview with an explicit Join, while a joined view opens its detail.
-Opening a link never changes membership or reminder preferences.
+Opening a link never changes membership. A legacy `clarkview://view/<n>` link opens nothing.
 
-`ListDetailView` offers **Copy editing instructions** when the parent advertises
-management version 2 and its state URL. The preferred agent reads current state
-and guidance there; copied text contains no device identity or token. Changes to
-view metadata and events affect everyone joined, whereas the reminder toggle and
-Leave remain device-specific. Computed views without this capability omit the action.
+`ListDetailView` offers **Copy editing instructions** with the view's `stateUrl`. The
+agent reads current state and guidance there; copied text contains no device identity or
+token. Changes to view metadata and events affect everyone joined, whereas Leave remains
+device-specific.
 
 The one registered Clark View widget kind (`ClarkViewWidgetConfigurable`) is configurable
 for home and lock screens, and `WidgetFeedIntent` keeps its type name and `feed` parameter
 because those are the saved identity of existing placements. Its editor has **Show**
 (All my views or Selected views) and, for Selected, **Views**. `WidgetSelection` resolves
-a placement in this order: an explicit mode, otherwise a retained `feed`, otherwise All.
-`mode` has no default so that an upgraded placement's saved feed is not overridden by a
-decoded value; a new placement has nothing saved and shows All my views.
+a placement to its explicit mode, otherwise All. A retained `feed` still decodes but selects
+nothing, and Selected keeps only published-view (`pv_`) IDs: selections saved before v2 are
+cleared, not translated, and the person rejoins views.
 
 - All never stores view IDs. The server resolves membership on every fetch, so a
   server-side membership change reaches the widget without opening the app.
 - Selected stores view IDs. An ID that is no longer joined contributes nothing and
   becomes eligible again on rejoin; the app never rewrites a stored selection.
-- A retained feed is sent as `feedId` to the same events route. The server translates it;
-  the client never treats a feed ID as a view ID. Choosing a mode supersedes it, and only
-  the effective selector is sent. The retained feed is offered in the editor only while it
-  is the effective selection.
 - The picker reads the App Group view catalog, which the app replaces after each successful
   membership load and updates after joins and leaves. Failed loads keep the last snapshot,
   and configuration queries make no network requests. Open the app after a server-side
-  rename to refresh names. Remembered names outlive membership.
+  rename to refresh names. Remembered names outlive membership. The catalog key is
+  `widgetListCatalogV2`; the V1 snapshot of legacy views is abandoned.
 - The legacy feed catalog is separate and is never overwritten by the view catalog. The app
-  still refreshes it on activation so retained feed selections resolve their names.
+  still refreshes it on activation for the Feeds from earlier versions screen.
 
-Every placement reads `/devices/:id/events`. The widget resolves the device row with the
+Every placement reads `/v2/devices/:id/events`. The widget resolves the device row with the
 idempotent `POST /devices` and caches it in the App Group, so an upgraded placement works
 before the app is next opened. A `device_not_found` response clears the cache and
 re-resolves once, because a browser merge moves an installation to another row.
@@ -106,7 +104,6 @@ Prompt states come from the server's `selection.viewIds`, never from a failure:
 | Selected with no views chosen | Edit Widget prompt; no request is made |
 | All, nothing joined | Invitation to join a view in the app |
 | Selected, none of the chosen views joined | Edit Widget prompt; never falls back to All |
-| Retained feed no longer exists | Feed unavailable; edit to choose views |
 | Views resolved but no events, or a failed fetch | The ordinary empty state |
 
 A network or identity failure never changes a stored mode or selection. The app's manual
@@ -115,8 +112,8 @@ line, refreshes when opened or foregrounded, and supports pull to refresh. Notif
 setup and its diagnostics live under the toolbar menu's Notifications entry.
 
 Legacy feeds appear under **Feeds from earlier versions** on the home screen
-when any exist. That screen lists them, shows whether reminders are on, and can turn a
-reminder off or leave the feed. Their reminders keep arriving until turned off there.
+when any exist. That screen lists them and whether reminders are on. Legacy membership is
+frozen, so turning a reminder off or leaving there fails with `legacy_read_only`.
 The original lists rollout started membership empty; nothing was imported from
 legacy feeds. Renaming the product to views preserves all existing memberships.
 
@@ -212,7 +209,8 @@ with 200s, with no list memberships. Evidence: `/devices/7/views`. That establis
 retained selection and the bridge on a real upgrade. It does not establish that this
 happens before the app is first opened, or what the widgets displayed.
 
-Deferred compatibility/picker scenarios, not closed by the managed-list UAT:
+Deferred compatibility/picker scenarios, not closed by the managed-list UAT. Scenarios 1–2
+are superseded by the v2 client (2026-10-03): a retained feed now reads as All.
 
 1. Confirm an upgraded feed widget refreshes before the app is first opened, and that it
    renders its events with the global appearance.

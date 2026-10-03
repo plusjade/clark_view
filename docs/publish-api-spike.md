@@ -400,14 +400,15 @@ the explicit read-only error.
 
 ## Implementation status
 
-Observed 2026-10-03. Close this section when slice 2 ships or the spike is abandoned.
+Observed 2026-10-03. Close this section when slice 3 ships or the spike is abandoned.
 
 | Piece | State | Pointer |
 | --- | --- | --- |
 | Phase zero freeze | Deployed; mutations return `423 legacy_read_only` | Parent `http/routes/legacyFreeze.ts` (v463); `manage.ts` in each managed slot and the template; provisioner `main.ts` |
 | Slice 1: tables, contract, routes | Deployed, parent `main` v464 | `lib/publishContract.ts`, `lib/publishStore.ts`, `lib/publishGuide.ts`, `http/routes/publishV2.ts`; `tools/publish-v2-check.ts` in the runner |
 | Lunar producer | Merged; daily interval `7 16 * * *` UTC publishes to `pv_11` | `plusjade/feed-lunar` `publish.ts`, `publisher.ts`, `tools/check.ts` |
-| Slice 2: v2 membership, `/v2/devices/:id/*`, iOS client, merge guard | Not started | — |
+| Slice 2 server: membership, `/v2/devices/:id/*`, merge guard | Deployed, parent `main` v465 | `http/routes/publishV2.ts`, `http/routes/devices.ts`; same check |
+| Slice 2 iOS client | On `codex/publish-v2-client`; not yet built with Xcode | `Shared/ServerURL.swift`, `Shared/WidgetSelection.swift`, `Shared/AppDeepLink.swift`, `clark_view/List*.swift` |
 | Slice 3: reminders from `published_events` | Not started | — |
 
 Decisions made during implementation:
@@ -416,8 +417,13 @@ Decisions made during implementation:
   never reissued and a legacy numeric ID never parses as v2.
 - `GET /v2` serves the agent creation guide; state reads embed the update guide.
   `agents.tamale.dev` links to it.
-- `device_published_views` and the `409 v2_memberships_present` merge guard ship
-  with slice 2; neither has a caller before v2 membership exists.
+- The client stores no separate API generation: the `pv_` prefix is the generation, so
+  deep links and widget selections accept only `pv_` IDs. A retained legacy feed reads as
+  All. The view catalog moved to a new App Group key.
+- `PATCH /v2/devices/:id/views/:viewId` answers `409 reminders_unavailable` until slice 3;
+  the app hides view reminders and shows freshness (`Not updated recently`) instead.
+- The merge guard renders the existing merge form with status 409 and names
+  `v2_memberships_present`, since that route is a browser form.
 - A creation also writes a publication receipt and history revision 1, so
   `GET .../publications` lists it.
 - Capacity is 50 views (`LIMITS.views`).

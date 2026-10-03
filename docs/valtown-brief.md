@@ -38,8 +38,9 @@ Legacy publication is frozen: parent membership and managed-refresh writes, the
 provisioner's `POST /managed-sources`, and every managed slot's
 initialize/reconcile return `423 legacy_read_only`. Legacy reads, conformance probes,
 device registration, tokens, inventory, receipts, and legacy reminders continue.
-`plusjade/feed-lunar` publishes daily to v2 view `pv_11`. v2 device membership,
-widget reads, and reminders are not built; the iOS app has no v2 path yet.
+`plusjade/feed-lunar` publishes daily to v2 view `pv_11`. Slice 2 (parent v465) adds
+v2 device membership and `/v2/devices/:id/events`; the iOS client for it is on
+`codex/publish-v2-client`. v2 reminders are not built.
 
 Clark View is widget-first. The containing iOS app registers its own install, manages
 joined **views** (each with a preview and its own reminder switch) on the home screen,

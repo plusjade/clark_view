@@ -21,20 +21,20 @@ struct WidgetInventoryTests {
         ])
         let json = try #require(JSONSerialization.jsonObject(with: data) as? [[String: String]])
         #expect(json.map { $0["state"] } == ["configured", "configured", "unconfigured", "unreadable"])
-        #expect(json.map { $0["feedId"] } == ["5", nil, nil, nil])
-        // A retained feed stays a feed; a placement with nothing saved shows all lists.
-        #expect(json.map { $0["mode"] } == ["feed", "all", nil, nil])
+        #expect(json.allSatisfy { $0["feedId"] == nil })
+        // A retained feed no longer selects anything; it reads as all views.
+        #expect(json.map { $0["mode"] } == ["all", "all", nil, nil])
     }
 
-    @Test func selectedListsReportTheirIDsWithoutAFeed() throws {
+    @Test func selectedViewsReportTheirIDsWithoutAFeed() throws {
         let entry = WidgetInventoryEntry(kind: WidgetKind.configurable, family: "systemSmall",
-                                         selection: .selected(["8", "10"]))
+                                         selection: .selected(["pv_8", "pv_10"]))
         let json = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(entry)) as? [String: Any])
         #expect(json["mode"] as? String == "selected")
-        #expect(json["viewIds"] as? [String] == ["8", "10"])
+        #expect(json["viewIds"] as? [String] == ["pv_8", "pv_10"])
         #expect(json["feedId"] == nil)
         let other = WidgetInventoryEntry(kind: WidgetKind.configurable, family: "systemSmall",
-                                         selection: .selected(["8"]))
+                                         selection: .selected(["pv_8"]))
         #expect(WidgetInventoryPolicy.signature(of: [entry]) != WidgetInventoryPolicy.signature(of: [other]))
     }
 
@@ -43,7 +43,7 @@ struct WidgetInventoryTests {
         let signature = WidgetInventoryPolicy.signature(of: [small, large])
         #expect(signature == WidgetInventoryPolicy.signature(of: [large, small]))
         #expect(signature != WidgetInventoryPolicy.signature(of: [small, small, large]))
-        #expect(signature != WidgetInventoryPolicy.signature(of: [small, entry("systemLarge", feed: "8")]))
+        #expect(signature != WidgetInventoryPolicy.signature(of: [small, entry("systemMedium", feed: "7")]))
         #expect(WidgetInventoryPolicy.signature(of: []) != signature)
     }
 
