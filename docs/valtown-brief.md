@@ -43,9 +43,10 @@ v2 device membership and `/v2/devices/:id/events`; the iOS client on `main` read
 v2. v2 reminders are not built.
 
 Clark View is widget-first. The containing iOS app registers its own install, manages
-joined **views** (each with a preview and its own reminder switch) on the home screen,
-and exposes notification setup and diagnostics through its menu. A view is a named
-collection of events backed by one registered source. Widgets display events from
+joined **views** (each with a preview and producer freshness) on the home screen,
+and exposes notification setup and diagnostics through its menu. In the app, a view is
+a published v2 view whose events live in the parent; legacy views are each backed by
+one registered source and are read only by older builds. Widgets display events from
 all joined views or a selected subset. The browser administers device identity and
 inspects sources and widget activity.
 

@@ -402,13 +402,18 @@ the explicit read-only error.
 
 Observed 2026-10-03. Close this section when slice 3 ships or the spike is abandoned.
 
+The legacy freeze exists so legacy paths cannot interfere with or bloat v2, not to
+preserve legacy service. Legacy writes, new legacy reminders, and existing legacy
+reminders may be paused or limited without further review; nothing runs at a
+high-frequency cadence or SLA.
+
 | Piece | State | Pointer |
 | --- | --- | --- |
 | Phase zero freeze | Deployed; mutations return `423 legacy_read_only` | Parent `http/routes/legacyFreeze.ts` (v463); `manage.ts` in each managed slot and the template; provisioner `main.ts` |
 | Slice 1: tables, contract, routes | Deployed, parent `main` v464 | `lib/publishContract.ts`, `lib/publishStore.ts`, `lib/publishGuide.ts`, `http/routes/publishV2.ts`; `tools/publish-v2-check.ts` in the runner |
 | Lunar producer | Merged; daily interval `7 16 * * *` UTC publishes to `pv_11` | `plusjade/feed-lunar` `publish.ts`, `publisher.ts`, `tools/check.ts` |
 | Slice 2 server: membership, `/v2/devices/:id/*`, merge guard | Deployed, parent `main` v465 | `http/routes/publishV2.ts`, `http/routes/devices.ts`; same check |
-| Slice 2 iOS client | On `main` (c85d3ec); builds, unit tests and a simulator join/read/leave pass (2026-10-03); widget placement acceptance pending | `Shared/ServerURL.swift`, `Shared/WidgetSelection.swift`, `Shared/AppDeepLink.swift`, `clark_view/List*.swift` |
+| Slice 2 iOS client | On `main` (c85d3ec); builds and unit tests pass; user UAT of join, read, widgets, and leave passed (2026-10-03) | `Shared/ServerURL.swift`, `Shared/WidgetSelection.swift`, `Shared/AppDeepLink.swift`, `clark_view/List*.swift` |
 | Slice 3: reminders from `published_events` | Not started | — |
 
 Decisions made during implementation:
