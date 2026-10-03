@@ -10,6 +10,13 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-10-03
 
+- Required every v2 view to declare its maintenance at creation: a check interval, or
+  `null` for a one-time snapshot. An agent-created playoff view had omitted it, which
+  left a schedule that changes daily with no staleness signal. Browse now hides stale
+  views and snapshots with nothing left to show. Ported Rams as the first upstream
+  producer: its existing Sleeper refresh publishes to `pv_29` and checks in only when the
+  refresh succeeds. See [publish-api-spike.md](publish-api-spike.md#implementation-status).
+
 - Made Feeds from earlier versions read-only and removed the legacy join, reminder, and
   leave controls with the legacy feed catalog. Legacy membership is frozen and those
   controls never shipped publicly; the retained widget `feed` parameter still decodes.

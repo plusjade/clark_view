@@ -249,15 +249,15 @@ material friction.
 
 ## Cadence and staleness
 
-`expectedCheckIntervalSeconds` is nullable. Null means the view makes no ongoing
-maintenance claim. It is an expectation for producer checks, not an event refresh
-rate and not a Clark View schedule.
+`expectedCheckIntervalSeconds` is required at creation and nullable. Null declares a
+one-time snapshot with no ongoing maintenance claim. It is an expectation for producer
+checks, not an event refresh rate and not a Clark View schedule.
 
 The server records its own time when a successful request asserts `checked: true`;
 clients do not submit `lastCheckedAt`. Public state exposes:
 
 ```text
-freshness.status       unmonitored | current | overdue | stale
+freshness.status       snapshot | current | overdue | stale
 freshness.lastCheckedAt
 freshness.nextCheckDueAt
 freshness.staleAt
@@ -266,7 +266,7 @@ freshness.expectedCheckIntervalSeconds
 
 The initial heuristic is deliberately simple:
 
-- `unmonitored`: no cadence is declared
+- `snapshot`: no cadence is declared
 - `current`: now is at or before `lastCheckedAt + interval`
 - `overdue`: after one interval and at or before two intervals
 - `stale`: after two intervals
@@ -414,6 +414,8 @@ high-frequency cadence or SLA.
 | Lunar producer | Merged; daily interval `7 16 * * *` UTC publishes to `pv_11` | `plusjade/feed-lunar` `publish.ts`, `publisher.ts`, `tools/check.ts` |
 | Slice 2 server: membership, `/v2/devices/:id/*`, merge guard | Deployed, parent `main` v465 | `http/routes/publishV2.ts`, `http/routes/devices.ts`; same check |
 | Slice 2 iOS client | On `main` (c85d3ec); builds and unit tests pass; user UAT of join, read, widgets, and leave passed (2026-10-03) | `Shared/ServerURL.swift`, `Shared/WidgetSelection.swift`, `Shared/AppDeepLink.swift`, `clark_view/List*.swift` |
+| Maintenance declaration and Browse filtering | Deployed, parent `main` v466 | `lib/publishContract.ts` (`parseCreate`, `discoverable`), `lib/publishGuide.ts`; same check |
+| Rams producer | Merged; `refresh.ts` (`0 */6 * * *` UTC) publishes to `pv_29` after each successful Sleeper refresh | `plusjade/feed-rams` `publisher.ts`, `tools/check.ts` |
 | Slice 3: reminders from `published_events` | Not started | — |
 
 Decisions made during implementation:
@@ -432,3 +434,10 @@ Decisions made during implementation:
 - A creation also writes a publication receipt and history revision 1, so
   `GET .../publications` lists it.
 - Capacity is 50 views (`LIMITS.views`).
+- Creation requires an explicit `expectedCheckIntervalSeconds` (`maintenance_required`)
+  after an agent-created view (`pv_12`) omitted it and could rot unnoticed. `null` is a
+  declared snapshot. Browse omits stale views and snapshots whose events have all
+  ended; joined views and direct links still resolve. The app does not yet label
+  snapshots (`isLapsed` covers only overdue and stale); the open page does.
+- A producer owns an event ID prefix (`lunar15-`, `nfl-`) and removes only its own IDs,
+  so another publisher can add events to the same view.

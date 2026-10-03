@@ -40,7 +40,8 @@ initialize/reconcile return `423 legacy_read_only`. Legacy reads, conformance pr
 device registration, tokens, inventory, receipts, and legacy reminders continue.
 `plusjade/feed-lunar` publishes daily to v2 view `pv_11`. Slice 2 (parent v465) adds
 v2 device membership and `/v2/devices/:id/events`; the iOS client on `main` reads only
-v2. v2 reminders are not built.
+v2. Creation requires a maintenance declaration (parent v466). `plusjade/feed-rams`
+publishes to `pv_29` after each six-hour refresh. v2 reminders are not built.
 
 Clark View is widget-first. The containing iOS app registers its own install, manages
 joined **views** (each with a preview and producer freshness) on the home screen,
