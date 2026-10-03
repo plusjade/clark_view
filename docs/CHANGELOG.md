@@ -10,6 +10,12 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-10-03
 
+- Made the parent root public so Open Graph crawlers can read its metadata, and
+  removed its administration links rather than using Basic Auth to discourage
+  discovery. The root is now only a centered “a place for native views 👀” landing
+  page; direct administration routes remain unchanged. See
+  [valtown-brief.md](valtown-brief.md).
+
 - Created `plusjade/og-clarkview` as Clark View's dedicated Open Graph image
   service and wired its landscape PNG into the parent homepage metadata, keeping
   social-image rendering out of the parent. A programmatic SVG is the source of

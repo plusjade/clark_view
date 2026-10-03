@@ -245,9 +245,10 @@ horizontally scrolling story-style gallery. `main.ts` fills `pageShell`'s single
 gallery slot only in HTML responses; JSON routes do not load navigation data.
 `/sources` and its subroutes show sources; other browser routes show devices.
 Human `/open/views/:id` pages omit administration navigation. Resource pages mark the current resource.
-Browser tab titles retain resource names. The root remains a standalone jump-off
-screen linking Devices and Sources. Only `/` is protected by its configured Basic
-Auth gate; this does not authenticate the other routes.
+Browser tab titles retain resource names. The root is a public standalone landing
+page with the centered product tagline and Open Graph metadata, but no links. Direct
+administration routes retain their own navigation; the root is intentionally not a
+crawlable directory of those routes.
 
 ## HTTP contracts used by iOS and the browser
 
@@ -265,7 +266,7 @@ Auth gate; this does not authenticate the other routes.
 | `POST /devices` | App sends `{device}` on first run. Creates its row if missing and returns 200 `{ok:true,id,paired:false}`; an existing row is never changed. Retained `paired` is compatibility-only. |
 | `GET /devices/status/:installId` | Registration diagnostics: `{deviceId,registered,paired:false,name,id}`; unknown install omits name and id. The app re-resolves `id` on each load because a merge moves the install to another row. Remove `paired` after old clients are gone. |
 | `POST /device/token` | `{device,token,kind:"widget",environment:"sandbox"\|"production",active}`; `active:false` removes the token. Legacy omitted fields support old app-background tokens. |
-| `GET /` | Basic-Auth-protected HTML entry with links to `/devices` and `/sources` |
+| `GET /` | Public HTML landing page with the product tagline and Open Graph metadata; contains no navigation links |
 | `GET /devices/:id`, `POST /devices/:id/settings` | Device identity/settings page and name update; the page links to merge and Widgets |
 | `/devices/:id/subscriptions` | Legacy iOS join API, always JSON with no browser view. GET returns `{subscriptions:[{id,feedId,feedName,enabled,reminderLeadSeconds,createdAt,updatedAt}],delivery}`; `reminderLeadSeconds` is derived from the feed, not stored per device. Create/update accepts `enabled=0\|1`; delete leaves. Legacy `leadSeconds` on create with no enabled means on and is ignored on update until old clients age out. Duplicate join returns success without adding a row. |
 | `/devices/:id/widgets` | Widgets tab: latest reported widget inventory, and request receipts per selector (events routes) or feed (legacy), caller, family, and purpose, labeled with report times |
