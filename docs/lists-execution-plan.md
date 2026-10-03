@@ -4,6 +4,11 @@ Historical plan: the product term is now **views** following user testing. This
 completed plan retains its original terminology and acceptance record; it does
 not prescribe new interface copy. Current vocabulary and compatibility boundaries
 live in [valtown-brief.md](valtown-brief.md) and [ios-widget.md](ios-widget.md).
+Before release, the public paths moved from `/lists` to `/views`, device membership
+from `/devices/:id/lists` to `/devices/:id/views`, human handoff from `/open/lists`
+to `/open/views`, and the app deep link from `clarkview://list` to
+`clarkview://view`. The historical route tables below retain the names implemented
+and tested by this completed plan.
 
 Status reviewed 2026-10-02: implementation complete; initial server deployment was
 parent `main` version 452. The user has accepted the managed-list iPhone join/edit

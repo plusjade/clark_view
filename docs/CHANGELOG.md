@@ -10,6 +10,14 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-10-02
 
+- Renamed the unreleased public view paths from `/lists` to `/views`, device
+  membership from `/devices/:id/lists` to `/devices/:id/views`, human handoff to
+  `/open/views/:id`, and the app deep link to `clarkview://view/:id`. Moved browser
+  widget activity to `/devices/:id/widgets` to avoid a collision. No compatibility
+  aliases remain because the app has no external installations; internal list/source
+  storage, payload fields, and implementation names stay unchanged. See
+  [valtown-brief.md](valtown-brief.md) and parent `docs/lists.md`.
+
 - Adopted **views** as the product term after user testing, across native and
   browser copy, agent handoffs and publication guidance. A view remains one
   registered source; routes, payloads, storage, memberships and saved widget

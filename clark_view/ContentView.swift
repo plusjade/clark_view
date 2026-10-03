@@ -65,7 +65,7 @@ struct ContentView: View {
                     DiagnosticsView(initialPanel: initialDiagnosticsPanel)
                 })
                 .navigationDestination(item: navigationDestination) { destination in
-                    if destination.kind == .list {
+                    if destination.kind == .view {
                         IncomingListView(id: destination.subjectID)
                     } else {
                         DeepLinkDetailView(destination: destination)

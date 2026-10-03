@@ -49,7 +49,7 @@ by observed old-client and widget usage.
 
 ```text
 Browser → app-clarkview → devices, source registry, widget activity
-App     → app-clarkview /lists, /devices/:id/lists, /events?listIds=…; POST /devices and status identify an install
+App     → app-clarkview /views, /devices/:id/views, /events?listIds=…; POST /devices and status identify an install
           (compatibility: /devices/:id/subscriptions, /feeds/:feedId for feeds joined earlier)
 Widget  → app-clarkview /devices/:id/events[?listIds=…|?feedId=…]
                          → selector → list IDs (membership, selection, or the feed's enabled assignments)
@@ -115,8 +115,8 @@ membership remain parent-owned. Joining is not ownership; shared edits affect al
 subscribers. See parent `docs/lists.md` and `docs/get-sources.md` for preparation,
 activation and recovery.
 
-Creation returns a human `/open/lists/:id` link with a preview and a
-`clarkview://list/<id>` app handoff. The app fetches authoritative metadata and
+Creation returns a human `/open/views/:id` link with a preview and a
+`clarkview://view/<id>` app handoff. The app fetches authoritative metadata and
 offers an explicit Join, or opens an existing membership. Its managed-view detail
 can copy instructions pointing an agent at live state and guidance. This passes no
 device identity or token and imposes no agent research or scheduling workflow.
@@ -217,7 +217,7 @@ no browser or route editor. Sources own their data separately.
 | `lib/presentation.ts` | Global events presentation and legacy stored presentation parsing |
 | `lib/deviceTokenStore.ts`, `lib/push.ts` | Token lifecycle and best-effort device notification (`notifyDevice`) |
 | `lib/subscriptionStore.ts` | Feed-subscription and view-membership reminder authorization, and the shared notification ledger |
-| `lib/widgetObservationStore.ts`, `http/routes/widgetObservations.ts` | Device-reported widget inventory, feed- and event-request receipts, `/devices/:id/views`; parent `docs/widget-inventory.md` |
+| `lib/widgetObservationStore.ts`, `http/routes/widgetObservations.ts` | Device-reported widget inventory, feed- and event-request receipts, `/devices/:id/widgets`; parent `docs/widget-inventory.md` |
 | `lib/subscriptionBuilder.ts`, `lib/subscriptionDrainer.ts` | Queue events from subscribed feeds and reminder-enabled views; validate and send due alerts |
 | `crons/buildReminders.ts`, `crons/drainReminders.ts` | The two reminder schedules |
 | `lib/lifecycle.ts` | Global lifecycle label set; phase-to-word resolution and the derived legacy caption |
@@ -234,7 +234,7 @@ The shared browser header links Home to `/` and displays an alphabetically order
 horizontally scrolling story-style gallery. `main.ts` fills `pageShell`'s single
 gallery slot only in HTML responses; JSON routes do not load navigation data.
 `/sources` and its subroutes show sources; other browser routes show devices.
-Human `/open/lists/:id` pages omit administration navigation. Resource pages mark the current resource.
+Human `/open/views/:id` pages omit administration navigation. Resource pages mark the current resource.
 Browser tab titles retain resource names. The root remains a standalone jump-off
 screen linking Devices and Sources. Only `/` is protected by its configured Basic
 Auth gate; this does not authenticate the other routes.
@@ -243,9 +243,9 @@ Auth gate; this does not authenticate the other routes.
 
 | Method / route | Behavior |
 | --- | --- |
-| `GET /lists`, `GET /lists/:id` | View directory and detail: `{id,name,description,reminderLeadSeconds,available,availability}`. IDs are decimal strings opaque to Swift. JSON only, `no-store`. |
-| `GET /devices/:id/lists` | This device's joined views with `remindersEnabled`, plus `delivery`. `:id` is the device row. |
-| `PUT` / `PATCH` / `DELETE /devices/:id/lists/:listId` | Join (201 new with reminders off, 200 existing and unchanged), set `{remindersEnabled}` (404 if not joined), leave (idempotent). |
+| `GET /views`, `GET /views/:id` | View directory and detail: `{id,name,description,reminderLeadSeconds,available,availability}`. IDs are decimal strings opaque to Swift. JSON only, `no-store`. |
+| `GET /devices/:id/views` | This device's joined views with `remindersEnabled`, plus `delivery`. `:id` is the device row. |
+| `PUT` / `PATCH` / `DELETE /devices/:id/views/:viewId` | Join (201 new with reminders off, 200 existing and unchanged), set `{remindersEnabled}` (404 if not joined), leave (idempotent). |
 | `GET /events?listIds=1,2` | Public composition for a pre-join preview. The selection is required; an unknown ID is 404. |
 | `GET /devices/:id/events` | Events for all joined views, or `?listIds=` intersected with membership, or `?feedId=` (a retained legacy feed selection, resolved to its enabled assignments and not intersected with membership). Selectors are mutually exclusive; empty, malformed, or duplicated ones are 400 and never mean all. Unknown device or feed is 404. The body adds `selection:{mode,listIds}`. Presentation is one code-owned global policy. Receipt headers record only for the device's own installation. Parent `docs/lists.md` owns the contract. |
 | `GET /feeds` | Public directory: `{feeds:[{id,name,reminderLeadSeconds}]}`. Timing is the feed's current shared value; IDs are decimal strings opaque to Swift. No installation identity is required. Read-only and `no-store`. |
@@ -258,7 +258,7 @@ Auth gate; this does not authenticate the other routes.
 | `GET /` | Basic-Auth-protected HTML entry with links to `/devices` and `/sources` |
 | `GET /devices/:id`, `POST /devices/:id/settings` | Device identity/settings page and name update; the page links to merge and Widgets |
 | `/devices/:id/subscriptions` | Legacy iOS join API, always JSON with no browser view. GET returns `{subscriptions:[{id,feedId,feedName,enabled,reminderLeadSeconds,createdAt,updatedAt}],delivery}`; `reminderLeadSeconds` is derived from the feed, not stored per device. Create/update accepts `enabled=0\|1`; delete leaves. Legacy `leadSeconds` on create with no enabled means on and is ignored on update until old clients age out. Duplicate join returns success without adding a row. |
-| `/devices/:id/views` | Widgets tab: latest reported widget inventory, and request receipts per selector (events routes) or feed (legacy), caller, family, and purpose, labeled with report times |
+| `/devices/:id/widgets` | Widgets tab: latest reported widget inventory, and request receipts per selector (events routes) or feed (legacy), caller, family, and purpose, labeled with report times |
 | `/devices/:id/merge` | Move a reinstalled app's install ID onto the device it replaces; the chosen target survives and the origin row is deleted |
 | `/sources` | Read-only registry explorer with the source gallery in place of the device gallery |
 | `/sources/:id` | Source Preview tab: reads the implementing source without settings and renders temporal items plus the raw source response; failures and empty feeds remain ordinary page states |

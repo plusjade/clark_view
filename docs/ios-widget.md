@@ -59,8 +59,8 @@ removes this device's membership. A view owns its reminder timing. After a join 
 leave the app asks WidgetKit to reload, since widgets showing All my views follow
 membership; WidgetKit decides when that runs.
 
-Human view links use the parent's `/open/lists/:id` landing page and
-`clarkview://list/<id>`. `IncomingListView` resolves the numeric ID through
+Human view links use the parent's `/open/views/:id` landing page and
+`clarkview://view/<id>`. `IncomingListView` resolves the numeric ID through
 `ListClient.detail`; links carry no title or management endpoint. An unjoined view
 opens its preview with an explicit Join, while a joined view opens its detail.
 Opening a link never changes membership or reminder preferences.
@@ -153,7 +153,7 @@ combinations are deferred to scoped compatibility work, not an active test hold.
 Server additions are live on parent `main` version 402 and `tools/check.ts` passes.
 The app/widget build and full test scheme passed with no new SwiftLint warnings.
 Deferred coverage as of 2026-10-02: register, close the app, add a configured widget, and confirm
-`/devices/:id/views` shows it without reopening the app, including whether configurations are readable during the initial
+`/devices/:id/widgets` shows it without reopening the app, including whether configurations are readable during the initial
 timeline callback. Widget rendering acceptance alone does not establish this
 telemetry timing. Revisit when inventory behavior or the device migration is in scope.
 
