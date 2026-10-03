@@ -91,7 +91,7 @@ struct WidgetFeedIntent: WidgetConfigurationIntent {
     var mode: WidgetListMode?
 
     @Parameter(title: "Views")
-    var lists: [WidgetListEntity]?
+    var views: [WidgetListEntity]?
 
     @Parameter(title: "Feed (earlier version)")
     var feed: WidgetFeedEntity?
@@ -102,7 +102,7 @@ struct WidgetFeedIntent: WidgetConfigurationIntent {
         When(\.$mode, .equalTo, WidgetListMode.selected) {
             Summary {
                 \.$mode
-                \.$lists
+                \.$views
             }
         } otherwise: {
             When(\.$mode, .equalTo, WidgetListMode.all) {
@@ -126,7 +126,7 @@ struct WidgetFeedIntent: WidgetConfigurationIntent {
 
     init() {
         mode = nil
-        lists = nil
+        views = nil
         feed = nil
     }
 }
@@ -134,7 +134,7 @@ struct WidgetFeedIntent: WidgetConfigurationIntent {
 extension WidgetSelection {
     nonisolated init(intent: WidgetFeedIntent) {
         self.init(mode: intent.mode,
-                  listIDs: intent.lists?.map(\.id) ?? [],
+                  viewIDs: intent.views?.map(\.id) ?? [],
                   feed: intent.feed.map { Feed(id: $0.id, name: $0.name) })
     }
 }

@@ -32,10 +32,10 @@ enum ServerURL {
                      selector: selector, timeZoneIdentifier: timeZoneIdentifier)
     }
 
-    static func publicEventsURL(listIDs: [String],
+    static func publicEventsURL(viewIDs: [String],
                                 timeZoneIdentifier: String = TimeZone.autoupdatingCurrent.identifier) -> URL {
         withTimeZone(baseURL.appendingPathComponent("events"),
-                     selector: [URLQueryItem(name: "listIds", value: listIDs.joined(separator: ","))],
+                     selector: [URLQueryItem(name: "viewIds", value: viewIDs.joined(separator: ","))],
                      timeZoneIdentifier: timeZoneIdentifier)
     }
 

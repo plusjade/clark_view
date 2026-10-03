@@ -51,7 +51,7 @@ enum EventsClient {
 
     static func preview(listID: String) async throws -> WidgetPayload {
         do {
-            return try await fetch(ServerURL.publicEventsURL(listIDs: [listID]), context: .appPreview)
+            return try await fetch(ServerURL.publicEventsURL(viewIDs: [listID]), context: .appPreview)
         } catch Rejection.deviceNotFound {
             throw EventsClientError.invalidResponse
         }
@@ -68,7 +68,7 @@ enum EventsClient {
             struct Failure: Decodable { let error: String }
             switch (try? JSONDecoder().decode(Failure.self, from: data))?.error {
             case "device_not_found": throw Rejection.deviceNotFound
-            case "feed_not_found", "list_not_found": throw EventsClientError.feedUnavailable
+            case "feed_not_found", "view_not_found": throw EventsClientError.feedUnavailable
             default: throw EventsClientError.invalidResponse
             }
         }

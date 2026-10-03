@@ -99,7 +99,7 @@ idempotent `POST /devices` and caches it in the App Group, so an upgraded placem
 before the app is next opened. A `device_not_found` response clears the cache and
 re-resolves once, because a browser merge moves an installation to another row.
 
-Prompt states come from the server's `selection.listIds`, never from a failure:
+Prompt states come from the server's `selection.viewIds`, never from a failure:
 
 | State | Shows |
 | --- | --- |

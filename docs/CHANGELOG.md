@@ -10,12 +10,19 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-10-02
 
+- Completed the unreleased view wire cutover: directory and membership envelopes now
+  use `views`, selection query parameters and response metadata use `viewIds`, widget
+  inventory uses `viewIds`, and managed-source destinations use `viewId`, `viewUrl`,
+  and `viewApiUrl`. Error codes and diagnostic selector labels now say `view`. Stored
+  tables and columns retain their list-era names because they are private persistence.
+  See [valtown-brief.md](valtown-brief.md) and parent `docs/lists.md`.
+
 - Renamed the unreleased public view paths from `/lists` to `/views`, device
   membership from `/devices/:id/lists` to `/devices/:id/views`, human handoff to
   `/open/views/:id`, and the app deep link to `clarkview://view/:id`. Moved browser
   widget activity to `/devices/:id/widgets` to avoid a collision. No compatibility
   aliases remain because the app has no external installations; internal list/source
-  storage, payload fields, and implementation names stay unchanged. See
+  storage and implementation names stay unchanged. See
   [valtown-brief.md](valtown-brief.md) and parent `docs/lists.md`.
 
 - Adopted **views** as the product term after user testing, across native and

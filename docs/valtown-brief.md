@@ -49,10 +49,10 @@ by observed old-client and widget usage.
 
 ```text
 Browser → app-clarkview → devices, source registry, widget activity
-App     → app-clarkview /views, /devices/:id/views, /events?listIds=…; POST /devices and status identify an install
+App     → app-clarkview /views, /devices/:id/views, /events?viewIds=…; POST /devices and status identify an install
           (compatibility: /devices/:id/subscriptions, /feeds/:feedId for feeds joined earlier)
-Widget  → app-clarkview /devices/:id/events[?listIds=…|?feedId=…]
-                         → selector → list IDs (membership, selection, or the feed's enabled assignments)
+Widget  → app-clarkview /devices/:id/events[?viewIds=…|?feedId=…]
+                         → selector → view IDs (membership, selection, or the feed's enabled assignments)
                          → public HTTP reads of those source vals
                          → validate items, sort, attach global presentation → widget schema 3
 Old builds → app-clarkview /feeds/:feedId (unchanged)
@@ -243,15 +243,15 @@ Auth gate; this does not authenticate the other routes.
 
 | Method / route | Behavior |
 | --- | --- |
-| `GET /views`, `GET /views/:id` | View directory and detail: `{id,name,description,reminderLeadSeconds,available,availability}`. IDs are decimal strings opaque to Swift. JSON only, `no-store`. |
-| `GET /devices/:id/views` | This device's joined views with `remindersEnabled`, plus `delivery`. `:id` is the device row. |
+| `GET /views`, `GET /views/:id` | View directory (`{views:[…]}`) and detail: `{id,name,description,reminderLeadSeconds,available,availability}`. IDs are decimal strings opaque to Swift. JSON only, `no-store`. |
+| `GET /devices/:id/views` | This device's `{views:[…]}` with `remindersEnabled`, plus `delivery`. `:id` is the device row. |
 | `PUT` / `PATCH` / `DELETE /devices/:id/views/:viewId` | Join (201 new with reminders off, 200 existing and unchanged), set `{remindersEnabled}` (404 if not joined), leave (idempotent). |
-| `GET /events?listIds=1,2` | Public composition for a pre-join preview. The selection is required; an unknown ID is 404. |
-| `GET /devices/:id/events` | Events for all joined views, or `?listIds=` intersected with membership, or `?feedId=` (a retained legacy feed selection, resolved to its enabled assignments and not intersected with membership). Selectors are mutually exclusive; empty, malformed, or duplicated ones are 400 and never mean all. Unknown device or feed is 404. The body adds `selection:{mode,listIds}`. Presentation is one code-owned global policy. Receipt headers record only for the device's own installation. Parent `docs/lists.md` owns the contract. |
+| `GET /events?viewIds=1,2` | Public composition for a pre-join preview. The selection is required; an unknown ID is 404. |
+| `GET /devices/:id/events` | Events for all joined views, or `?viewIds=` intersected with membership, or `?feedId=` (a retained legacy feed selection, resolved to its enabled assignments and not intersected with membership). Selectors are mutually exclusive; empty, malformed, or duplicated ones are 400 and never mean all. Unknown device or feed is 404. The body adds `selection:{mode,viewIds}`. Presentation is one code-owned global policy. Receipt headers record only for the device's own installation. Parent `docs/lists.md` owns the contract. |
 | `GET /feeds` | Public directory: `{feeds:[{id,name,reminderLeadSeconds}]}`. Timing is the feed's current shared value; IDs are decimal strings opaque to Swift. No installation identity is required. Read-only and `no-store`. |
 | `GET /feeds/:feedId/details` | Public name, shared timing, and attached sources (`id`, `name`, diagnostic `kind`, and `enabled`) for native detail surfaces, without changing widget payload semantics. |
 | `GET /feeds/:feedId` | Public schema-3 composition from a feed's enabled and verified assignments and presentation. Optional `timeZone` reader context. Unknown or deleted IDs return JSON 404; a valid empty feed succeeds. Reads use `no-store`. Optional `X-Clark-Installation`, `X-Clark-Caller`, `X-Clark-Widget-Family`, `X-Clark-Request-Purpose` headers record a receipt for a registered device only; they never change the response. |
-| `POST /device/widget-inventory` | `{device,observedAt,widgets:[{kind,family,state,feedId?,mode?,listIds?}]}` complete snapshot; `state` is `configured`/`unconfigured`/`unreadable`. `mode` is `all`, `selected` (with `listIds`), or `feed` (with `feedId`); absent on builds that predate direct source membership. Replaces the stored snapshot unless older (`{ok:true,stale:true}`). Unknown install 404, malformed 400. |
+| `POST /device/widget-inventory` | `{device,observedAt,widgets:[{kind,family,state,feedId?,mode?,viewIds?}]}` complete snapshot; `state` is `configured`/`unconfigured`/`unreadable`. `mode` is `all`, `selected` (with `viewIds`), or `feed` (with `feedId`); absent on builds that predate direct source membership. Replaces the stored snapshot unless older (`{ok:true,stale:true}`). Unknown install 404, malformed 400. |
 | `POST /devices` | App sends `{device}` on first run. Creates its row if missing and returns 200 `{ok:true,id,paired:false}`; an existing row is never changed. Retained `paired` is compatibility-only. |
 | `GET /devices/status/:installId` | Registration diagnostics: `{deviceId,registered,paired:false,name,id}`; unknown install omits name and id. The app re-resolves `id` on each load because a merge moves the install to another row. Remove `paired` after old clients are gone. |
 | `POST /device/token` | `{device,token,kind:"widget",environment:"sandbox"\|"production",active}`; `active:false` removes the token. Legacy omitted fields support old app-background tokens. |
@@ -420,8 +420,8 @@ entrypoints and environment metadata when remixing.
   version 2, white/black roots, expired items kept) for every selector, including a
   bridged `feedId`. Stored feed presentation is frozen at the compatibility boundary: it
   still serves `/feeds/:feedId` and is neither evolved nor imported into views.
-- Events routes add `selection:{mode,listIds}`: the views the selector resolved to. An
-  empty `listIds` means nothing was selected, which Swift shows as a join or edit prompt;
+- Events routes add `selection:{mode,viewIds}`: the views the selector resolved to. An
+  empty `viewIds` means nothing was selected, which Swift shows as a join or edit prompt;
   eligible views with no events render the ordinary empty state. Legacy feed reads omit it.
 - Legacy feed presentation stores `intradayFilter` (default false), with no editor. `composeFeedItems` applies `expiresAt > now` after validation
   and composition with one clock snapshot across sources. Legacy feed reads use it;
@@ -560,7 +560,7 @@ Per domain, what to verify beyond the checks and what a false pass looks like:
 | Conformance | The probe against every registered source, and that only a verified one reaches a feed. Core suite covers gating, staleness derivation and quarantine diagnostics | A green feed says nothing about a source nobody has re-probed — check `conformance_verified_at`, not just the state |
 | Source | Public `GET /`, its 400/405 rejections, nonempty fixtures, timezone edges. Source-owned checks | Diagnostics reporting "unavailable" means unknown coverage, not zero |
 | New GET source | External `/source-verifications` against the remix's own endpoint and key; parent changes run `tools/check.ts` | A pass does not register or activate a source, prove data accuracy, or establish nonempty coverage |
-| Views | Membership and preference round trips; all/subset/`feedId` selection; empty versus invalid selectors; conformance withholding; the same event IDs and order as the legacy feed read. Core suite covers these | A successful empty body does not prove a view contributed — check `selection.listIds`, `x-effective-sources`, then `x-quarantined-sources` |
+| Views | Membership and preference round trips; all/subset/`feedId` selection; empty versus invalid selectors; conformance withholding; the same event IDs and order as the legacy feed read. Core suite covers these | A successful empty body does not prove a view contributed — check `selection.viewIds`, `x-effective-sources`, then `x-quarantined-sources` |
 | Widget contract | Decode a representative composed response with Swift; update preview fixtures/tests; build app and widget for contract changes (`xcodebuild -project clark_view.xcodeproj -scheme clark_view build`/`test`); run SwiftLint | — |
 | Push | Verify token environment/topic and actual delivery separately per environment | APNs *accepting* a request is not proof a banner appeared — use console delivery logs; a simulator build proves nothing about real APNs delivery |
 | Reminders | Core suite; a disabled drain for queue processing | A disabled run exercises queue processing without proving APNs delivery; the builder still writes live queue state |

@@ -147,7 +147,7 @@ struct WidgetEntry: TimelineEntry {
 
     /// A failed fetch leaves `payload.selection` nil, so it never shows a selection prompt.
     var prompt: WidgetPrompt? {
-        selection.prompt(resolvedListIDs: payload.selection?.listIds, feedUnavailable: unavailable)
+        selection.prompt(resolvedViewIDs: payload.selection?.viewIds, feedUnavailable: unavailable)
     }
 }
 

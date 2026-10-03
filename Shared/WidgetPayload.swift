@@ -28,7 +28,7 @@ struct WidgetPayload: Decodable {
     let lifecycle: WidgetLifecycleLabels?
     /// Display order — the client renders these in array order with no client-side sort.
     let items: [WidgetItem]
-    /// Which lists the request's selector resolved to. Only events routes send it; it is
+    /// Which views the request's selector resolved to. Only events routes send it; it is
     /// what separates "nothing selected" from "selected views with no events".
     let selection: WidgetSelectionSummary?
 
@@ -66,7 +66,7 @@ struct WidgetPayload: Decodable {
 
 struct WidgetSelectionSummary: Decodable, Equatable {
     let mode: String
-    let listIds: [String]
+    let viewIds: [String]
 }
 
 /// Where an item sits relative to its own window. State, never display text.

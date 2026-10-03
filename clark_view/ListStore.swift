@@ -42,7 +42,7 @@ final class ListStore {
         deviceID = id
         do {
             let memberships = try await ListClient.memberships(deviceID: id)
-            lists = memberships.lists
+            lists = memberships.views
             delivery = memberships.delivery
             // A failed load leaves the last successful picker choices in place.
             WidgetListCatalog.shared.replaceJoined(lists.map(\.list))

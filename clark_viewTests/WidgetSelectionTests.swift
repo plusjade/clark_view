@@ -9,11 +9,11 @@ struct WidgetSelectionTests {
     private let feed = Feed(id: "5", name: "Lunar")
 
     @Test func explicitModeSupersedesARetainedFeed() {
-        #expect(WidgetSelection(mode: nil, listIDs: [], feed: nil) == .all)
-        #expect(WidgetSelection(mode: nil, listIDs: ["8"], feed: feed) == .legacyFeed(feed))
-        #expect(WidgetSelection(mode: .all, listIDs: ["8"], feed: feed) == .all)
-        #expect(WidgetSelection(mode: .selected, listIDs: ["8", "10", "8"], feed: feed) == .selected(["8", "10"]))
-        #expect(WidgetSelection(mode: .selected, listIDs: [], feed: feed) == .needsLists)
+        #expect(WidgetSelection(mode: nil, viewIDs: [], feed: nil) == .all)
+        #expect(WidgetSelection(mode: nil, viewIDs: ["8"], feed: feed) == .legacyFeed(feed))
+        #expect(WidgetSelection(mode: .all, viewIDs: ["8"], feed: feed) == .all)
+        #expect(WidgetSelection(mode: .selected, viewIDs: ["8", "10", "8"], feed: feed) == .selected(["8", "10"]))
+        #expect(WidgetSelection(mode: .selected, viewIDs: [], feed: feed) == .needsLists)
     }
 
     @Test func intentWithNothingSavedIsAllAndKeepsASavedFeed() {
@@ -23,7 +23,7 @@ struct WidgetSelectionTests {
         #expect(WidgetSelection(intent: intent) == .legacyFeed(feed))
         intent.mode = .selected
         #expect(WidgetSelection(intent: intent) == .needsLists)
-        intent.lists = [WidgetListEntity(id: "8", name: "Lunar")]
+        intent.views = [WidgetListEntity(id: "8", name: "Lunar")]
         #expect(WidgetSelection(intent: intent) == .selected(["8"]))
     }
 
@@ -39,31 +39,31 @@ struct WidgetSelectionTests {
                 .map { ($0.name, $0.value ?? "") })
         }
         #expect(try query(.all).isEmpty)
-        #expect(try query(.selected(["8", "10"])) == ["listIds": "8,10"])
+        #expect(try query(.selected(["8", "10"])) == ["viewIds": "8,10"])
         #expect(try query(.legacyFeed(feed)) == ["feedId": "5"])
         // Selected with nothing chosen makes no request at all, so it can never read as All.
         #expect(WidgetSelection.needsLists.eventsQuery == nil)
     }
 
     @Test func promptsSeparateAnEmptySelectionFromNoEventsAndFromFailure() {
-        #expect(WidgetSelection.needsLists.prompt(resolvedListIDs: nil, feedUnavailable: false) == .chooseLists)
-        #expect(WidgetSelection.all.prompt(resolvedListIDs: [], feedUnavailable: false) == .joinList)
+        #expect(WidgetSelection.needsLists.prompt(resolvedViewIDs: nil, feedUnavailable: false) == .chooseLists)
+        #expect(WidgetSelection.all.prompt(resolvedViewIDs: [], feedUnavailable: false) == .joinList)
         let subset = WidgetSelection.selected(["8"])
-        #expect(subset.prompt(resolvedListIDs: [], feedUnavailable: false) == .editSelection)
-        #expect(subset.prompt(resolvedListIDs: ["8"], feedUnavailable: false) == nil)
-        #expect(WidgetSelection.legacyFeed(feed).prompt(resolvedListIDs: [], feedUnavailable: false) == nil)
-        #expect(WidgetSelection.legacyFeed(feed).prompt(resolvedListIDs: nil, feedUnavailable: true) == .feedUnavailable)
+        #expect(subset.prompt(resolvedViewIDs: [], feedUnavailable: false) == .editSelection)
+        #expect(subset.prompt(resolvedViewIDs: ["8"], feedUnavailable: false) == nil)
+        #expect(WidgetSelection.legacyFeed(feed).prompt(resolvedViewIDs: [], feedUnavailable: false) == nil)
+        #expect(WidgetSelection.legacyFeed(feed).prompt(resolvedViewIDs: nil, feedUnavailable: true) == .feedUnavailable)
         // A failed fetch has no server answer: never a join or edit prompt.
-        #expect(WidgetSelection.all.prompt(resolvedListIDs: nil, feedUnavailable: false) == nil)
-        #expect(subset.prompt(resolvedListIDs: nil, feedUnavailable: false) == nil)
+        #expect(WidgetSelection.all.prompt(resolvedViewIDs: nil, feedUnavailable: false) == nil)
+        #expect(subset.prompt(resolvedViewIDs: nil, feedUnavailable: false) == nil)
     }
 
     @Test func payloadDecodesSelectionAndToleratesItsAbsence() throws {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .secondsSince1970
-        let events = Data(#"{"schemaVersion":3,"items":[],"selection":{"mode":"all","listIds":[]}}"#.utf8)
+        let events = Data(#"{"schemaVersion":3,"items":[],"selection":{"mode":"all","viewIds":[]}}"#.utf8)
         #expect(try decoder.decode(WidgetPayload.self, from: events).selection
-            == WidgetSelectionSummary(mode: "all", listIds: []))
+            == WidgetSelectionSummary(mode: "all", viewIds: []))
         let legacy = Data(#"{"schemaVersion":3,"items":[]}"#.utf8)
         #expect(try decoder.decode(WidgetPayload.self, from: legacy).selection == nil)
     }
