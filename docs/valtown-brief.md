@@ -31,6 +31,14 @@ routing are deferred, not active tasks. Existing per-source
 editing URLs remain valid. Older compatibility/accessibility/APNs notes are
 unclaimed coverage for future scoped work, not instructions to restart this UAT.
 
+**Active design spike — 2026-10-03:** [publish-api-spike.md](publish-api-spike.md)
+defines an additive v2 path in which the parent owns one multitenant event table,
+all producers use one publish API, and reads perform no source HTTP fan-out. The
+current source, managed-slot, conformance, and client paths remain deployed and
+frozen while that path is implemented. The spike deliberately recreates useful
+prototype views rather than migrating data or preserving IDs. None of its v2
+routes or tables are deployed yet.
+
 Clark View is widget-first. The containing iOS app registers its own install, manages
 joined **views** (each with a preview and its own reminder switch) on the home screen,
 and exposes notification setup and diagnostics through its menu. A view is a named

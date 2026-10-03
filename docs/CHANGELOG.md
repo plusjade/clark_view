@@ -10,6 +10,13 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-10-03
 
+- Approved a greenfield unified publish API spike: Clark View becomes the shared
+  publication store and direct read path, while agents, compute jobs, and future
+  feed adapters remain external producers. The existing source/managed-slot path
+  stays frozen during parallel development; prototype views will be recreated
+  instead of migrated because compatibility is not valuable at this stage. See
+  [publish-api-spike.md](publish-api-spike.md).
+
 - Made the parent root public so Open Graph crawlers can read its metadata, and
   removed its administration links rather than using Basic Auth to discourage
   discovery. The root is now only a centered “a place for native views 👀” landing
