@@ -1,5 +1,9 @@
 # Managed sources: product orientation and execution plan
 
+**Frozen 2026-10-03.** Managed creation and edits return `423 legacy_read_only`; the
+[publish API spike](publish-api-spike.md) replaces this path. The rest of this document
+is historical.
+
 Agents create a managed view through the guide at
 **[agents.tamale.dev](https://agents.tamale.dev/)** (`POST /managed-sources` on that host).
 The current destination is a parent-verified **view** that a device may join:

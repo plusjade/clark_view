@@ -31,13 +31,15 @@ routing are deferred, not active tasks. Existing per-source
 editing URLs remain valid. Older compatibility/accessibility/APNs notes are
 unclaimed coverage for future scoped work, not instructions to restart this UAT.
 
-**Active design spike — 2026-10-03:** [publish-api-spike.md](publish-api-spike.md)
-defines an additive v2 path in which the parent owns one multitenant event table,
-all producers use one publish API, and reads perform no source HTTP fan-out. The
-current source, managed-slot, conformance, and client paths remain deployed and
-frozen while that path is implemented. The spike deliberately recreates useful
-prototype views rather than migrating data or preserving IDs. None of its v2
-routes or tables are deployed yet.
+**Active spike — 2026-10-03:** [publish-api-spike.md](publish-api-spike.md) slice 1
+is deployed (parent `main` v464). The parent owns v2 views and one multitenant event
+table; producers publish through `/v2`; `GET /v2/events` reads parent storage directly.
+Legacy publication is frozen: parent membership and managed-refresh writes, the
+provisioner's `POST /managed-sources`, and every managed slot's
+initialize/reconcile return `423 legacy_read_only`. Legacy reads, conformance probes,
+device registration, tokens, inventory, receipts, and legacy reminders continue.
+`plusjade/feed-lunar` publishes daily to v2 view `pv_11`. v2 device membership,
+widget reads, and reminders are not built; the iOS app has no v2 path yet.
 
 Clark View is widget-first. The containing iOS app registers its own install, manages
 joined **views** (each with a preview and its own reminder switch) on the home screen,
@@ -80,7 +82,9 @@ app-clarkview → best-effort APNs → WidgetKit → normal events fetch
 | Enrollment, registry pointers, membership, browser operations, composition, global presentation, push delivery | `plusjade/app-clarkview` (the parent) |
 | Team vocabulary, selection, event/status/broadcast text, upstream normalization, storage, ingestion | The implementing `plusjade/source-*` val |
 | New source authoring | Remix `plusjade/source-template`; update its canonical `source.json`, then follow `AGENTS.md` for implementation and external verification |
-| Agent-published managed source | `plusjade/managed-sources` initializes and activates a prepared remix of `plusjade/managed-source-template`; that source owns editable name, description, intent and events through its management API |
+| v2 publication (views, events, receipts, freshness, direct reads) | Parent `http/routes/publishV2.ts`, `lib/publishContract.ts`, `lib/publishStore.ts`, `lib/publishGuide.ts`; agents start at `GET /v2` |
+| v2 producers | Their own code and schedule; e.g. `plusjade/feed-lunar` `publisher.ts` |
+| Agent-published managed source (frozen) | `plusjade/managed-sources` and slot remixes of `plusjade/managed-source-template`; reads serve, writes return `423` |
 | Source contract and item validation | Parent `source/README.md`, `source/readContract.ts`, `lib/sourceContract.ts` and `lib/canonicalSource.ts` |
 | Whether a source is trusted to serve, and why | Parent `lib/sourceConformance.ts` and `docs/source-conformance.md` |
 | Widget wire fields or their meaning | Coordinate source output, parent composition, Swift decoding, fixtures, and tests |
@@ -95,7 +99,8 @@ Classify the task before reading anything else. Each route is a budget, not a mi
 | --- | --- | --- |
 | Widget layout, diagnostics, deep links | [ios-widget.md](ios-widget.md) and the Swift it names | This file past the ownership map; any remote val |
 | New source authoring | `plusjade/source-template`'s `AGENTS.md`, then its README | Parent implementation; sibling sources |
-| Managed source behavior or guidance | That source's `AGENTS.md`, README, and inline state guide; for a new slot, the managed template and provisioner READMEs | Sibling source code and parent implementation |
+| v2 publish API or a v2 producer | [publish-api-spike.md](publish-api-spike.md), then parent `lib/publish*.ts` and `http/routes/publishV2.ts`, or that producer's README | Legacy source, list, feed, and managed modules |
+| Managed source behavior or guidance (frozen) | That source's `AGENTS.md`, README, and inline state guide; for a new slot, the managed template and provisioner READMEs | Sibling source code and parent implementation |
 | Source behavior, storage, or ingestion | That source's own README and `AGENTS.md` | Parent modules; sibling sources |
 | Parent routes, composition, browser, wire contracts | The code map below, then only the implicated parent modules | Swift; unrelated parent directories; other vals |
 
@@ -142,11 +147,9 @@ is kept as a pure helper so it can move later if that changes.
 
 ## Stable deployment identities
 
-Agents start managed-view creation at **[agents.tamale.dev](https://agents.tamale.dev/)**:
-`GET /` serves the guide and `POST /managed-sources` creates and activates a view.
-This is the public entry for `plusjade/managed-sources`; the val and its HTTP file
-retain their own deployment identities. A created view's `manageUrl` belongs to
-its individual source, while iOS continues to use the parent API endpoint below.
+**[agents.tamale.dev](https://agents.tamale.dev/)** is the public agent entry, served
+by `plusjade/managed-sources`. Its `GET /` points to the parent's `GET /v2` guide;
+`POST /managed-sources` is frozen. Existing managed views' `manageUrl`s still read.
 
 The parent is `plusjade/app-clarkview`, branch `main`, public code/public app access.
 Its HTTP entry is **`main.ts`**, file ID **`f0eeffb8-9a93-11f1-9bb6-1607ee4eb77e`**,
@@ -621,6 +624,9 @@ Keep these constraints; use Git/Val Town history for change lists and old probes
   retired tokens. Schema initialization must not recreate the retired `device_tokens`
   table, and lookup prefers a device's widget token; preserve both when changing token
   persistence.
+- **v2 view IDs are `pv_<n>` and never reused.** `published_views` uses AUTOINCREMENT;
+  a bare number never resolves under `/v2`. Disposable v2 fixtures share the parent
+  database across branches: record their IDs and delete only those rows.
 - **Remixes can retain credentials.** Unused inherited keys can remain in a remixed
   val; there is no delete-env operation in the current MCP tooling. Do not assume
   cleanup of copied secrets happened, or bundle it into an unrelated change.

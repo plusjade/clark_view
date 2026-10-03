@@ -10,6 +10,13 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-10-03
 
+- Froze legacy publication with an explicit `423 legacy_read_only` (parent membership
+  and managed refresh, managed creation, slot reconcile/initialize) and deployed publish
+  v2 slice 1 beside it. Lunar is the first producer: its calculation stays in its own
+  val and a daily job publishes to v2 view `pv_11`. v2 view IDs use AUTOINCREMENT after
+  a branch probe showed `max(id)+1` reissuing a deleted view's ID to a new view. See
+  [publish-api-spike.md](publish-api-spike.md#implementation-status).
+
 - Approved a greenfield unified publish API spike: Clark View becomes the shared
   publication store and direct read path, while agents, compute jobs, and future
   feed adapters remain external producers. The existing source/managed-slot path
