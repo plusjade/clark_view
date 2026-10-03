@@ -31,7 +31,7 @@ visible-notification opt-in.
 (`plusjade.clark-view.push-type.widgets`), not the extension's — using the extension
 bundle ID produces `DeviceTokenNotForTopic`.
 
-**Gotcha:** the widget must be added to the Home Screen before testing; pairing alone
+**Gotcha:** the widget must be added to the Home Screen before testing; app registration alone
 does not register a WidgetKit token. After a reinstall/merge, re-verify the current
 install-to-device mapping before picking a token for a test.
 

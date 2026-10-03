@@ -21,25 +21,34 @@ accepted. The user verified agent creation/curation, iPhone open/join and app �
 agent editing, widget delivery after refresh, and scheduled continuity within a
 simulated time-frame. See [managed-source-plan.md](managed-source-plan.md) for the
 acceptance scope. No implementation or UAT hold remains for that milestone.
-Legacy cleanup and migration of all prototype devices to the latest API await the
-user's next scope; do not infer that migration has happened. Authentication and
-friendly editing URL routing are deferred, not active tasks. Existing per-source
+Browser feed management, source diagnostics UI, pairing and installation-keyed
+resolvers were confirmed retired in parent main version 456 on 2026-10-02.
+Remaining legacy data/API retirement and migration of all prototype devices require separate scope; do not infer
+that migration has happened. Authentication and friendly editing URL routing are deferred, not active tasks. Existing per-source
 editing URLs remain valid. Older compatibility/accessibility/APNs notes are
 unclaimed coverage for future scoped work, not instructions to restart this UAT.
 
 Clark View is widget-first. The containing iOS app registers its own install, manages
-joined **lists** (each with a preview and its own reminder switch) on the home screen, and exposes
-notification setup and diagnostics through its menu. A list is a registered source joined directly;
-"list" is the user-facing word and the registry, contract, and code keep "source". A widget shows
-all joined lists by default, or a selected subset. A browser helper configures sources.
+joined **views** (each with a preview and its own reminder switch) on the home screen,
+and exposes notification setup and diagnostics through its menu. A view is a named
+collection of events backed by one registered source. Widgets display events from
+all joined views or a selected subset. The browser administers device identity and
+inspects sources and widget activity.
 
-Feeds are the legacy model and remain as compatibility infrastructure: app builds that predate
-lists still read `/feeds/:feedId` and `/devices/:id/subscriptions`, and a widget placement that
-saved a feed keeps it through the server-side `feedId` bridge. Nothing converts feed data into
-lists, and there is no retirement date; retire by observed old-client and widget usage.
+“View” is the product word. Existing `list`/`source` type names, routes, payload keys,
+storage, source IDs and saved widget identities remain unchanged. A view is neither
+a widget placement nor a saved multi-source composition. The name adds no filters,
+per-view appearance, private variants or ownership privileges. Joining and reminder
+preferences remain device-specific; shared edits affect everyone joined.
+
+Feeds remain as compatibility infrastructure: app builds that predate direct source
+membership read `/feeds/:feedId` and `/devices/:id/subscriptions`. A widget placement
+that saved a feed keeps it through the server-side `feedId` bridge. Nothing converts
+feed data into views, and there is no retirement date for the retained APIs; retire
+by observed old-client and widget usage.
 
 ```text
-Browser → app-clarkview → feeds, devices, source registry
+Browser → app-clarkview → devices, source registry, widget activity
 App     → app-clarkview /lists, /devices/:id/lists, /events?listIds=…; POST /devices and status identify an install
           (compatibility: /devices/:id/subscriptions, /feeds/:feedId for feeds joined earlier)
 Widget  → app-clarkview /devices/:id/events[?listIds=…|?feedId=…]
@@ -48,13 +57,13 @@ Widget  → app-clarkview /devices/:id/events[?listIds=…|?feedId=…]
                          → validate items, sort, attach global presentation → widget schema 3
 Old builds → app-clarkview /feeds/:feedId (unchanged)
 Source ingest → that source's own schedule → its own SQLite
-app-clarkview → best-effort APNs → WidgetKit → normal resolver fetch
+app-clarkview → best-effort APNs → WidgetKit → normal events fetch
 ```
 
 | Concern | Owner / first place to inspect |
 | --- | --- |
 | Layout, family limits, local date/time, empty state, interaction, reload scheduling | This repository: `ClarkViewWidget/` and `Shared/`; [ios-widget.md](ios-widget.md) |
-| Enrollment, registry pointers, assignments, browser forms, composition, presentation configuration, push delivery | `plusjade/app-clarkview` (the parent) |
+| Enrollment, registry pointers, membership, browser operations, composition, global presentation, push delivery | `plusjade/app-clarkview` (the parent) |
 | Team vocabulary, selection, event/status/broadcast text, upstream normalization, storage, ingestion | The implementing `plusjade/source-*` val |
 | New source authoring | Remix `plusjade/source-template`; update its canonical `source.json`, then follow `AGENTS.md` for implementation and external verification |
 | Agent-published managed source | `plusjade/managed-sources` initializes and activates a prepared remix of `plusjade/managed-source-template`; that source owns editable name, description, intent and events through its management API |
@@ -79,7 +88,7 @@ Classify the task before reading anything else. Each route is a budget, not a mi
 ## Design intent
 
 A source is an independently operated capability, not a table — the point is letting
-agents produce feeds without deploying application code into the parent. The intended
+agents publish views without deploying application code into the parent. The intended
 lifecycle is sandboxed authoring → deterministic validation → immutable release →
 pointer activation → contract-conforming serving; only pointer activation and serving
 are implemented today (see "Deferred" below). Items, facets, and options are the
@@ -96,19 +105,19 @@ or implementation identical to a template. Parent registration, verification,
 joins, and widget delivery remain in the parent; bounded managed-source creation
 belongs to `plusjade/managed-sources`.
 
-Prepared managed slots have parent-owned inactive bindings and are hidden from list
+Prepared managed slots have parent-owned inactive bindings and are hidden from view
 discovery and joins until initialized. Creation returns ready only after the parent
-verifies and activates the bound list. A delayed activation keeps the same claimed
+verifies and activates the bound view. A delayed activation keeps the same claimed
 slot; retry the original request. The runtime's optional metadata adapter projects
 name and description into the parent with a revision guard; event-only edits do not
-call the parent. Source identity, registered endpoint, list ID, conformance and
+call the parent. Source identity, registered endpoint, view ID, conformance and
 membership remain parent-owned. Joining is not ownership; shared edits affect all
 subscribers. See parent `docs/lists.md` and `docs/get-sources.md` for preparation,
 activation and recovery.
 
 Creation returns a human `/open/lists/:id` link with a preview and a
 `clarkview://list/<id>` app handoff. The app fetches authoritative metadata and
-offers an explicit Join, or opens an existing membership. Its managed-list detail
+offers an explicit Join, or opens an existing membership. Its managed-view detail
 can copy instructions pointing an agent at live state and guidance. This passes no
 device identity or token and imposes no agent research or scheduling workflow.
 
@@ -119,10 +128,10 @@ is kept as a pure helper so it can move later if that changes.
 
 ## Stable deployment identities
 
-Agents start managed-list creation at **[agents.tamale.dev](https://agents.tamale.dev/)**:
-`GET /` serves the guide and `POST /managed-sources` creates and activates a list.
+Agents start managed-view creation at **[agents.tamale.dev](https://agents.tamale.dev/)**:
+`GET /` serves the guide and `POST /managed-sources` creates and activates a view.
 This is the public entry for `plusjade/managed-sources`; the val and its HTTP file
-retain their own deployment identities. A created list's `manageUrl` belongs to
+retain their own deployment identities. A created view's `manageUrl` belongs to
 its individual source, while iOS continues to use the parent API endpoint below.
 
 The parent is `plusjade/app-clarkview`, branch `main`, public code/public app access.
@@ -139,7 +148,8 @@ Sources are registered system-wide. IDs identify parent-owned instances, not
 universal source kinds. Every source uses the public HTTP entry point defined by the val. During this
 prototype stage, all source operations are intentionally unauthenticated, including
 reads, diagnostics, ingest triggers, and other writes. Endpoint obscurity is not
-authentication. Parent-owned registration and assignment remain parent-owned operations.
+authentication. Registration, activation and membership remain parent-owned
+operations; legacy feed assignments have no write route.
 
 **Registration is not trust.** Each row also carries live conformance metadata —
 `conformance_state`, `conformance_checked_at`, `conformance_verified_at`,
@@ -154,13 +164,14 @@ Canonical parent tables include `devices`, `sources`, `device_lists`,
 `feeds`, `feeds_sources`, `device_subscriptions`, `device_push_tokens`,
 `device_alert_tokens`, `subscription_notification_queue`, `device_widget_inventory`,
 `device_feed_requests`, and `device_event_requests`.
-`device_lists` is list membership: a unique device/source pair with `reminders_enabled`
-(default off). `sources.reminder_lead_seconds` (default 3600) is a list's reminder lead; it has
-no editor. Parent `docs/lists.md` owns the list model, routes, and recovery snapshot.
-`feeds` has independently allocated stable IDs, editable nonunique names,
+`device_lists` is view membership: a unique device/source pair with `reminders_enabled`
+(default off). `sources.reminder_lead_seconds` (default 3600) is a view's reminder lead; it has
+no editor. Parent `docs/lists.md` owns the view model, routes, and recovery snapshot.
+`feeds` retains independently allocated stable IDs, nonunique names,
 presentation, shared `reminder_lead_seconds`, and timestamps. `feeds_sources` has a unique feed/source pair,
 foreign keys, and a Live/Disabled flag. Neither table has device ownership,
-surface type, or ACL. Sources own their data separately.
+surface type, or ACL. Feeds, their presentation and assignments are frozen with
+no browser or route editor. Sources own their data separately.
 
 - `sources` is a system-wide instance registry: `id`, `name`, `endpoint`,
   `remote_source_key`, `contract_version`, `read_profile`, plus timestamps. `read_transport`
@@ -172,7 +183,7 @@ surface type, or ACL. Sources own their data separately.
   install ID onto the target and deletes the origin. Feed IDs and content are untouched.
   The retired install ID's push/alert token rows are dropped.
 - `feeds_sources` stores source instance IDs without device membership.
-  Feed attachment does not require a device.
+  These assignments are frozen; no browser or route edits them.
 - A `device_subscriptions` row means joined. Its `enabled` boolean means reminders
   are on; timing always comes from the feed. Feed attachment, widget selection, and
   device registration never create a join implicitly.
@@ -180,19 +191,18 @@ surface type, or ACL. Sources own their data separately.
   source ID and source-local item ID. No current form sets priority.
 - Feed assignment `enabled` is a non-null 0/1 flag. Live (1, default) contributes
   to public composition; Disabled (0) stays attached. An enabled unverified source
-  is withheld and diagnosed. State controls work without source availability.
-  Both legacy resolver aliases use a frozen installation-to-feed mapping.
+  is withheld and diagnosed. There are no assignment state controls.
+  Installation-keyed resolvers are retired; their frozen mapping is retained data only.
 - Source pointers are trusted parent configuration; nothing device-side can override
   destinations. Item IDs become `<source-id>:<local-id>`, remaining stable across a
   compatible endpoint change.
 - Assigned sources execute concurrently. A failed source fails the whole composition;
   partial-feed degradation is not implemented.
-- In the legacy resolver, absent, unknown, or unassigned devices receive an empty
-  schema-3 feed with normal presentation and no source request. There is no starter feed.
 - The one-time `independent-feeds-v1` migration copied every then-current device row,
   including empty rows, into `feeds` with the same ID, name, presentation, and
   timestamps. It copied all assignments including Disabled and froze installation
-  mappings in `legacy_installation_feeds`. Later device creation creates no feed.
+  mappings in `legacy_installation_feeds`. No current route reads that mapping;
+  it is not a rollback target. Later device creation creates no feed.
   Directory order is name (case-insensitive), then feed ID. A known empty feed succeeds;
   an unknown or deleted feed returns JSON 404.
 
@@ -200,67 +210,70 @@ surface type, or ACL. Sources own their data separately.
 | --- | --- |
 | `main.ts`, `http/routes/*.ts` | Stable Hono wiring, iOS routes, browser administration; no parent ingest route |
 | `lib/sourceClient.ts` | Source lookup, canonical GET read, item guards, `composeFeed` |
-| `lib/listStore.ts`, `lib/listSelector.ts`, `http/routes/lists.ts` | List directory, device membership, selector parsing and resolution, events routes |
-| `lib/feedStore.ts` | Independent feed CRUD, source attachment, composition lookup, frozen legacy mapping |
+| `lib/listStore.ts`, `lib/listSelector.ts`, `http/routes/lists.ts` | View directory, device membership, selector parsing and resolution, events routes |
+| `lib/feedStore.ts` | Read-only legacy feed directory and composition lookup |
 | `lib/sourceStore.ts` | Registry and browser source projections |
 | `lib/deviceStore.ts` | Device identity |
-| `lib/presentation.ts` | Presentation defaults, stored JSON parsing, form validation |
+| `lib/presentation.ts` | Global events presentation and legacy stored presentation parsing |
 | `lib/deviceTokenStore.ts`, `lib/push.ts` | Token lifecycle and best-effort device notification (`notifyDevice`) |
-| `lib/subscriptionStore.ts` | Feed-subscription and list-membership reminder authorization, and the shared notification ledger |
+| `lib/subscriptionStore.ts` | Feed-subscription and view-membership reminder authorization, and the shared notification ledger |
 | `lib/widgetObservationStore.ts`, `http/routes/widgetObservations.ts` | Device-reported widget inventory, feed- and event-request receipts, `/devices/:id/views`; parent `docs/widget-inventory.md` |
-| `lib/subscriptionBuilder.ts`, `lib/subscriptionDrainer.ts` | Queue events from subscribed feeds and reminder-enabled lists; validate and send due alerts |
+| `lib/subscriptionBuilder.ts`, `lib/subscriptionDrainer.ts` | Queue events from subscribed feeds and reminder-enabled views; validate and send due alerts |
 | `crons/buildReminders.ts`, `crons/drainReminders.ts` | The two reminder schedules |
 | `lib/lifecycle.ts` | Global lifecycle label set; phase-to-word resolution and the derived legacy caption |
 | `lib/guards.ts` | Domain-free runtime guards |
 | `render/pageShell.ts` | Browser styles, semantic hierarchy, navigation and shared form/table rules |
-| `render/feedHtml.tsx`, `render/deviceHtml.tsx`, `render/sourceHtml.tsx`, `render/subscriptionHtml.tsx` | Feed administration, device identity and joins, source explorer |
+| `render/deviceHtml.tsx`, `render/sourceHtml.tsx`, `render/widgetObservationHtml.tsx` | Device identity operations, source explorer, widget activity |
 | `render/rootHtml.ts`, `render/dataTable.tsx` | HTML root and shared tables |
 
 Browser work follows `AGENTS.md`: native semantic HTML, compact data-dense views,
-shared `pageShell` styles, existing breadcrumbs/config navigation. React is not a
+shared `pageShell` styles and the existing resource navigation. React is not a
 reason to add a component library or client-side JavaScript.
 
 The shared browser header links Home to `/` and displays an alphabetically ordered,
 horizontally scrolling story-style gallery. `main.ts` fills `pageShell`'s single
 gallery slot only in HTML responses; JSON routes do not load navigation data.
-`/sources` and its subroutes show sources; feed management routes show feeds;
-other browser routes show devices. Resource pages mark the current resource.
-Browser tab titles retain resource names. The root remains a standalone jump-off screen.
+`/sources` and its subroutes show sources; other browser routes show devices.
+Human `/open/lists/:id` pages omit administration navigation. Resource pages mark the current resource.
+Browser tab titles retain resource names. The root remains a standalone jump-off
+screen linking Devices and Sources. Only `/` is protected by its configured Basic
+Auth gate; this does not authenticate the other routes.
 
 ## HTTP contracts used by iOS and the browser
 
 | Method / route | Behavior |
 | --- | --- |
-| `GET /lists`, `GET /lists/:id` | List directory and detail: `{id,name,description,reminderLeadSeconds,available,availability}`. IDs are decimal strings opaque to Swift. JSON only, `no-store`. |
-| `GET /devices/:id/lists` | This device's joined lists with `remindersEnabled`, plus `delivery`. `:id` is the device row. |
+| `GET /lists`, `GET /lists/:id` | View directory and detail: `{id,name,description,reminderLeadSeconds,available,availability}`. IDs are decimal strings opaque to Swift. JSON only, `no-store`. |
+| `GET /devices/:id/lists` | This device's joined views with `remindersEnabled`, plus `delivery`. `:id` is the device row. |
 | `PUT` / `PATCH` / `DELETE /devices/:id/lists/:listId` | Join (201 new with reminders off, 200 existing and unchanged), set `{remindersEnabled}` (404 if not joined), leave (idempotent). |
 | `GET /events?listIds=1,2` | Public composition for a pre-join preview. The selection is required; an unknown ID is 404. |
-| `GET /devices/:id/events` | Events for all joined lists, or `?listIds=` intersected with membership, or `?feedId=` (a retained legacy feed selection, resolved to its enabled assignments and not intersected with membership). Selectors are mutually exclusive; empty, malformed, or duplicated ones are 400 and never mean all. Unknown device or feed is 404. The body adds `selection:{mode,listIds}`. Presentation is one code-owned global policy. Receipt headers record only for the device's own installation. Parent `docs/lists.md` owns the contract. |
+| `GET /devices/:id/events` | Events for all joined views, or `?listIds=` intersected with membership, or `?feedId=` (a retained legacy feed selection, resolved to its enabled assignments and not intersected with membership). Selectors are mutually exclusive; empty, malformed, or duplicated ones are 400 and never mean all. Unknown device or feed is 404. The body adds `selection:{mode,listIds}`. Presentation is one code-owned global policy. Receipt headers record only for the device's own installation. Parent `docs/lists.md` owns the contract. |
 | `GET /feeds` | Public directory: `{feeds:[{id,name,reminderLeadSeconds}]}`. Timing is the feed's current shared value; IDs are decimal strings opaque to Swift. No installation identity is required. Read-only and `no-store`. |
 | `GET /feeds/:feedId/details` | Public name, shared timing, and attached sources (`id`, `name`, diagnostic `kind`, and `enabled`) for native detail surfaces, without changing widget payload semantics. |
 | `GET /feeds/:feedId` | Public schema-3 composition from a feed's enabled and verified assignments and presentation. Optional `timeZone` reader context. Unknown or deleted IDs return JSON 404; a valid empty feed succeeds. Reads use `no-store`. Optional `X-Clark-Installation`, `X-Clark-Caller`, `X-Clark-Widget-Family`, `X-Clark-Request-Purpose` headers record a receipt for a registered device only; they never change the response. |
-| `POST /device/widget-inventory` | `{device,observedAt,widgets:[{kind,family,state,feedId?,mode?,listIds?}]}` complete snapshot; `state` is `configured`/`unconfigured`/`unreadable`. `mode` is `all`, `selected` (with `listIds`), or `feed` (with `feedId`); absent on builds that predate lists. Replaces the stored snapshot unless older (`{ok:true,stale:true}`). Unknown install 404, malformed 400. |
-| `GET /installations/:installId/feed` | Native migration lookup through frozen `legacy_installation_feeds`, returning `{id,name}` or JSON 404. The current app no longer calls it; retained for older builds. |
-| `GET /config/resolve` | Temporary legacy client feed through the frozen installation mapping: `device=<install UUID>`, `tz=<seconds east of GMT>`, optional `timeZone=<named zone>`. Unmapped requests return an empty schema-3 feed. Retain until client cutover is confirmed. |
-| `GET /devices/resolve` | Temporary alias through the same frozen mapping |
-| `POST /pair`, `POST /devices/register` | Temporary old-client responses: HTTP 410 `{ok:false,error:"pairing_retired"}`. They never report success or use bunch storage. Remove when pre-join builds are no longer in use. |
-| `GET /config/status/:deviceId` | Legacy diagnostics using the install UUID. Retained `paired` is always false; registered responses also carry name and compatibility-only empty `teams`. Remove with the old resolver client. |
+| `POST /device/widget-inventory` | `{device,observedAt,widgets:[{kind,family,state,feedId?,mode?,listIds?}]}` complete snapshot; `state` is `configured`/`unconfigured`/`unreadable`. `mode` is `all`, `selected` (with `listIds`), or `feed` (with `feedId`); absent on builds that predate direct source membership. Replaces the stored snapshot unless older (`{ok:true,stale:true}`). Unknown install 404, malformed 400. |
 | `POST /devices` | App sends `{device}` on first run. Creates its row if missing and returns 200 `{ok:true,id,paired:false}`; an existing row is never changed. Retained `paired` is compatibility-only. |
 | `GET /devices/status/:installId` | Registration diagnostics: `{deviceId,registered,paired:false,name,id}`; unknown install omits name and id. The app re-resolves `id` on each load because a merge moves the install to another row. Remove `paired` after old clients are gone. |
 | `POST /device/token` | `{device,token,kind:"widget",environment:"sandbox"\|"production",active}`; `active:false` removes the token. Legacy omitted fields support old app-background tokens. |
-| `GET /` | HTML entry with links to `/devices`, `/feeds/manage`, and `/sources` |
-| `/feeds/manage`, `/feeds/new` | Browser feed index and creation; `/feeds` remains JSON |
-| `/feeds/:id/manage` | Feed preview, source attachment/state/removal, presentation, shared reminder timing, rename, and deletion |
-| `/devices/:id`, `/devices/:id/settings`, `/devices/:id/subscriptions` | Device identity and name edit, joined feeds, and merge entry |
-| `/devices/:id/subscriptions` with `Accept: application/json` | iOS join API on browser routes. GET returns `{subscriptions:[{id,feedId,feedName,enabled,reminderLeadSeconds,createdAt,updatedAt}],delivery}`; `reminderLeadSeconds` is derived from the feed, not stored per device. Create/update accepts `enabled=0\|1`; delete leaves. Legacy `leadSeconds` on create with no enabled means on and is ignored on update until old clients age out. Duplicate join returns success without adding a row. |
-| `/devices/:id/views` | Latest reported widget inventory, and request receipts per selector (events routes) or feed (legacy), caller, family, and purpose, labeled with report times |
+| `GET /` | Basic-Auth-protected HTML entry with links to `/devices` and `/sources` |
+| `GET /devices/:id`, `POST /devices/:id/settings` | Device identity/settings page and name update; the page links to merge and Widgets |
+| `/devices/:id/subscriptions` | Legacy iOS join API, always JSON with no browser view. GET returns `{subscriptions:[{id,feedId,feedName,enabled,reminderLeadSeconds,createdAt,updatedAt}],delivery}`; `reminderLeadSeconds` is derived from the feed, not stored per device. Create/update accepts `enabled=0\|1`; delete leaves. Legacy `leadSeconds` on create with no enabled means on and is ignored on update until old clients age out. Duplicate join returns success without adding a row. |
+| `/devices/:id/views` | Widgets tab: latest reported widget inventory, and request receipts per selector (events routes) or feed (legacy), caller, family, and purpose, labeled with report times |
 | `/devices/:id/merge` | Move a reinstalled app's install ID onto the device it replaces; the chosen target survives and the origin row is deleted |
 | `/sources` | Read-only registry explorer with the source gallery in place of the device gallery |
-| `/sources/:id` | Source Feed tab: reads the implementing source with its schema defaults and renders temporal items plus the raw source response; failures and empty feeds remain ordinary page states |
-| `/sources/:id/overview`, `/sources/:id/diagnostics`, `/sources/:id/feeds` | Source tabs for registry metadata and verification, stored coverage, and attached feeds |
+| `/sources/:id` | Source Preview tab: reads the implementing source without settings and renders temporal items plus the raw source response; failures and empty feeds remain ordinary page states |
+| `/sources/:id/overview` | Registry metadata and verification |
+| `/sources/:id/diagnostics` | Retired path; redirects to the source Preview with 301 |
 | `POST /internal/reminders/{build,drain}` | Subscription reminder jobs behind `REMINDERS_TOKEN` bearer auth; unset returns 401. Drain accepts an optional row `id`, keeping an external scheduler swappable for the cron. |
 
-Resolver diagnostics include `x-device-feed-provider: source-registry-v1`,
+Retired parent routes are not supported compatibility or rollback targets:
+`/feeds/manage`, `/feeds/new`, feed management/assignment writes,
+`/installations/:installId/feed`, `/config/resolve`, `/devices/resolve`,
+`/config/status/:deviceId`, `/pair`, `/devices/register`, and `/sources/:id/feeds`.
+Retained legacy reads and subscription writes are listed above. Their continued
+existence does not establish that every old app build remains supported.
+
+Composition diagnostics include `x-device-feed-provider: source-registry-v1`,
 `x-effective-source-count`, `x-effective-sources` (e.g. `5:nfl,6:cfb`), and
 `x-quarantined-sources` (e.g. `8:failing`). Zero assignments produce count `0` and both
 headers empty. **A successful empty response alone does not prove an assigned source
@@ -291,8 +304,8 @@ capability that would need selection is a separate source, not a setting. Succes
 responses carry `{sourceKey,items}` and use the temporal item contract.
 
 iOS reads `TimeZone.autoupdatingCurrent` when fetching a selected feed and sends only
-its identifier. Legacy resolver clients may still send a `tz` offset, but the parent
-does not persist or forward it to a source.
+its identifier. The removed installation-keyed resolver is not a supported `tz` offset path.
+The parent does not persist named zones or forward numeric offsets to sources.
 `timeZone` is a no-op placeholder: one optional value of 1–128 ASCII letters, digits,
 or `_+./-`, passed unchanged to the source. No zone lookup, conversion, or
 missing-zone policy is defined yet. The template ignores the argument. Named zones
@@ -322,8 +335,8 @@ capability-specific personalized identity, and stop rather than inventing settin
 root and returns `{profile,pass,checks,failures}`. It stops at the first failing
 request and neither reads nor writes the registry. Parent-owned probes use the same
 GET checker and serving guards before recording conformance. Registration is a manual
-operator action; parent `docs/get-sources.md` ("Publishing a list") owns it. A registered,
-verified source is a list anyone can preview and join; publication needs no feed and
+operator action; parent `docs/get-sources.md` ("Publishing a view") owns it. A registered,
+verified source is a view anyone can preview and join; publication needs no feed and
 writes none, and it joins a device only when that is separately authorized. The procedure
 requires writing `read_profile` explicitly and omitting `reminder_lead_seconds`. Publication
 reads the final branch's manifest deterministically, verifies the deployed response
@@ -406,15 +419,14 @@ entrypoints and environment metadata when remixing.
 - **Events routes use one global presentation** (`GLOBAL_EVENTS_PRESENTATION`: Beacon,
   version 2, white/black roots, expired items kept) for every selector, including a
   bridged `feedId`. Stored feed presentation is frozen at the compatibility boundary: it
-  still serves `/feeds/:feedId` and is neither evolved nor imported into lists.
-- Events routes add `selection:{mode,listIds}`: the lists the selector resolved to. An
+  still serves `/feeds/:feedId` and is neither evolved nor imported into views.
+- Events routes add `selection:{mode,listIds}`: the views the selector resolved to. An
   empty `listIds` means nothing was selected, which Swift shows as a join or edit prompt;
-  eligible lists with no events render the ordinary empty state. Legacy feed reads omit it.
-- Feed presentation stores `intradayFilter` (default false), edited as **Hide
-  expired items**. `composeFeedItems` applies `expiresAt > now` after validation
-  and composition with one clock snapshot across sources. Public reads and preview
-  use it. Legacy reminder composition temporarily reads the old device presentation.
-  This server-only setting is omitted from the
+  eligible views with no events render the ordinary empty state. Legacy feed reads omit it.
+- Legacy feed presentation stores `intradayFilter` (default false), with no editor. `composeFeedItems` applies `expiresAt > now` after validation
+  and composition with one clock snapshot across sources. Legacy feed reads use it;
+  events routes retain expired items, and reminder eligibility is independent of
+  presentation. This server-only setting is omitted from the
   native presentation envelope; no Swift contract change is needed. Off retains
   all returned candidates, without changing source coverage or refilling selection.
   Parent `docs/intraday-filter.md` owns semantics and the completed source cutover.
@@ -449,7 +461,7 @@ For current operation, check `read_interval_settings` and the two cron file logs
 the parent `docs/subscriptions.md` owns the reminder contract. The prior
 subscription deployment's scheduled times are historical, not current settings.
 
-A reminder is authorized by either of two paths. A list membership with reminders on
+A reminder is authorized by either of two paths. A view membership with reminders on
 follows that verified source at `sources.reminder_lead_seconds`. A legacy enabled feed join
 follows current enabled, verified `feeds_sources` at the shared feed lead, independent of
 feed presentation and widget selection. Both write the same queue; a same-device,
@@ -490,21 +502,17 @@ publishes a window and nothing about lifecycle; `phase()` over that window decid
 state, and the parent's global label set decides the word. A game that kicked off five
 minutes ago reads `LIVE` with no ingest in between. Stored status does not override the
 published window: an early-finished game remains current until its estimated expiry.
-Sources take no settings, so nothing device-side narrows a public feed; feed presentation
-owns expiry filtering. See the parent's `docs/intraday-filter.md` for the contract.
+Sources take no settings, so nothing device-side narrows a source response.
+Legacy feed presentation owns its expiry filtering; events routes retain expired items. See the parent's `docs/intraday-filter.md` for the contract.
 Default durations are source-owned named constants (Lunar's one-hour event window and
 siblings); the parent may not supply one.
 
-A source may expose a public `GET /diagnostics` mapping its own storage to
-`{diagnosticsVersion:1,sourceKey,scope:"stored",totalItems,earliestTimestamp,latestTimestamp,lastIngestedAt}`.
-Event bounds are Unix seconds; empty sources return zero and null bounds. The parent
-validates this optional response in `lib/sourceDiagnostics.ts` and fetches it through
-`lib/sourceDiagnosticsClient.ts` only on the Diagnostics tab. It never guesses source
-tables. **Unsupported or unavailable diagnostics mean unknown, not zero** — stored
-bounds never establish complete coverage or current event statuses on their own.
-See the parent's `docs/source-diagnostics.md`.
+Source-specific storage coverage and freshness diagnostics belong to each source.
+The parent no longer fetches a source diagnostics endpoint or exposes a Diagnostics
+tab; `/sources/:id/diagnostics` only redirects to Preview. Inspect the owning source
+README and its supported diagnostics when coverage is in question.
 
-The registered sources are `plusjade/feed-lunar`, `feed-gtb`, `feed-rams`,
+Computed and upstream source implementations include `plusjade/feed-lunar`, `feed-gtb`, `feed-rams`,
 `feed-fever`, `feed-sparks`, `feed-trojans` and `feed-bruins`, all on the canonical
 GET profile. Each one's storage, refresh schedule and failure policy live in its own
 README; do not restate them here.
@@ -548,16 +556,15 @@ Per domain, what to verify beyond the checks and what a false pass looks like:
 
 | Domain | Run | False pass to watch for |
 | --- | --- | --- |
-| Composition | Both resolver aliases and the browser preview; empty/unassigned and assigned mixed-source fixtures; namespaced IDs, ordering, ties, diagnostics, source failure, malformed output | A successful *empty* response doesn't prove an assigned source actually works — check `x-effective-sources`, then `x-quarantined-sources` |
+| Composition | Events routes, retained legacy feed reads and the source Preview; empty and mixed-source fixtures; namespaced IDs, ordering, ties, diagnostics, source failure, malformed output | A successful *empty* response doesn't prove an assigned source actually works — check `x-effective-sources`, then `x-quarantined-sources` |
 | Conformance | The probe against every registered source, and that only a verified one reaches a feed. Core suite covers gating, staleness derivation and quarantine diagnostics | A green feed says nothing about a source nobody has re-probed — check `conformance_verified_at`, not just the state |
 | Source | Public `GET /`, its 400/405 rejections, nonempty fixtures, timezone edges. Source-owned checks | Diagnostics reporting "unavailable" means unknown coverage, not zero |
 | New GET source | External `/source-verifications` against the remix's own endpoint and key; parent changes run `tools/check.ts` | A pass does not register or activate a source, prove data accuracy, or establish nonempty coverage |
-| Lists | Membership and preference round trips; all/subset/`feedId` selection; empty versus invalid selectors; conformance withholding; the same event IDs and order as the legacy feed read. Core suite covers these | A successful empty body does not prove a list contributed — check `selection.listIds`, `x-effective-sources`, then `x-quarantined-sources` |
-| Attachment | Add/remove/state round trips; an attach carrying settings must be refused and persist nothing | — |
+| Views | Membership and preference round trips; all/subset/`feedId` selection; empty versus invalid selectors; conformance withholding; the same event IDs and order as the legacy feed read. Core suite covers these | A successful empty body does not prove a view contributed — check `selection.listIds`, `x-effective-sources`, then `x-quarantined-sources` |
 | Widget contract | Decode a representative composed response with Swift; update preview fixtures/tests; build app and widget for contract changes (`xcodebuild -project clark_view.xcodeproj -scheme clark_view build`/`test`); run SwiftLint | — |
 | Push | Verify token environment/topic and actual delivery separately per environment | APNs *accepting* a request is not proof a banner appeared — use console delivery logs; a simulator build proves nothing about real APNs delivery |
 | Reminders | Core suite; a disabled drain for queue processing | A disabled run exercises queue processing without proving APNs delivery; the builder still writes live queue state |
-| Browser | `/` and any query-bearing root must remain HTML | — |
+| Browser | Authorized `/` and query-bearing root return HTML; exercise the changed resource route. Root without valid credentials stays gated | Root access does not prove other routes are authenticated |
 
 Do not use production writes as casual smoke tests. Enrollment, assignments, names,
 tokens, ingest and schema operations mutate state — use scoped disposable fixtures and
@@ -567,9 +574,10 @@ diagnostics, then narrow, parameterized `sqlite_execute` queries with
 IDs, pairing codes, APNs tokens or secret values into chat, logs, fixtures or this
 repository.
 
-For a blank/stale widget, trace in order: app refresh diagnostics → resolver
-status/body and effective sources → assignments → source read/coverage →
-ingestion. A push/reload cannot repair an empty assignment or a stale source cache.
+For a blank/stale widget, trace in order: app refresh diagnostics → events response
+and selector/effective sources → membership or retained legacy assignments → source
+read/coverage → ingestion. A push/reload cannot repair missing membership, an empty
+selection, or a stale source cache.
 
 ## Gotchas and deliberately unfinished work
 
@@ -592,6 +600,6 @@ Keep these constraints; use Git/Val Town history for change lists and old probes
   val; there is no delete-env operation in the current MCP tooling. Do not assume
   cleanup of copied secrets happened, or bundle it into an unrelated change.
 - **Deferred:** per-source lifecycle label sets, immutable source publication/activation, agent ACLs, advanced
-  sharing/subscriptions, partial-feed degradation, automated ingestion for sources, a reminder lead editor or per-device lead override for lists, saved list groups, legacy feed/route/table retirement, reminder quiet hours (requires
+  sharing/subscriptions, partial-feed degradation, automated ingestion for sources, a reminder lead editor or per-device lead override for views, saved view groups, legacy feed/route/table retirement, reminder quiet hours (requires
   an IANA timezone from the app), and widget refresh alongside reminder alerts.
   Implement these only when the task actually calls for them.

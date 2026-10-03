@@ -10,6 +10,21 @@ for routing current guidance, operational evidence, and routine validation.
 
 ## 2026-10-02
 
+- Adopted **views** as the product term after user testing, across native and
+  browser copy, agent handoffs and publication guidance. A view remains one
+  registered source; routes, payloads, storage, memberships and saved widget
+  identities retain their list/source names. The device diagnostics tab is
+  Widgets to distinguish placements from the joined content. See
+  [valtown-brief.md](valtown-brief.md) and [ios-widget.md](ios-widget.md).
+
+- Reconciled local orientation with the already-deployed parent cleanup in main
+  version 456: feed browser editors, installation-keyed resolvers, pairing and
+  source diagnostics UI are retired; legacy feed reads, subscriptions and the
+  saved-widget bridge remain. Removed obsolete procedures and corrected the app
+  role and browser navigation guidance so future work does not restore removed
+  surfaces. Evidence: parent `http/routes/{feeds,devices,subscriptions,sources}.ts`
+  and `main.ts`; this documentation change performs no device/data migration.
+
 - Closed the public managed-source milestone on user-reported UAT: iPhone
   open/join and app → agent editing, widget delivery after refresh, and continuity
   within a simulated time-frame. Retired completed design/UAT holds and classified

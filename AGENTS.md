@@ -6,7 +6,7 @@ SwiftUI iOS app with a WidgetKit extension. App target `clark_view`, bundle id `
 
 Four targets: `clark_view` (app), `ClarkViewWidgetExtension` (widget), `clark_viewTests` (unit tests), and `clark_viewUITests` (UI tests).
 
-Clark View is widget-first: the containing app handles pairing and diagnostics, while the user-facing experience lives in `ClarkViewWidget`. Its server API and browser-managed configuration are hosted by the Val Town project `plusjade/app-clarkview`. Before using Val Town MCP tools or changing the iOS/server boundary, read [`docs/valtown-brief.md`](docs/valtown-brief.md); it routes each task class to the minimum it should read, and maps ownership boundaries, endpoint identities, route/payload contracts, per-domain verification loops, and known gotchas.
+Clark View is widget-first: the containing app registers its install, manages joined views and reminders, and exposes diagnostics; `ClarkViewWidget` displays their events. “View” is the product term; existing list/source API, storage, and saved widget identities remain unchanged. Its server API and browser-managed configuration are hosted by the Val Town project `plusjade/app-clarkview`. Before using Val Town MCP tools or changing the iOS/server boundary, read [`docs/valtown-brief.md`](docs/valtown-brief.md); it routes each task class to the minimum it should read, and maps ownership boundaries, endpoint identities, route/payload contracts, per-domain verification loops, and known gotchas.
 
 ## Documenting decisions
 
@@ -66,7 +66,7 @@ SwiftLint is configured (`.swiftlint.yml`). Run `swiftlint lint` from the projec
 - Avoid dashboard chrome by default: no card grids, pills or badges, shadows, gradients, oversized headings, uppercase micro-labels, decorative backgrounds, or rounded shells around ordinary content.
 - Use whitespace and a small number of subtle rules to separate sections. A border should communicate table structure, grouping, or focus—not merely decorate a box.
 - React is an implementation detail, not a visual style. Do not add Tailwind, Twind, a component library, or client-side JavaScript solely because a view uses React; follow the established server-rendered UI first.
-- Follow the existing navigation hierarchy. Index pages stand alone without a global navigation bar; resource show/edit pages use the small back breadcrumb, and only config-scoped subpages use the config tab navigation. Do not introduce new global navigation as part of a feature view.
+- Follow the existing navigation hierarchy. The root stands alone; administration pages reuse the shared Home link and resource gallery, with device or source tabs as appropriate. Human open/join pages omit administration navigation. Reuse `pageShell` and the route’s existing structure rather than introducing another navigation system.
 - Keep operational pages compact and data-dense. Show stable labels and identifiers plainly, preserve meaningful document order, and make empty/error states ordinary prose rather than special panels.
 
 ## Programming patterns

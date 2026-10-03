@@ -12,7 +12,7 @@ and combinations that are better evaluated by a person.
   domain docs own their contract-specific verification requirements. This policy
   does not waive those checks or reduce existing automated coverage.
 - Exercise one representative happy path through the changed flow using the
-  smallest useful setup: for example, one widget placement with one selected feed,
+  smallest useful setup: for example, one widget placement with one selected view,
   or one request to the changed endpoint with representative data.
 - Fix observed failures and rerun affected checks. Broaden investigation only when
   a failure, a concrete unresolved risk, or the task's explicit scope warrants it.

@@ -1,5 +1,10 @@
 # Lists: additive execution plan
 
+Historical plan: the product term is now **views** following user testing. This
+completed plan retains its original terminology and acceptance record; it does
+not prescribe new interface copy. Current vocabulary and compatibility boundaries
+live in [valtown-brief.md](valtown-brief.md) and [ios-widget.md](ios-widget.md).
+
 Status reviewed 2026-10-02: implementation complete; initial server deployment was
 parent `main` version 452. The user has accepted the managed-list iPhone join/edit
 handoffs and widget delivery after refresh. See [managed-source-plan.md](managed-source-plan.md)
