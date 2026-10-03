@@ -1,8 +1,8 @@
 # Lock Screen widget
 
 The proof of concept adds `.accessoryRectangular` to the existing Clark View widget.
-It uses the same provider, pairing, widget kind, refresh schedule, and push handler.
-The first feed item is displayed independently of the large Home Screen widget's focus.
+It uses the same provider, device identity, widget kind, refresh schedule, and push handler.
+The first event is displayed independently of the large Home Screen widget's focus.
 
 Edit `ClarkViewWidget/BeaconLockScreenView.swift` to iterate on the surface.
 `BeaconDateTimeView` in `BeaconWidgetTemplate.swift` shares Beacon's lifecycle label and
@@ -16,7 +16,8 @@ the system controls the accessory rectangle’s size and Lock Screen color treat
 Open the “Lock Screen” preview in `ClarkViewWidget.swift` for current, upcoming,
 empty, and long-text fixtures. Widget gallery snapshots also use offline sample data.
 Build and run the app, then customize the Lock Screen, choose Add Widgets → Clark View,
-and select the rectangular widget. Pair the app to display the current feed.
+and select the rectangular widget. Join a view in the app; the widget shows events
+from All my views by default, or the views chosen in Edit Widget.
 
 Before shipping, inspect the widget on a device with long text, VoiceOver, and
 Always On dimming. Circular and inline accessory families are not implemented.

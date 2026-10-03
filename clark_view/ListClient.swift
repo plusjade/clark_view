@@ -34,27 +34,27 @@ struct JoinedList: Decodable, Hashable, Identifiable {
 /// `deviceID` is the server's numeric device row.
 enum ListClient {
     struct Memberships: Decodable {
-        let lists: [JoinedList]
+        let views: [JoinedList]
         let delivery: String
     }
 
     static func directory() async throws -> [ListSummary] {
-        struct Directory: Decodable { let lists: [ListSummary] }
-        let (data, status) = try await send(URLRequest(url: ServerURL.listsURL,
+        struct Directory: Decodable { let views: [ListSummary] }
+        let (data, status) = try await send(URLRequest(url: ServerURL.viewsURL,
                                                        cachePolicy: .reloadIgnoringLocalCacheData))
         guard status == 200 else { throw rejection(data) }
-        return try JSONDecoder().decode(Directory.self, from: data).lists
+        return try JSONDecoder().decode(Directory.self, from: data).views
     }
 
     static func detail(id: String) async throws -> ListSummary {
-        let (data, status) = try await send(URLRequest(url: ServerURL.listURL(id),
+        let (data, status) = try await send(URLRequest(url: ServerURL.viewURL(id),
                                                        cachePolicy: .reloadIgnoringLocalCacheData))
         guard status == 200 else { throw rejection(data) }
         return try JSONDecoder().decode(ListSummary.self, from: data)
     }
 
     static func memberships(deviceID: Int) async throws -> Memberships {
-        let (data, status) = try await send(URLRequest(url: ServerURL.deviceListsURL(deviceRow: deviceID),
+        let (data, status) = try await send(URLRequest(url: ServerURL.deviceViewsURL(deviceRow: deviceID),
                                                        cachePolicy: .reloadIgnoringLocalCacheData))
         guard status == 200 else { throw rejection(data) }
         return try JSONDecoder().decode(Memberships.self, from: data)
@@ -74,7 +74,7 @@ enum ListClient {
     }
 
     private static func mutate(_ method: String, deviceID: Int, listID: String, body: Data? = nil) async throws {
-        var request = URLRequest(url: ServerURL.deviceListsURL(deviceRow: deviceID).appendingPathComponent(listID))
+        var request = URLRequest(url: ServerURL.deviceViewsURL(deviceRow: deviceID).appendingPathComponent(listID))
         request.httpMethod = method
         if let body {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -96,8 +96,8 @@ enum ListClient {
         struct Failure: Decodable { let error: String }
         guard let failure = try? JSONDecoder().decode(Failure.self, from: data) else { return .invalidResponse }
         switch failure.error {
-        case "list_not_found": return .rejected("This list is no longer available.")
-        case "not_joined": return .rejected("This list is no longer joined.")
+        case "view_not_found": return .rejected("This view is no longer available.")
+        case "not_joined": return .rejected("This view is no longer joined.")
         default: return .invalidResponse
         }
     }

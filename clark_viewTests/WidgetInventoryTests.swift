@@ -31,7 +31,7 @@ struct WidgetInventoryTests {
                                          selection: .selected(["8", "10"]))
         let json = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(entry)) as? [String: Any])
         #expect(json["mode"] as? String == "selected")
-        #expect(json["listIds"] as? [String] == ["8", "10"])
+        #expect(json["viewIds"] as? [String] == ["8", "10"])
         #expect(json["feedId"] == nil)
         let other = WidgetInventoryEntry(kind: WidgetKind.configurable, family: "systemSmall",
                                          selection: .selected(["8"]))

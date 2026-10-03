@@ -25,7 +25,7 @@ struct WidgetListCatalog {
     var joined: [EventList] { snapshot.joined }
 
     func resolve(_ id: String) -> EventList {
-        EventList(id: id, name: snapshot.names[id] ?? "List \(id)")
+        EventList(id: id, name: snapshot.names[id] ?? "View \(id)")
     }
 
     func replaceJoined(_ lists: [EventList]) {

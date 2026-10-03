@@ -17,12 +17,12 @@ enum ServerURL {
         withTimeZone(feedsURL.appendingPathComponent(feedID), timeZoneIdentifier: timeZoneIdentifier)
     }
 
-    static var listsURL: URL { baseURL.appendingPathComponent("lists") }
+    static var viewsURL: URL { baseURL.appendingPathComponent("views") }
 
-    static func listURL(_ id: String) -> URL { listsURL.appendingPathComponent(id) }
+    static func viewURL(_ id: String) -> URL { viewsURL.appendingPathComponent(id) }
 
-    static func deviceListsURL(deviceRow: Int) -> URL {
-        baseURL.appendingPathComponent("devices/\(deviceRow)/lists")
+    static func deviceViewsURL(deviceRow: Int) -> URL {
+        baseURL.appendingPathComponent("devices/\(deviceRow)/views")
     }
 
     /// `selector` is the one effective selector, or empty for all joined lists.
@@ -32,10 +32,10 @@ enum ServerURL {
                      selector: selector, timeZoneIdentifier: timeZoneIdentifier)
     }
 
-    static func publicEventsURL(listIDs: [String],
+    static func publicEventsURL(viewIDs: [String],
                                 timeZoneIdentifier: String = TimeZone.autoupdatingCurrent.identifier) -> URL {
         withTimeZone(baseURL.appendingPathComponent("events"),
-                     selector: [URLQueryItem(name: "listIds", value: listIDs.joined(separator: ","))],
+                     selector: [URLQueryItem(name: "viewIds", value: viewIDs.joined(separator: ","))],
                      timeZoneIdentifier: timeZoneIdentifier)
     }
 

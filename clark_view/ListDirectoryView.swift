@@ -12,10 +12,10 @@ struct ListDirectoryView: View {
         NavigationStack {
             Group {
                 if isLoading {
-                    ProgressView("Loading lists")
+                    ProgressView("Loading views")
                 } else if let errorMessage {
                     ContentUnavailableView {
-                        Label("Lists unavailable", systemImage: "wifi.exclamationmark")
+                        Label("Views unavailable", systemImage: "wifi.exclamationmark")
                     } description: {
                         Text(errorMessage)
                     } actions: {
@@ -24,7 +24,7 @@ struct ListDirectoryView: View {
                 } else {
                     List {
                         if unjoined.isEmpty {
-                            ContentUnavailableView("All lists joined", systemImage: "checkmark.circle")
+                            ContentUnavailableView("All views joined", systemImage: "checkmark.circle")
                         }
                         ForEach(unjoined) { list in
                             NavigationLink {
@@ -41,7 +41,7 @@ struct ListDirectoryView: View {
                     }
                 }
             }
-            .navigationTitle("Lists")
+            .navigationTitle("Views")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -63,7 +63,7 @@ struct ListDirectoryView: View {
             lists = try await ListClient.directory()
             errorMessage = nil
         } catch {
-            errorMessage = "Couldn’t load lists. Try again."
+            errorMessage = "Couldn’t load views. Try again."
         }
     }
 }
@@ -80,22 +80,22 @@ struct JoinListPreviewView: View {
             EmptyView()
         } trailing: {
             VStack(alignment: .leading, spacing: 16) {
-                Button("Join list") { Task { await join() } }
+                Button("Join view") { Task { await join() } }
                     .buttonStyle(.borderedProminent)
                     .disabled(isSaving || store.deviceID == nil)
                 if store.deviceID == nil {
-                    Text("This device’s lists haven’t loaded. Try again to join.")
+                    Text("This device’s views haven’t loaded. Try again to join.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     Button("Try Again") { Task { await store.load() } }
                         .buttonStyle(.borderless)
                 }
-                Text("Joining adds this list to widgets showing All my lists. " +
-                     "Reminders start off; turn them on from the list.")
+                Text("Joining adds this view to widgets showing All my views. " +
+                     "Reminders start off; turn them on from the view.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                 if !list.available {
-                    Text("This list is temporarily unavailable. Its events appear once it is back.")
+                    Text("This view is temporarily unavailable. Its events appear once it is back.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }

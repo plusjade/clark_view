@@ -23,12 +23,12 @@ struct AppDeepLinkTests {
         #expect(AppDeepLink(url: URL(string: "clarkview://event/1")!) == nil)
     }
 
-    @Test func listLinkCarriesOnlyAnOpaqueID() throws {
-        let link = try #require(AppDeepLink(url: URL(string: "clarkview://list/15")!))
-        #expect(link.kind == .list)
+    @Test func viewLinkCarriesOnlyAnOpaqueID() throws {
+        let link = try #require(AppDeepLink(url: URL(string: "clarkview://view/15")!))
+        #expect(link.kind == .view)
         #expect(link.subjectID == "15")
-        #expect(link.url?.absoluteString == "clarkview://list/15")
-        #expect(AppDeepLink(url: URL(string: "clarkview://list/0")!) == nil)
-        #expect(AppDeepLink(url: URL(string: "clarkview://list/15?title=Forged")!) == nil)
+        #expect(link.url?.absoluteString == "clarkview://view/15")
+        #expect(AppDeepLink(url: URL(string: "clarkview://view/0")!) == nil)
+        #expect(AppDeepLink(url: URL(string: "clarkview://view/15?title=Forged")!) == nil)
     }
 }

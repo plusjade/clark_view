@@ -28,7 +28,7 @@ struct ListDetailView: View {
                             .foregroundStyle(.orange)
                     }
                     if !list.available {
-                        Label("This list is temporarily unavailable", systemImage: "exclamationmark.circle")
+                        Label("This view is temporarily unavailable", systemImage: "exclamationmark.circle")
                             .foregroundStyle(.secondary)
                     }
                     if let errorMessage { Text(errorMessage).foregroundStyle(.red) }
@@ -41,22 +41,22 @@ struct ListDetailView: View {
                             .foregroundStyle(.secondary)
                     }
                     DisclosureGroup("About reminders") {
-                        Text("This list sets reminders \(ReminderLead.label(list.reminderLeadSeconds)).")
+                        Text("This view sets reminders \(ReminderLead.label(list.reminderLeadSeconds)).")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
                     if let management = metadata?.management, management.version == 2 {
                         Button("Copy editing instructions", systemImage: "doc.on.doc") {
-                            let introduction = "Help me edit the Clark View list \"\(list.name)\". "
+                            let introduction = "Help me edit the view \"\(list.name)\" in Clark View. "
                             let instructions = "Read \(management.stateUrl.absoluteString) for its current state " +
                                 "and editing instructions, then apply the changes I request. " +
                                 "Preserve unrelated events and shared preferences. " +
-                                "Edits affect everyone who joins this list."
+                                "Edits affect everyone who joins this view."
                             UIPasteboard.general.string = introduction + instructions
                             copiedInstructions = true
                         }
                         .buttonStyle(.borderless)
-                        Text("An agent can update this list for everyone who joins it.")
+                        Text("An agent can update this view for everyone who joins it.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                         if copiedInstructions {
@@ -65,7 +65,7 @@ struct ListDetailView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
-                    Button("Leave list", role: .destructive) { confirmsLeave = true }
+                    Button("Leave view", role: .destructive) { confirmsLeave = true }
                         .buttonStyle(.borderless)
                         .disabled(isSaving)
                 }
@@ -73,13 +73,13 @@ struct ListDetailView: View {
             .navigationTitle(list.name)
             .navigationBarTitleDisplayMode(.inline)
             .task(id: id) { metadata = try? await ListClient.detail(id: id) }
-            .confirmationDialog("Leave list?", isPresented: $confirmsLeave, titleVisibility: .visible) {
-                Button("Leave list", role: .destructive) { Task { await leave(list) } }
+            .confirmationDialog("Leave view?", isPresented: $confirmsLeave, titleVisibility: .visible) {
+                Button("Leave view", role: .destructive) { Task { await leave(list) } }
             } message: {
                 Text("Its events leave your widgets and its reminders stop on this device.")
             }
         } else {
-            ContentUnavailableView("List no longer joined", systemImage: "list.bullet.rectangle")
+            ContentUnavailableView("View no longer joined", systemImage: "list.bullet.rectangle")
                 .task { dismiss() }
         }
     }

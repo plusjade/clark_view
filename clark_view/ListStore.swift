@@ -42,7 +42,7 @@ final class ListStore {
         deviceID = id
         do {
             let memberships = try await ListClient.memberships(deviceID: id)
-            lists = memberships.lists
+            lists = memberships.views
             delivery = memberships.delivery
             // A failed load leaves the last successful picker choices in place.
             WidgetListCatalog.shared.replaceJoined(lists.map(\.list))
@@ -82,7 +82,7 @@ final class ListStore {
 
     private func requireDevice() throws -> Int {
         guard let deviceID else {
-            throw SubscriptionClientError.rejected("Your lists haven’t loaded yet. Try again.")
+            throw SubscriptionClientError.rejected("Your views haven’t loaded yet. Try again.")
         }
         return deviceID
     }

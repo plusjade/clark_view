@@ -1,8 +1,8 @@
 # Managed sources: product orientation and execution plan
 
-Agents create a managed list through the guide at
+Agents create a managed view through the guide at
 **[agents.tamale.dev](https://agents.tamale.dev/)** (`POST /managed-sources` on that host).
-The current destination is a parent-verified **list** that a device may join:
+The current destination is a parent-verified **view** that a device may join:
 creation returns `available_to_join` only when activation succeeds, or `202 pending`
 with instructions to retry the same request when activation is uncertain. The
 provisioner README owns these states. Parent `docs/get-sources.md` covers operator
@@ -30,10 +30,10 @@ universal host compatibility and an MCP adapter are not required for this milest
 The deployed contract belongs to each source's README/state guide and the
 provisioner README. The phases below are the historical design sequence, not an
 active execution queue. Do not restart completed checkpoints or automatically
-advance to authentication. The next scope will be prescribed by the user: legacy
-cleanup and migration of prototype devices to the latest API. That migration has
-not been performed by this closeout. See [valtown-brief.md](valtown-brief.md) for
-current ownership and [testing.md](testing.md) for subsequent verification.
+advance to authentication. Remaining legacy retirement and migration of prototype
+devices require their own scope. The terminology rollout does not establish
+all-device migration. See [valtown-brief.md](valtown-brief.md) for current ownership
+and [testing.md](testing.md) for subsequent verification.
 
 ### Deferred friendly editing URL — 2026-10-02
 
@@ -47,6 +47,13 @@ when a unified editing entry is prioritized; resume with routing and end-to-end
 verification, or discard the draft. Production editing links remain unchanged.
 
 ## Product lens
+
+A view is the user-facing collection of events backed by one registered source.
+Widgets display events from all joined views or a selected subset; they are not
+the views themselves. The name does not introduce saved compositions, per-view
+appearance, private variants, or a new ownership model. API and storage names
+remain unchanged. Dated acceptance evidence and historical phases retain their
+original terminology; they do not prescribe current interface copy.
 
 **The agent owns the workflow. Clark View owns publication state. Shared intent
 provides continuity, and the API makes changing that intent inexpensive.**
@@ -91,7 +98,7 @@ Natural-language intent is not a deterministic rendering guarantee.
 2. **Curate:** given an endpoint, understand and update a source with one compact
    read and one publication in the ordinary case, including changes to intent.
 3. **Public UAT:** exercise those journeys in real agent environments and a shared
-   Clark View list/widget before implementing authentication.
+   view displayed in a Clark View widget before implementing authentication.
 4. **Access control after UAT:** add per-source grants and pairing without changing
    the editorial workflow, then revalidate authenticated unattended use.
 
@@ -103,7 +110,7 @@ The parent composer needs no managed-source dispatch or domain policy.
 Embedded chat, MCP adapters, arbitrary code authoring/deployment, deterministic
 formatting engines, account recovery/onboarding, and complex collaboration UI are
 outside these deliverables. Parent registration and verification retain separate
-ownership but prepared-list activation is part of creation. Device joining remains
+ownership but prepared-view activation is part of creation. Device joining remains
 an explicit human action.
 
 ## Journey A: bootstrap from useful work
@@ -136,7 +143,7 @@ operation receipt and explicit pending/failed/ready state. Retrying creation mus
 never allocate another source or republish duplicate initial events. A failed
 initial publication must not appear as a ready, successfully populated source.
 
-A source becomes a joinable list through parent registration and verification;
+A source becomes a joinable view through parent registration and verification;
 provisioning alone does not join a device or select a widget. The provisioner
 reports the current integration step; the parent owns those operations.
 
@@ -153,7 +160,7 @@ vs the opponent when home.”
    ordinary edit within the steerer's granted scope.
 
 A source is collaboratively maintained. Any actor with write permission may
-change it, affecting everyone who joins that list.
+change it, affecting everyone who joins that view.
 Explain that shared impact when establishing context. Do not automatically fork
 personal variants. Subscription alone does not grant write authority once access
 control exists; during the public prototype everyone effectively has it.
@@ -225,7 +232,7 @@ Illustrative publication shape:
   before checking the now-stale base revision. Different payload reuse conflicts.
   Retain receipts for the prototype lifetime; no cleanup subsystem is needed yet.
 - Return request ID, revision, and created/updated/removed/unchanged IDs. A receipt
-  proves durable publication, not research accuracy, list availability, or widget
+  proves durable publication, not research accuracy, view availability, or widget
   refresh. The agent need not fetch again to prove the same commit happened.
 - Keep a recoverable prior publication/change record for public UAT, with enough
   data for operator recovery. Do not build a merge UI or approval queue.
@@ -269,14 +276,14 @@ skills, plugins, models, tools, or scheduling terminology.
 **Bootstrap prompt template**
 
 > Add Clark View as a destination for these findings using [creation endpoint].
-> Reuse this conversation's research and preferences. Create the source and publish
+> Reuse this conversation's research and preferences. Create the view and publish
 > the usable events. [If recurring: update this existing task to maintain that
 > destination on future runs.] Return the destination and say what was actually
 > published and configured.
 
 **Existing-source prompt template**
 
-> Use [management endpoint] to read this source and [requested change]. Preserve
+> Use [management endpoint] to read this view and [requested change]. Preserve
 > event IDs. Treat its shared preferences as defaults that my request can revise;
 > publish updated preferences and affected events together when appropriate.
 
@@ -295,7 +302,7 @@ research and execution schedules. Editing source intent cannot update a host's
 schedule or provision a source cron. Device IDs remain unrelated to write authority.
 
 Public prototyping is intentional through phase 3, including an agreed shared
-feed with real public content. Clearly disclose that anyone discovering an
+view with real public content. Clearly disclose that anyone discovering an
 endpoint can read and modify its source. Do not make token work a prerequisite
 for this UAT. Record actors as anonymous; supplied agent labels are unverified.
 

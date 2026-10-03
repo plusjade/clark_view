@@ -5,7 +5,7 @@ Implemented 2026-09-17 in parent main snapshot 357.
 - [Remixable template](https://www.val.town/x/plusjade/source-template): one HTTP file, README, and focused agent guidance.
 - [Acceptance remix](https://www.val.town/x/plusjade/source-template-example): independent identity and content, with no shared runtime imports.
 - [Public source contract](https://www.val.town/x/plusjade/app-clarkview/code/source/README.md): GET shape, defaults, errors, and black-box verification.
-- [Parent operator procedure](https://www.val.town/x/plusjade/app-clarkview/code/docs/get-sources.md): manual registration and verification. Since 2026-10-01 it publishes a list; there is no assignment step.
+- [Parent operator procedure](https://www.val.town/x/plusjade/app-clarkview/code/docs/get-sources.md): manual registration and verification. It publishes a joinable view (originally called a list); there is no assignment step.
 
 Current local guidance lives in [valtown-brief.md](valtown-brief.md); the rationale is
 recorded in [CHANGELOG.md](CHANGELOG.md). Existing sources retain their behavior.

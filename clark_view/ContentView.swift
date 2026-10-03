@@ -47,7 +47,7 @@ struct ContentView: View {
                 initialDiagnosticsPanel = .notifications
                 showsDiagnostics = true
             })
-                .navigationTitle("My lists")
+                .navigationTitle("My views")
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Diagnostics", systemImage: "stethoscope") {
@@ -65,7 +65,7 @@ struct ContentView: View {
                     DiagnosticsView(initialPanel: initialDiagnosticsPanel)
                 })
                 .navigationDestination(item: navigationDestination) { destination in
-                    if destination.kind == .list {
+                    if destination.kind == .view {
                         IncomingListView(id: destination.subjectID)
                     } else {
                         DeepLinkDetailView(destination: destination)

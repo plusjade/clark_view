@@ -147,7 +147,7 @@ struct WidgetEntry: TimelineEntry {
 
     /// A failed fetch leaves `payload.selection` nil, so it never shows a selection prompt.
     var prompt: WidgetPrompt? {
-        selection.prompt(resolvedListIDs: payload.selection?.listIds, feedUnavailable: unavailable)
+        selection.prompt(resolvedViewIDs: payload.selection?.viewIds, feedUnavailable: unavailable)
     }
 }
 
@@ -244,7 +244,7 @@ struct ClarkViewWidget: Widget {
             ClarkViewWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("Clark View")
-        .description("Shows events from all your lists, or the ones you choose. Reminders are set in the app.")
+        .description("Shows events from all your views, or the ones you choose. Reminders are set in the app.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryRectangular])
         .contentMarginsDisabled()
         .pushHandler(ClarkViewWidgetPushHandler.self)

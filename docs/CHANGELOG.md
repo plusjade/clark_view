@@ -8,6 +8,21 @@ pointer. Preserve historical meaning; record reversals as new entries. Typo and
 broken-link corrections are allowed. See [AGENTS.md](../AGENTS.md#documenting-decisions)
 for routing current guidance, operational evidence, and routine validation.
 
+## 2026-10-03
+
+- Made the parent root public so Open Graph crawlers can read its metadata, and
+  removed its administration links rather than using Basic Auth to discourage
+  discovery. The root is now only a centered “a place for native views 👀” landing
+  page; direct administration routes remain unchanged. See
+  [valtown-brief.md](valtown-brief.md).
+
+- Created `plusjade/og-clarkview` as Clark View's dedicated Open Graph image
+  service and wired its landscape PNG into the parent homepage metadata, keeping
+  social-image rendering out of the parent. A programmatic SVG is the source of
+  truth, PNG is rasterized from it, and paired 1200×630 landscape / 630×1200
+  portrait dimensions share the same extension-driven `/app.svg` and `/app.png`
+  routes. See [valtown-brief.md](valtown-brief.md).
+
 ## 2026-10-02
 
 - Removed every parent browser view of feeds and feed assignments (feed index/create/
@@ -22,6 +37,36 @@ for routing current guidance, operational evidence, and routine validation.
   and the 410 `/pair` and `/devices/register` stubs. No app build since 2026-09-24
   calls them, and older builds already fail on retired pairing. The
   `legacy_installation_feeds` table remains as unread data.
+
+- Completed the unreleased view wire cutover: directory and membership envelopes now
+  use `views`, selection query parameters and response metadata use `viewIds`, widget
+  inventory uses `viewIds`, and managed-source destinations use `viewId`, `viewUrl`,
+  and `viewApiUrl`. Error codes and diagnostic selector labels now say `view`. Stored
+  tables and columns retain their list-era names because they are private persistence.
+  See [valtown-brief.md](valtown-brief.md) and parent `docs/lists.md`.
+
+- Renamed the unreleased public view paths from `/lists` to `/views`, device
+  membership from `/devices/:id/lists` to `/devices/:id/views`, human handoff to
+  `/open/views/:id`, and the app deep link to `clarkview://view/:id`. Moved browser
+  widget activity to `/devices/:id/widgets` to avoid a collision. No compatibility
+  aliases remain because the app has no external installations; internal list/source
+  storage and implementation names stay unchanged. See
+  [valtown-brief.md](valtown-brief.md) and parent `docs/lists.md`.
+
+- Adopted **views** as the product term after user testing, across native and
+  browser copy, agent handoffs and publication guidance. A view remains one
+  registered source; routes, payloads, storage, memberships and saved widget
+  identities retain their list/source names. The device diagnostics tab is
+  Widgets to distinguish placements from the joined content. See
+  [valtown-brief.md](valtown-brief.md) and [ios-widget.md](ios-widget.md).
+
+- Reconciled local orientation with the already-deployed parent cleanup in main
+  version 456: feed browser editors, installation-keyed resolvers, pairing and
+  source diagnostics UI are retired; legacy feed reads, subscriptions and the
+  saved-widget bridge remain. Removed obsolete procedures and corrected the app
+  role and browser navigation guidance so future work does not restore removed
+  surfaces. Evidence: parent `http/routes/{feeds,devices,subscriptions,sources}.ts`
+  and `main.ts`; this documentation change performs no device/data migration.
 
 - Closed the public managed-source milestone on user-reported UAT: iPhone
   open/join and app → agent editing, widget delivery after refresh, and continuity

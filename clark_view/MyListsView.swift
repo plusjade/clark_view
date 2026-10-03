@@ -13,7 +13,7 @@ struct MyListsView: View {
                 if store.deviceID != nil {
                     ToolbarItemGroup(placement: .bottomBar) {
                         Spacer()
-                        Button("Browse lists", systemImage: "plus") { showsDirectory = true }
+                        Button("Browse views", systemImage: "plus") { showsDirectory = true }
                     }
                 }
             }
@@ -28,10 +28,10 @@ struct MyListsView: View {
     @ViewBuilder private var content: some View {
         switch store.phase {
         case .loading where store.lists.isEmpty:
-            ProgressView("Loading your lists")
+            ProgressView("Loading your views")
         case .failed(let message) where store.lists.isEmpty:
             ContentUnavailableView {
-                Label("Your lists unavailable", systemImage: "wifi.exclamationmark")
+                Label("Your views unavailable", systemImage: "wifi.exclamationmark")
             } description: {
                 Text(message)
             } actions: {
@@ -46,11 +46,11 @@ struct MyListsView: View {
         List {
             if store.lists.isEmpty {
                 ContentUnavailableView {
-                    Label("No lists joined", systemImage: "list.bullet.rectangle")
+                    Label("No views joined", systemImage: "list.bullet.rectangle")
                 } description: {
-                    Text("Join a list to see its events in widgets showing All my lists.")
+                    Text("Join a view to see its events in widgets showing All my views.")
                 } actions: {
-                    Button("Browse lists") { showsDirectory = true }
+                    Button("Browse views") { showsDirectory = true }
                 }
             }
             Section {
@@ -72,7 +72,7 @@ struct MyListsView: View {
                         Label("Feeds from earlier versions", systemImage: "clock.arrow.circlepath")
                     }
                 } footer: {
-                    Text("Feeds joined before lists. Their reminders still arrive until you turn them off there.")
+                    Text("Feeds joined in earlier versions. Their reminders still arrive until you turn them off there.")
                 }
             }
         }
@@ -158,7 +158,7 @@ struct LegacyFeedsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .safeAreaInset(edge: .bottom) {
                 Text("These feeds were joined in an earlier version. Reminders that are on still arrive. " +
-                     "Lists are managed in My lists.")
+                     "Views are managed in My views.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .padding()

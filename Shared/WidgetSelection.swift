@@ -18,13 +18,13 @@ nonisolated enum WidgetSelection: Equatable {
 
     /// Precedence: an explicit mode, then a retained feed, then All. `mode` stays nil until
     /// the user picks one, which is what keeps a saved feed distinct from explicit All.
-    init(mode: WidgetListMode?, listIDs: [String], feed: Feed?) {
+    init(mode: WidgetListMode?, viewIDs: [String], feed: Feed?) {
         switch mode {
         case .all:
             self = .all
         case .selected:
             var seen = Set<String>()
-            let unique = listIDs.filter { seen.insert($0).inserted }
+            let unique = viewIDs.filter { seen.insert($0).inserted }
             self = unique.isEmpty ? .needsLists : .selected(unique)
         case nil:
             self = feed.map(WidgetSelection.legacyFeed) ?? .all
@@ -36,19 +36,19 @@ nonisolated enum WidgetSelection: Equatable {
     var eventsQuery: [URLQueryItem]? {
         switch self {
         case .all: return []
-        case .selected(let ids): return [URLQueryItem(name: "listIds", value: ids.joined(separator: ","))]
+        case .selected(let ids): return [URLQueryItem(name: "viewIds", value: ids.joined(separator: ","))]
         case .needsLists: return nil
         case .legacyFeed(let feed): return [URLQueryItem(name: "feedId", value: feed.id)]
         }
     }
 
     /// The message to show instead of events, or nil to render them (including none).
-    /// `resolvedListIDs` is the server's answer and is nil when a fetch failed, so a
+    /// `resolvedViewIDs` is the server's answer and is nil when a fetch failed, so a
     /// network or identity failure never reads as an empty selection.
-    func prompt(resolvedListIDs: [String]?, feedUnavailable: Bool) -> WidgetPrompt? {
+    func prompt(resolvedViewIDs: [String]?, feedUnavailable: Bool) -> WidgetPrompt? {
         if self == .needsLists { return .chooseLists }
         if feedUnavailable { return .feedUnavailable }
-        guard let resolvedListIDs, resolvedListIDs.isEmpty else { return nil }
+        guard let resolvedViewIDs, resolvedViewIDs.isEmpty else { return nil }
         switch self {
         case .all: return .joinList
         case .selected: return .editSelection
@@ -65,10 +65,10 @@ nonisolated enum WidgetPrompt: Equatable {
 
     var text: String {
         switch self {
-        case .chooseLists: "Long Press\n→ Edit Widget\n→ Choose Lists"
-        case .joinList: "No lists joined\nOpen Clark View to join one."
-        case .editSelection: "Selected lists unavailable\nLong press to edit widget & choose lists."
-        case .feedUnavailable: "Feed unavailable\nLong press to edit widget & choose lists."
+        case .chooseLists: "Long Press\n→ Edit Widget\n→ Choose Views"
+        case .joinList: "No views joined\nOpen Clark View to join one."
+        case .editSelection: "Selected views unavailable\nLong press to edit widget & choose views."
+        case .feedUnavailable: "Feed unavailable\nLong press to edit widget & choose views."
         }
     }
 }
