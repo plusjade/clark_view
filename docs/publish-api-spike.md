@@ -408,7 +408,7 @@ Observed 2026-10-03. Close this section when slice 3 ships or the spike is aband
 | Slice 1: tables, contract, routes | Deployed, parent `main` v464 | `lib/publishContract.ts`, `lib/publishStore.ts`, `lib/publishGuide.ts`, `http/routes/publishV2.ts`; `tools/publish-v2-check.ts` in the runner |
 | Lunar producer | Merged; daily interval `7 16 * * *` UTC publishes to `pv_11` | `plusjade/feed-lunar` `publish.ts`, `publisher.ts`, `tools/check.ts` |
 | Slice 2 server: membership, `/v2/devices/:id/*`, merge guard | Deployed, parent `main` v465 | `http/routes/publishV2.ts`, `http/routes/devices.ts`; same check |
-| Slice 2 iOS client | On `codex/publish-v2-client`; not yet built with Xcode | `Shared/ServerURL.swift`, `Shared/WidgetSelection.swift`, `Shared/AppDeepLink.swift`, `clark_view/List*.swift` |
+| Slice 2 iOS client | On `main` (c85d3ec); builds, unit tests and a simulator join/read/leave pass (2026-10-03); widget placement acceptance pending | `Shared/ServerURL.swift`, `Shared/WidgetSelection.swift`, `Shared/AppDeepLink.swift`, `clark_view/List*.swift` |
 | Slice 3: reminders from `published_events` | Not started | — |
 
 Decisions made during implementation:
