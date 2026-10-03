@@ -8,6 +8,15 @@ pointer. Preserve historical meaning; record reversals as new entries. Typo and
 broken-link corrections are allowed. See [AGENTS.md](../AGENTS.md#documenting-decisions)
 for routing current guidance, operational evidence, and routine validation.
 
+## 2026-10-03
+
+- Created `plusjade/og-clarkview` as Clark View's dedicated Open Graph image
+  service and wired its landscape PNG into the parent homepage metadata, keeping
+  social-image rendering out of the parent. A programmatic SVG is the source of
+  truth, PNG is rasterized from it, and paired 1200×630 landscape / 630×1200
+  portrait dimensions share the same extension-driven `/app.svg` and `/app.png`
+  routes. See [valtown-brief.md](valtown-brief.md).
+
 ## 2026-10-02
 
 - Completed the unreleased view wire cutover: directory and membership envelopes now

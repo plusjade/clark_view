@@ -139,6 +139,16 @@ Its HTTP entry is **`main.ts`**, file ID **`f0eeffb8-9a93-11f1-9bb6-1607ee4eb77e
 endpoint **`https://plusjade--f0eeffb89a9311f19bb61607ee4eb77e.web.val.run/`**.
 [ServerURL.swift](../Shared/ServerURL.swift) owns the same iOS base URL.
 
+The parent homepage's Open Graph image is owned by `plusjade/og-clarkview`, branch `main`,
+public code/public app access. Its HTTP entry is **`main.tsx`**, file ID
+**`01a1008b-2ff6-70db-8ae1-c6b7fca7c6e8`**, endpoint
+**`https://plusjade--01a1008b2ff670db8ae1c6b7fca7c6e8.web.val.run/`**. The
+extension selects the representation: `/app.svg` is the programmatic source and
+`/app.png` rasterizes that SVG. Both default to 1200×630; the same routes accept
+`?orientation=portrait` for 630×1200. The parent emits the landscape PNG URL and its
+dimensions in `render/rootHtml.ts`. Preserve the HTTP file identity when changing the
+image service, and use the SVG builder in `image.ts` as the visual source of truth.
+
 **Preserve the HTTP file's identity: update it in place; do not delete, recreate, or
 rename it.** Endpoint identity follows the file ID, not its name. When verification is
 needed, use `links.endpoint` from `list_files`; do not invent URLs from val
