@@ -1,7 +1,8 @@
 # Unified publish API spike
 
-Status: design ready for implementation. Nothing in this document describes a
-deployed route or schema yet.
+Status — 2026-10-03: phase zero and the first implementation slice are deployed;
+device membership, widget integration, and reminders are not. See
+[Implementation status](#implementation-status).
 
 Clark View is a publication and delivery service. Producers own research,
 computation, upstream access, and scheduling. A producer may be an agent, a
@@ -396,3 +397,27 @@ can create or curate separate views in the same parent event table, a no-change 
 advances freshness, direct composition performs no source fetches, and every
 retained legacy read remains available while prohibited legacy mutations return
 the explicit read-only error.
+
+## Implementation status
+
+Observed 2026-10-03. Close this section when slice 2 ships or the spike is abandoned.
+
+| Piece | State | Pointer |
+| --- | --- | --- |
+| Phase zero freeze | Deployed; mutations return `423 legacy_read_only` | Parent `http/routes/legacyFreeze.ts` (v463); `manage.ts` in each managed slot and the template; provisioner `main.ts` |
+| Slice 1: tables, contract, routes | Deployed, parent `main` v464 | `lib/publishContract.ts`, `lib/publishStore.ts`, `lib/publishGuide.ts`, `http/routes/publishV2.ts`; `tools/publish-v2-check.ts` in the runner |
+| Lunar producer | Merged; daily interval `7 16 * * *` UTC publishes to `pv_11` | `plusjade/feed-lunar` `publish.ts`, `publisher.ts`, `tools/check.ts` |
+| Slice 2: v2 membership, `/v2/devices/:id/*`, iOS client, merge guard | Not started | — |
+| Slice 3: reminders from `published_events` | Not started | — |
+
+Decisions made during implementation:
+
+- View IDs are `pv_<n>` over an AUTOINCREMENT integer, so a deleted view's ID is
+  never reissued and a legacy numeric ID never parses as v2.
+- `GET /v2` serves the agent creation guide; state reads embed the update guide.
+  `agents.tamale.dev` links to it.
+- `device_published_views` and the `409 v2_memberships_present` merge guard ship
+  with slice 2; neither has a caller before v2 membership exists.
+- A creation also writes a publication receipt and history revision 1, so
+  `GET .../publications` lists it.
+- Capacity is 50 views (`LIMITS.views`).
