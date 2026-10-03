@@ -1,8 +1,8 @@
 import AppIntents
 import Foundation
 
-/// A feed chosen in the editor before lists existed. Retained so those placements keep
-/// decoding; feed row IDs remain opaque values throughout the native client.
+/// A feed chosen in the editor before lists existed. Retained only so those placements keep
+/// decoding; it no longer selects anything.
 struct WidgetFeedEntity: AppEntity {
     static let typeDisplayRepresentation: TypeDisplayRepresentation = "Feed"
     static let defaultQuery = WidgetFeedQuery()
@@ -79,8 +79,8 @@ struct WidgetListQuery: EntityQuery {
 }
 
 /// The type name, widget kind, and `feed` parameter are the saved identity of existing
-/// placements; keep all three. `mode` has no default on purpose: a decoded default would
-/// read as an explicit choice and override a saved feed.
+/// placements; keep all three. `mode` has no default so an untouched placement stays
+/// distinguishable from an explicit choice.
 struct WidgetFeedIntent: WidgetConfigurationIntent {
     static var title: LocalizedStringResource = "Clark View"
     static var description = IntentDescription(
@@ -96,8 +96,7 @@ struct WidgetFeedIntent: WidgetConfigurationIntent {
     @Parameter(title: "Feed (earlier version)")
     var feed: WidgetFeedEntity?
 
-    /// The retained feed is offered only while it is the effective selection: an explicit
-    /// mode supersedes it, and a placement that never had one is never shown the picker.
+    /// The retained `feed` still decodes but no longer selects anything, so it is never shown.
     static var parameterSummary: some ParameterSummary {
         When(\.$mode, .equalTo, WidgetListMode.selected) {
             Summary {
@@ -105,21 +104,8 @@ struct WidgetFeedIntent: WidgetConfigurationIntent {
                 \.$views
             }
         } otherwise: {
-            When(\.$mode, .equalTo, WidgetListMode.all) {
-                Summary {
-                    \.$mode
-                }
-            } otherwise: {
-                When(\.$feed, .hasAnyValue) {
-                    Summary {
-                        \.$mode
-                        \.$feed
-                    }
-                } otherwise: {
-                    Summary {
-                        \.$mode
-                    }
-                }
+            Summary {
+                \.$mode
             }
         }
     }
@@ -133,8 +119,6 @@ struct WidgetFeedIntent: WidgetConfigurationIntent {
 
 extension WidgetSelection {
     nonisolated init(intent: WidgetFeedIntent) {
-        self.init(mode: intent.mode,
-                  viewIDs: intent.views?.map(\.id) ?? [],
-                  feed: intent.feed.map { Feed(id: $0.id, name: $0.name) })
+        self.init(mode: intent.mode, viewIDs: intent.views?.map(\.id) ?? [])
     }
 }

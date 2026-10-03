@@ -28,6 +28,9 @@ struct AppDeepLink: Hashable, Identifiable {
     }
 
     static let scheme = "clarkview"
+    /// Views link as `clarkview://v2/view/<published-view-id>`. The legacy numeric
+    /// `clarkview://view/<n>` form no longer opens anything.
+    static let viewHost = "v2"
 
     let kind: Kind
     let subjectID: String
@@ -42,9 +45,14 @@ struct AppDeepLink: Hashable, Identifiable {
     var url: URL? {
         var components = URLComponents()
         components.scheme = Self.scheme
+        if kind == .view {
+            components.host = Self.viewHost
+            components.path = "/view/" + subjectID
+            return components.url
+        }
         components.host = kind.rawValue
         components.path = "/" + subjectID
-        components.queryItems = kind == .view ? nil : [
+        components.queryItems = [
             URLQueryItem(name: "title", value: title),
             detail.map { URLQueryItem(name: "detail", value: $0) },
             status.map { URLQueryItem(name: "status", value: $0) },
@@ -75,9 +83,16 @@ struct AppDeepLink: Hashable, Identifiable {
     init?(url: URL) {
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
               components.scheme == Self.scheme,
-              let host = components.host,
-              let kind = Kind(rawValue: host),
-              !components.path.isEmpty else { return nil }
+              let host = components.host else { return nil }
+        if host == Self.viewHost {
+            let prefix = "/view/"
+            let subjectID = String(components.path.dropFirst(prefix.count))
+            guard components.path.hasPrefix(prefix), PublishedViewID.isValid(subjectID),
+                  components.queryItems?.isEmpty ?? true else { return nil }
+            self.init(kind: .view, subjectID: subjectID, title: "")
+            return
+        }
+        guard let kind = Kind(rawValue: host), kind != .view, !components.path.isEmpty else { return nil }
 
         let values = Dictionary(
             components.queryItems?.compactMap { item in
@@ -86,13 +101,6 @@ struct AppDeepLink: Hashable, Identifiable {
             uniquingKeysWith: { first, _ in first }
         )
         let subjectID = String(components.path.dropFirst())
-        if kind == .view {
-            guard !subjectID.isEmpty, subjectID.first != "0",
-                  subjectID.utf8.allSatisfy({ $0 >= 48 && $0 <= 57 }), Int(subjectID) != nil,
-                  components.queryItems?.isEmpty ?? true else { return nil }
-            self.init(kind: .view, subjectID: subjectID, title: "")
-            return
-        }
         guard let title = values["title"], !title.isEmpty else { return nil }
 
         self.init(

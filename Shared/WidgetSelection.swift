@@ -1,9 +1,20 @@
 import Foundation
 
-/// A list this device can join: one server source, identified by an opaque ID.
+/// A view this device can join, identified by an opaque published-view ID.
 nonisolated struct EventList: Codable, Equatable, Hashable, Identifiable {
     let id: String
     let name: String
+}
+
+/// Published views carry their API generation in the ID, so a bare legacy number is never
+/// one. Shared by deep links and widget selections.
+nonisolated enum PublishedViewID {
+    static func isValid(_ id: String) -> Bool {
+        guard id.hasPrefix("pv_") else { return false }
+        let digits = id.dropFirst(3)
+        return !digits.isEmpty && digits.count <= 15 && digits.first != "0"
+            && digits.allSatisfy { $0.isASCII && $0.isNumber }
+    }
 }
 
 /// What one widget placement shows, resolved once from its saved configuration so the
@@ -11,34 +22,29 @@ nonisolated struct EventList: Codable, Equatable, Hashable, Identifiable {
 nonisolated enum WidgetSelection: Equatable {
     case all
     case selected([String])
-    /// Selected lists with nothing chosen. Prompts for an edit; never requests All.
+    /// Selected views with nothing chosen. Prompts for an edit; never requests All.
     case needsLists
-    /// A feed chosen before lists existed. The server resolves it; the ID is never a list ID.
-    case legacyFeed(Feed)
 
-    /// Precedence: an explicit mode, then a retained feed, then All. `mode` stays nil until
-    /// the user picks one, which is what keeps a saved feed distinct from explicit All.
-    init(mode: WidgetListMode?, viewIDs: [String], feed: Feed?) {
+    /// `mode` stays nil until the user picks one. Selections saved before published views,
+    /// including a legacy feed, are cleared rather than translated: they read as All, and
+    /// legacy list IDs drop out of a selection.
+    init(mode: WidgetListMode?, viewIDs: [String]) {
         switch mode {
-        case .all:
-            self = .all
         case .selected:
             var seen = Set<String>()
-            let unique = viewIDs.filter { seen.insert($0).inserted }
+            let unique = viewIDs.filter { PublishedViewID.isValid($0) && seen.insert($0).inserted }
             self = unique.isEmpty ? .needsLists : .selected(unique)
-        case nil:
-            self = feed.map(WidgetSelection.legacyFeed) ?? .all
+        case .all, nil:
+            self = .all
         }
     }
 
-    /// The effective selector for `/devices/:id/events`, or nil when no request may be made.
-    /// Only one selector is ever sent; an explicit mode supersedes a retained feed.
+    /// The effective selector for `/v2/devices/:id/events`, or nil when no request may be made.
     var eventsQuery: [URLQueryItem]? {
         switch self {
         case .all: return []
         case .selected(let ids): return [URLQueryItem(name: "viewIds", value: ids.joined(separator: ","))]
         case .needsLists: return nil
-        case .legacyFeed(let feed): return [URLQueryItem(name: "feedId", value: feed.id)]
         }
     }
 
@@ -52,7 +58,7 @@ nonisolated enum WidgetSelection: Equatable {
         switch self {
         case .all: return .joinList
         case .selected: return .editSelection
-        case .needsLists, .legacyFeed: return nil
+        case .needsLists: return nil
         }
     }
 }

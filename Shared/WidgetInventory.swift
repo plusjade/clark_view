@@ -11,8 +11,6 @@ nonisolated struct WidgetInventoryEntry: Codable, Equatable {
     let kind: String
     let family: String
     let state: State
-    /// Set only for a feed retained from before lists; a list selection never invents one.
-    let feedId: String?
     let mode: String?
     let viewIds: [String]?
 
@@ -25,15 +23,13 @@ nonisolated struct WidgetInventoryEntry: Codable, Equatable {
         self.family = family
         switch selection {
         case .all:
-            (state, feedId, mode, viewIds) = (.configured, nil, "all", nil)
+            (state, mode, viewIds) = (.configured, "all", nil)
         case .selected(let ids):
-            (state, feedId, mode, viewIds) = (.configured, nil, "selected", ids)
-        case .legacyFeed(let feed):
-            (state, feedId, mode, viewIds) = (.configured, feed.id, "feed", nil)
+            (state, mode, viewIds) = (.configured, "selected", ids)
         case .needsLists:
-            (state, feedId, mode, viewIds) = (.unconfigured, nil, nil, nil)
+            (state, mode, viewIds) = (.unconfigured, nil, nil)
         case nil:
-            (state, feedId, mode, viewIds) = (.unreadable, nil, nil, nil)
+            (state, mode, viewIds) = (.unreadable, nil, nil)
         }
     }
 }
@@ -54,7 +50,7 @@ nonisolated enum WidgetInventoryPolicy {
     static func signature(of entries: [WidgetInventoryEntry]) -> String {
         entries
             .map {
-                [$0.kind, $0.family, $0.state.rawValue, $0.feedId ?? "", $0.mode ?? "",
+                [$0.kind, $0.family, $0.state.rawValue, $0.mode ?? "",
                  ($0.viewIds ?? []).joined(separator: ",")].joined(separator: "\u{1F}")
             }
             .sorted()

@@ -23,12 +23,15 @@ struct AppDeepLinkTests {
         #expect(AppDeepLink(url: URL(string: "clarkview://event/1")!) == nil)
     }
 
-    @Test func viewLinkCarriesOnlyAnOpaqueID() throws {
-        let link = try #require(AppDeepLink(url: URL(string: "clarkview://view/15")!))
+    @Test func viewLinkCarriesOnlyAPublishedViewID() throws {
+        let link = try #require(AppDeepLink(url: URL(string: "clarkview://v2/view/pv_15")!))
         #expect(link.kind == .view)
-        #expect(link.subjectID == "15")
-        #expect(link.url?.absoluteString == "clarkview://view/15")
-        #expect(AppDeepLink(url: URL(string: "clarkview://view/0")!) == nil)
-        #expect(AppDeepLink(url: URL(string: "clarkview://view/15?title=Forged")!) == nil)
+        #expect(link.subjectID == "pv_15")
+        #expect(link.url?.absoluteString == "clarkview://v2/view/pv_15")
+        #expect(AppDeepLink(url: URL(string: "clarkview://v2/view/15")!) == nil)
+        #expect(AppDeepLink(url: URL(string: "clarkview://v2/view/pv_0")!) == nil)
+        #expect(AppDeepLink(url: URL(string: "clarkview://v2/view/pv_15?title=Forged")!) == nil)
+        // A legacy numeric view link never resolves as a published view.
+        #expect(AppDeepLink(url: URL(string: "clarkview://view/15")!) == nil)
     }
 }
