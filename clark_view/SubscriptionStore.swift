@@ -11,7 +11,6 @@ final class SubscriptionStore {
 
     private(set) var phase = Phase.loading
     private(set) var subscriptions: [Subscription] = []
-    private(set) var delivery: String?
 
     func load() async {
         guard let id = await AppDevice.resolve() else {
@@ -21,7 +20,6 @@ final class SubscriptionStore {
         do {
             let index = try await SubscriptionClient.index(deviceID: id)
             subscriptions = index.subscriptions
-            delivery = index.delivery
             phase = .loaded
         } catch {
             phase = .failed(error.localizedDescription)

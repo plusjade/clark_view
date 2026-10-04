@@ -1,7 +1,8 @@
 import SwiftUI
 import UIKit
 
-/// A joined view's events, its maintenance status, and agent editing handoff.
+/// A joined view's events, this device's reminder preference, its maintenance status,
+/// and agent editing handoff.
 struct ListDetailView: View {
     let id: String
     @Environment(ListStore.self) private var store
@@ -16,6 +17,17 @@ struct ListDetailView: View {
         if let list = store.list(id: id) {
             FeedPreviewView(list: list.list) {
                 VStack(alignment: .leading, spacing: 12) {
+                    FeedReminderToggle(isOn: Binding(
+                        get: { list.remindersEnabled },
+                        set: { value in Task { await setReminders(value, for: list) } }
+                    ), isDisabled: isSaving)
+                    if list.remindersEnabled, store.delivery == "permission_denied" {
+                        Label("Notifications off on this device", systemImage: "exclamationmark.circle.fill")
+                            .foregroundStyle(.orange)
+                    } else if list.remindersEnabled, store.delivery == "no_token" {
+                        Label("Notifications not ready on this device", systemImage: "exclamationmark.circle.fill")
+                            .foregroundStyle(.orange)
+                    }
                     if list.freshness.isLapsed {
                         Label("Not updated recently; events may be out of date",
                               systemImage: "clock.badge.exclamationmark")
@@ -27,6 +39,11 @@ struct ListDetailView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     if !list.description.isEmpty {
                         Text(list.description)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    DisclosureGroup("About reminders") {
+                        Text("Reminders arrive \(ReminderLead.label(list.reminderLeadSeconds)) for each upcoming event.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
@@ -61,11 +78,22 @@ struct ListDetailView: View {
             .confirmationDialog("Leave view?", isPresented: $confirmsLeave, titleVisibility: .visible) {
                 Button("Leave view", role: .destructive) { Task { await leave(list) } }
             } message: {
-                Text("Its events leave your widgets on this device.")
+                Text("Its events leave your widgets and its reminders stop on this device.")
             }
         } else {
             ContentUnavailableView("View no longer joined", systemImage: "list.bullet.rectangle")
                 .task { dismiss() }
+        }
+    }
+
+    private func setReminders(_ enabled: Bool, for list: JoinedList) async {
+        isSaving = true
+        defer { isSaving = false }
+        do {
+            try await store.setReminders(list, enabled: enabled)
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 

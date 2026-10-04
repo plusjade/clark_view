@@ -125,6 +125,24 @@ struct FeedPreviewView<Leading: View, Trailing: View>: View {
     }
 }
 
+/// Matches the bell state shown beside each view in My views.
+struct FeedReminderToggle: View {
+    @Binding var isOn: Bool
+    var isDisabled = false
+
+    var body: some View {
+        Toggle(isOn: $isOn) {
+            HStack(spacing: 12) {
+                Image(systemName: isOn ? "bell.fill" : "bell.slash")
+                    .foregroundStyle(isOn ? Color.accentColor : Color.secondary)
+                    .accessibilityHidden(true)
+                Text("Reminders")
+            }
+        }
+        .disabled(isDisabled)
+    }
+}
+
 /// Uses the large widget's date line, type scale, surface, and primary-first hierarchy.
 private struct FeedItemCard: View {
     let item: WidgetItem

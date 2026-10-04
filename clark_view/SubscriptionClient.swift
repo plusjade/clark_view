@@ -1,12 +1,10 @@
 import Foundation
 
-/// A device's join and reminder preference; timing belongs to the feed.
+/// A feed joined in an earlier version. Its reminders are paused server-side.
 struct Subscription: Decodable, Hashable, Identifiable {
     let id: Int
     let feedId: String
     let feedName: String
-    let enabled: Bool
-    let reminderLeadSeconds: Int
 
     var feed: Feed { Feed(id: feedId, name: feedName) }
 }
@@ -37,7 +35,6 @@ enum SubscriptionClientError: LocalizedError, Equatable {
 enum SubscriptionClient {
     struct Index: Decodable {
         let subscriptions: [Subscription]
-        let delivery: String
     }
 
     static func index(deviceID: Int) async throws -> Index {

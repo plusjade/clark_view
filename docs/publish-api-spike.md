@@ -290,9 +290,8 @@ response byte limit, and widget item limit. A successful empty response still
 includes its resolved view IDs so an empty selection remains distinguishable from
 selected views with no current events.
 
-Reminder building must eventually use the same stored event query. Until that is
-implemented and verified, v2 reminder switches should remain unavailable rather
-than silently reading legacy source endpoints.
+Reminder building reads the same stored events and never reads legacy source
+endpoints.
 
 ## Compute-source proof
 
@@ -400,7 +399,7 @@ the explicit read-only error.
 
 ## Implementation status
 
-Observed 2026-10-03. Close this section when slice 3 ships or the spike is abandoned.
+Observed 2026-10-04. Close this section when the slice 3 iOS client is accepted or the spike is abandoned.
 
 The legacy freeze exists so legacy paths cannot interfere with or bloat v2, not to
 preserve legacy service. Legacy writes, new legacy reminders, and existing legacy
@@ -416,7 +415,8 @@ high-frequency cadence or SLA.
 | Slice 2 iOS client | On `main` (c85d3ec); builds and unit tests pass; user UAT of join, read, widgets, and leave passed (2026-10-03) | `Shared/ServerURL.swift`, `Shared/WidgetSelection.swift`, `Shared/AppDeepLink.swift`, `clark_view/List*.swift` |
 | Maintenance declaration and Browse filtering | Deployed, parent `main` v466 | `lib/publishContract.ts` (`parseCreate`, `discoverable`), `lib/publishGuide.ts`; same check |
 | Rams producer | Merged; `refresh.ts` (`0 */6 * * *` UTC) publishes to `pv_29` after each successful Sleeper refresh | `plusjade/feed-rams` `publisher.ts`, `tools/check.ts` |
-| Slice 3: reminders from `published_events` | Not started | — |
+| Slice 3 server: reminders from `published_events`; legacy reminders paused | Deployed, parent `main` v467 | `lib/publishReminders.ts`, `lib/publishStore.ts` (`published_reminder_queue`, `setReminders`), both reminder crons; `tools/publish-reminder-check.ts` in the runner |
+| Slice 3 iOS client: reminder toggle, delivery status | Written, not yet built | `clark_view/ListClient.swift`, `ListStore.swift`, `ListDetailView.swift`, `MyListsView.swift`, `FeedPreviewView.swift` |
 
 Decisions made during implementation:
 
@@ -427,8 +427,12 @@ Decisions made during implementation:
 - The client stores no separate API generation: the `pv_` prefix is the generation, so
   deep links and widget selections accept only `pv_` IDs. A retained legacy feed reads as
   All. The view catalog moved to a new App Group key.
-- `PATCH /v2/devices/:id/views/:viewId` answers `409 reminders_unavailable` until slice 3;
-  the app hides view reminders and shows freshness (`Not updated recently`) instead.
+- `PATCH /v2/devices/:id/views/:viewId` takes `{remindersEnabled}` (400
+  `invalid_reminders_enabled`, 404 `not_joined`). Memberships carry `remindersEnabled` and
+  `reminderLeadSeconds`, plus top-level `delivery`, matching the pre-v2 client shape.
+- v2 reminders use one fixed one-hour lead; a per-view lead is deferred until a producer
+  needs one. Legacy reminders are paused rather than migrated: legacy memberships cannot be
+  managed in the v2 app, so they would have been alerts nobody could turn off.
 - The merge guard renders the existing merge form with status 409 and names
   `v2_memberships_present`, since that route is a browser form.
 - A creation also writes a publication receipt and history revision 1, so

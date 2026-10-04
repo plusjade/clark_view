@@ -55,8 +55,9 @@ intent parameters, App Group keys, and API paths retain their existing names.
 On first launch the install creates its own
 device row (`POST /devices`). Views can be browsed and previewed before joining.
 Views, memberships, and events use the parent's v2 publish API; legacy views and
-memberships are not read. Leave view removes this device's membership. View reminders
-are unavailable until the server builds them from published events. A view whose producer
+memberships are not read. Leave view removes this device's membership and stops its
+reminders. Reminders start off; the view's toggle turns them on at the server's one-hour
+lead, and the home screen shows this device's delivery status while any are on. A view whose producer
 missed its declared check reads **Not updated recently**. After a join or
 leave the app asks WidgetKit to reload, since widgets showing All my views follow
 membership; WidgetKit decides when that runs.
@@ -110,9 +111,9 @@ line, refreshes when opened or foregrounded, and supports pull to refresh. Notif
 setup and its diagnostics live under the toolbar menu's Notifications entry.
 
 Legacy feeds appear under **Feeds from earlier versions** on the home screen
-when any exist. That screen is read-only: it lists them, whether reminders are on, and
-their preview and sources. Legacy membership is frozen, so the app offers no join, reminder,
-or leave controls for them.
+when any exist. That screen is read-only: it lists them with their preview and sources, and says
+their reminders have stopped. Legacy membership is frozen and legacy reminders are paused,
+so the app offers no join, reminder, or leave controls for them.
 The original lists rollout started membership empty; nothing was imported from
 legacy feeds. Renaming the product to views preserves all existing memberships.
 

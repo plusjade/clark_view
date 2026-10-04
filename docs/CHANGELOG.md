@@ -8,6 +8,14 @@ pointer. Preserve historical meaning; record reversals as new entries. Typo and
 broken-link corrections are allowed. See [AGENTS.md](../AGENTS.md#documenting-decisions)
 for routing current guidance, operational evidence, and routine validation.
 
+## 2026-10-04
+
+- Shipped publish v2 slice 3: reminders built from `published_events` at a fixed one-hour
+  lead, toggled per membership, and revalidated against the stored event before sending.
+  Paused legacy feed and list reminders, since the v2 app cannot manage those memberships;
+  their pending rows were voided. The legacy feed screens now say their reminders stopped.
+  See [publish-api-spike.md](publish-api-spike.md#implementation-status).
+
 ## 2026-10-03
 
 - Required every v2 view to declare its maintenance at creation: a check interval, or

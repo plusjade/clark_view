@@ -90,7 +90,8 @@ struct JoinListPreviewView: View {
                     Button("Try Again") { Task { await store.load() } }
                         .buttonStyle(.borderless)
                 }
-                Text("Joining adds this view to widgets showing All my views.")
+                Text("Joining adds this view to widgets showing All my views. " +
+                     "Reminders start off; turn them on from the view.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                 if list.freshness.isLapsed {
