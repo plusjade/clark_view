@@ -249,15 +249,15 @@ material friction.
 
 ## Cadence and staleness
 
-`expectedCheckIntervalSeconds` is nullable. Null means the view makes no ongoing
-maintenance claim. It is an expectation for producer checks, not an event refresh
-rate and not a Clark View schedule.
+`expectedCheckIntervalSeconds` is required at creation and nullable. Null declares a
+one-time snapshot with no ongoing maintenance claim. It is an expectation for producer
+checks, not an event refresh rate and not a Clark View schedule.
 
 The server records its own time when a successful request asserts `checked: true`;
 clients do not submit `lastCheckedAt`. Public state exposes:
 
 ```text
-freshness.status       unmonitored | current | overdue | stale
+freshness.status       snapshot | current | overdue | stale
 freshness.lastCheckedAt
 freshness.nextCheckDueAt
 freshness.staleAt
@@ -266,7 +266,7 @@ freshness.expectedCheckIntervalSeconds
 
 The initial heuristic is deliberately simple:
 
-- `unmonitored`: no cadence is declared
+- `snapshot`: no cadence is declared
 - `current`: now is at or before `lastCheckedAt + interval`
 - `overdue`: after one interval and at or before two intervals
 - `stale`: after two intervals
@@ -290,9 +290,8 @@ response byte limit, and widget item limit. A successful empty response still
 includes its resolved view IDs so an empty selection remains distinguishable from
 selected views with no current events.
 
-Reminder building must eventually use the same stored event query. Until that is
-implemented and verified, v2 reminder switches should remain unavailable rather
-than silently reading legacy source endpoints.
+Reminder building reads the same stored events and never reads legacy source
+endpoints.
 
 ## Compute-source proof
 
@@ -400,7 +399,12 @@ the explicit read-only error.
 
 ## Implementation status
 
-Observed 2026-10-03. Close this section when slice 3 ships or the spike is abandoned.
+Observed 2026-10-04. Close this section when the slice 3 iOS client is accepted or the spike is abandoned.
+
+The legacy freeze exists so legacy paths cannot interfere with or bloat v2, not to
+preserve legacy service. Legacy writes, new legacy reminders, and existing legacy
+reminders may be paused or limited without further review; nothing runs at a
+high-frequency cadence or SLA.
 
 | Piece | State | Pointer |
 | --- | --- | --- |
@@ -408,8 +412,11 @@ Observed 2026-10-03. Close this section when slice 3 ships or the spike is aband
 | Slice 1: tables, contract, routes | Deployed, parent `main` v464 | `lib/publishContract.ts`, `lib/publishStore.ts`, `lib/publishGuide.ts`, `http/routes/publishV2.ts`; `tools/publish-v2-check.ts` in the runner |
 | Lunar producer | Merged; daily interval `7 16 * * *` UTC publishes to `pv_11` | `plusjade/feed-lunar` `publish.ts`, `publisher.ts`, `tools/check.ts` |
 | Slice 2 server: membership, `/v2/devices/:id/*`, merge guard | Deployed, parent `main` v465 | `http/routes/publishV2.ts`, `http/routes/devices.ts`; same check |
-| Slice 2 iOS client | On `main` (c85d3ec); builds, unit tests and a simulator join/read/leave pass (2026-10-03); widget placement acceptance pending | `Shared/ServerURL.swift`, `Shared/WidgetSelection.swift`, `Shared/AppDeepLink.swift`, `clark_view/List*.swift` |
-| Slice 3: reminders from `published_events` | Not started | — |
+| Slice 2 iOS client | On `main` (c85d3ec); builds and unit tests pass; user UAT of join, read, widgets, and leave passed (2026-10-03) | `Shared/ServerURL.swift`, `Shared/WidgetSelection.swift`, `Shared/AppDeepLink.swift`, `clark_view/List*.swift` |
+| Maintenance declaration and Browse filtering | Deployed, parent `main` v466 | `lib/publishContract.ts` (`parseCreate`, `discoverable`), `lib/publishGuide.ts`; same check |
+| Rams producer | Merged; `refresh.ts` (`0 */6 * * *` UTC) publishes to `pv_29` after each successful Sleeper refresh | `plusjade/feed-rams` `publisher.ts`, `tools/check.ts` |
+| Slice 3 server: reminders from `published_events`; legacy reminders paused | Deployed, parent `main` v467 | `lib/publishReminders.ts`, `lib/publishStore.ts` (`published_reminder_queue`, `setReminders`), both reminder crons; `tools/publish-reminder-check.ts` in the runner |
+| Slice 3 iOS client: reminder toggle, delivery status | Written, not yet built | `clark_view/ListClient.swift`, `ListStore.swift`, `ListDetailView.swift`, `MyListsView.swift`, `FeedPreviewView.swift` |
 
 Decisions made during implementation:
 
@@ -420,10 +427,21 @@ Decisions made during implementation:
 - The client stores no separate API generation: the `pv_` prefix is the generation, so
   deep links and widget selections accept only `pv_` IDs. A retained legacy feed reads as
   All. The view catalog moved to a new App Group key.
-- `PATCH /v2/devices/:id/views/:viewId` answers `409 reminders_unavailable` until slice 3;
-  the app hides view reminders and shows freshness (`Not updated recently`) instead.
+- `PATCH /v2/devices/:id/views/:viewId` takes `{remindersEnabled}` (400
+  `invalid_reminders_enabled`, 404 `not_joined`). Memberships carry `remindersEnabled` and
+  `reminderLeadSeconds`, plus top-level `delivery`, matching the pre-v2 client shape.
+- v2 reminders use one fixed one-hour lead; a per-view lead is deferred until a producer
+  needs one. Legacy reminders are paused rather than migrated: legacy memberships cannot be
+  managed in the v2 app, so they would have been alerts nobody could turn off.
 - The merge guard renders the existing merge form with status 409 and names
   `v2_memberships_present`, since that route is a browser form.
 - A creation also writes a publication receipt and history revision 1, so
   `GET .../publications` lists it.
 - Capacity is 50 views (`LIMITS.views`).
+- Creation requires an explicit `expectedCheckIntervalSeconds` (`maintenance_required`)
+  after an agent-created view (`pv_12`) omitted it and could rot unnoticed. `null` is a
+  declared snapshot. Browse omits stale views and snapshots whose events have all
+  ended; joined views and direct links still resolve. The app does not yet label
+  snapshots (`isLapsed` covers only overdue and stale); the open page does.
+- A producer owns an event ID prefix (`lunar15-`, `nfl-`) and removes only its own IDs,
+  so another publisher can add events to the same view.

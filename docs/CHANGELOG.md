@@ -8,7 +8,22 @@ pointer. Preserve historical meaning; record reversals as new entries. Typo and
 broken-link corrections are allowed. See [AGENTS.md](../AGENTS.md#documenting-decisions)
 for routing current guidance, operational evidence, and routine validation.
 
+## 2026-10-04
+
+- Shipped publish v2 slice 3: reminders built from `published_events` at a fixed one-hour
+  lead, toggled per membership, and revalidated against the stored event before sending.
+  Paused legacy feed and list reminders, since the v2 app cannot manage those memberships;
+  their pending rows were voided. The legacy feed screens now say their reminders stopped.
+  See [publish-api-spike.md](publish-api-spike.md#implementation-status).
+
 ## 2026-10-03
+
+- Required every v2 view to declare its maintenance at creation: a check interval, or
+  `null` for a one-time snapshot. An agent-created playoff view had omitted it, which
+  left a schedule that changes daily with no staleness signal. Browse now hides stale
+  views and snapshots with nothing left to show. Ported Rams as the first upstream
+  producer: its existing Sleeper refresh publishes to `pv_29` and checks in only when the
+  refresh succeeds. See [publish-api-spike.md](publish-api-spike.md#implementation-status).
 
 - Made Feeds from earlier versions read-only and removed the legacy join, reminder, and
   leave controls with the legacy feed catalog. Legacy membership is frozen and those

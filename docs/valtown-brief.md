@@ -37,15 +37,18 @@ table; producers publish through `/v2`; `GET /v2/events` reads parent storage di
 Legacy publication is frozen: parent membership and managed-refresh writes, the
 provisioner's `POST /managed-sources`, and every managed slot's
 initialize/reconcile return `423 legacy_read_only`. Legacy reads, conformance probes,
-device registration, tokens, inventory, receipts, and legacy reminders continue.
+device registration, tokens, inventory, and receipts continue. Legacy reminders are paused.
 `plusjade/feed-lunar` publishes daily to v2 view `pv_11`. Slice 2 (parent v465) adds
 v2 device membership and `/v2/devices/:id/events`; the iOS client on `main` reads only
-v2. v2 reminders are not built.
+v2. Creation requires a maintenance declaration (parent v466). `plusjade/feed-rams`
+publishes to `pv_29` after each six-hour refresh. Slice 3 (parent v467) builds reminders
+from `published_events`; both reminder crons run only the v2 pipeline.
 
 Clark View is widget-first. The containing iOS app registers its own install, manages
-joined **views** (each with a preview and its own reminder switch) on the home screen,
-and exposes notification setup and diagnostics through its menu. A view is a named
-collection of events backed by one registered source. Widgets display events from
+joined **views** (each with a preview and producer freshness) on the home screen,
+and exposes notification setup and diagnostics through its menu. In the app, a view is
+a published v2 view whose events live in the parent; legacy views are each backed by
+one registered source and are read only by older builds. Widgets display events from
 all joined views or a selected subset. The browser administers device identity and
 inspects sources and widget activity.
 
@@ -244,10 +247,11 @@ no browser or route editor. Sources own their data separately.
 | `lib/deviceStore.ts` | Device identity |
 | `lib/presentation.ts` | Global events presentation and legacy stored presentation parsing |
 | `lib/deviceTokenStore.ts`, `lib/push.ts` | Token lifecycle and best-effort device notification (`notifyDevice`) |
-| `lib/subscriptionStore.ts` | Feed-subscription and view-membership reminder authorization, and the shared notification ledger |
+| `lib/publishReminders.ts` | v2 reminder builder and drainer over `published_reminder_queue` and `published_events`; delivery capability |
+| `lib/subscriptionStore.ts` | Paused legacy feed and list reminder authorization and ledger; still covered by its check |
 | `lib/widgetObservationStore.ts`, `http/routes/widgetObservations.ts` | Device-reported widget inventory, feed- and event-request receipts, `/devices/:id/widgets`; parent `docs/widget-inventory.md` |
-| `lib/subscriptionBuilder.ts`, `lib/subscriptionDrainer.ts` | Queue events from subscribed feeds and reminder-enabled views; validate and send due alerts |
-| `crons/buildReminders.ts`, `crons/drainReminders.ts` | The two reminder schedules |
+| `lib/subscriptionBuilder.ts`, `lib/subscriptionDrainer.ts` | Paused legacy reminder builder and drainer; no cron or route calls them |
+| `crons/buildReminders.ts`, `crons/drainReminders.ts` | The two v2 reminder schedules |
 | `lib/lifecycle.ts` | Global lifecycle label set; phase-to-word resolution and the derived legacy caption |
 | `lib/guards.ts` | Domain-free runtime guards |
 | `render/pageShell.ts` | Browser styles, semantic hierarchy, navigation and shared form/table rules |
@@ -293,7 +297,7 @@ crawlable directory of those routes.
 | `/sources/:id` | Source Preview tab: reads the implementing source without settings and renders temporal items plus the raw source response; failures and empty feeds remain ordinary page states |
 | `/sources/:id/overview` | Registry metadata and verification |
 | `/sources/:id/diagnostics` | Retired path; redirects to the source Preview with 301 |
-| `POST /internal/reminders/{build,drain}` | Subscription reminder jobs behind `REMINDERS_TOKEN` bearer auth; unset returns 401. Drain accepts an optional row `id`, keeping an external scheduler swappable for the cron. |
+| `POST /internal/reminders/{build,drain}` | v2 reminder jobs behind `REMINDERS_TOKEN` bearer auth; unset returns 401. Drain accepts an optional row `id`, keeping an external scheduler swappable for the cron. |
 
 Retired parent routes are not supported compatibility or rollback targets:
 `/feeds/manage`, `/feeds/new`, feed management/assignment writes,
@@ -467,6 +471,16 @@ entrypoints and environment metadata when remixing.
   versioning, Swift model/decoder, parent/source, preview fixture and test changes.
 
 ## Reminders and stored time
+
+**v2 reminders (parent v467, 2026-10-04).** A v2 membership with reminders on gets one
+alert per upcoming event at a fixed one-hour lead (`REMINDER_LEAD_SECONDS`), built from
+`published_events` within a 36-hour horizon. A build refreshes each candidate row and voids
+the device's pending rows it did not touch, so a moved event reschedules and a removed one
+cancels. The drain revalidates membership, the toggle, and the event's window before
+claiming and sending; turning reminders off or leaving voids pending rows. The queue has
+no foreign keys so terminal history outlives memberships. Legacy feed and list reminders
+are paused: no cron builds or drains them, and their pending rows were voided as
+`LegacyRemindersPaused`. The legacy description below is retained for context.
 
 **Cutover status (observed 2026-09-24).** The implementation was merged from
 `independent-feeds` into parent `main` version 387. The shared database copy's

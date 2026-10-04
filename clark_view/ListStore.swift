@@ -31,6 +31,7 @@ final class ListStore {
 
     private(set) var phase = Phase.loading
     private(set) var lists: [JoinedList] = []
+    private(set) var delivery: String?
     private(set) var deviceID: Int?
 
     func load() async {
@@ -42,6 +43,7 @@ final class ListStore {
         do {
             let memberships = try await ListClient.memberships(deviceID: id)
             lists = memberships.views
+            delivery = memberships.delivery
             // A failed load leaves the last successful picker choices in place.
             WidgetListCatalog.shared.replaceJoined(lists.map(\.list))
             phase = .loaded
@@ -58,6 +60,11 @@ final class ListStore {
         try await ListClient.join(deviceID: try requireDevice(), listID: list.id)
         WidgetListCatalog.shared.recordJoin(list.list)
         await membershipChanged()
+    }
+
+    func setReminders(_ list: JoinedList, enabled: Bool) async throws {
+        try await ListClient.setReminders(deviceID: try requireDevice(), listID: list.id, enabled: enabled)
+        await load()
     }
 
     func leave(_ list: JoinedList) async throws {
